@@ -24,7 +24,9 @@ class LiquidNetwork:
 
         return float(np.dot(self.x, self.x))
 
-    def apply_suprathreshold_gain(self, S: float, theta: float, A: float = 1.0, dt: float = 1.0):
+    def apply_suprathreshold_gain(
+        self, S: float, theta: float, A: float = 1.0, dt: float = 1.0
+    ):
         """Additive Euler term: dx/dt += A*x*[S-θ]_+."""
 
         suprath = max(0.0, S - theta)

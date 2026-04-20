@@ -19,14 +19,16 @@ CONFIG = {
     # Prevent NE double-counting (recommended)
     "ne_on_precision": True,
     "ne_on_threshold": False,
+    # NE modulation strength (use gamma_ne<=0.01 when ne_on_threshold=True)
     "gamma_ne": 0.1,
+    # Threshold decay rate (use kappa>=0.15 when ne_on_threshold=True)
+    "kappa": 0.15,
     # Signal accumulation
     "lam": 0.2,
     "signal_log_nonlinearity": True,
     # Threshold update + refractory dynamics
     "eta": 0.1,
     "delta": 0.5,
-    "kappa": 0.02,
     # Cost-value model
     "use_realistic_cost": True,
     "c0": 0.0,
