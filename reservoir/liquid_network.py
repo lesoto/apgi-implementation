@@ -9,10 +9,7 @@ class LiquidNetwork:
         self.x = np.zeros(n_units)
 
     def step(self, u, tau, activation=np.tanh):
-        dx = (
-            -self.x / tau
-            + activation(self.W_res @ self.x + self.W_in * u)
-        )
+        dx = -self.x / tau + activation(self.W_res @ self.x + self.W_in * u)
         self.x += dx
         return self.x
 

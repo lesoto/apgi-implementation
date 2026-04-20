@@ -1,7 +1,10 @@
 import numpy as np
 from collections import deque
 
+
 class RunningStats:
+    window: deque[float]
+
     def __init__(self, window_size: int):
         self.window = deque(maxlen=window_size)
 

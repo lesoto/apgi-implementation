@@ -1,8 +1,5 @@
 from core.preprocessing import compute_prediction_error, z_score, RunningStats
-from core.precision import (
-    compute_precision,
-    compute_effective_interoceptive_precision
-)
+from core.precision import compute_precision, compute_effective_interoceptive_precision
 from core.signal import compute_apgi_signal
 from core.ignition import detect_ignition_event, compute_ignition_probability
 from hierarchy.multiscale import apply_reset_rule
@@ -11,9 +8,9 @@ from hierarchy.multiscale import apply_reset_rule
 class APGIPipeline:
     def __init__(self, config):
         self.config = config
-        self.stats_e = RunningStats(window_size=config['window_size'])
-        self.stats_i = RunningStats(window_size=config['window_size'])
-        self.theta = config['theta_0']
+        self.stats_e = RunningStats(window_size=config["window_size"])
+        self.stats_i = RunningStats(window_size=config["window_size"])
+        self.theta = config["theta_0"]
         self.S = 0.0
 
     def step(self, x_e, x_hat_e, x_i, x_hat_i, somatic_marker):
@@ -34,16 +31,14 @@ class APGIPipeline:
 
         # 4. Somatic Bias
         pi_i_eff = compute_effective_interoceptive_precision(
-            pi_i_base, self.config['beta'], somatic_marker
+            pi_i_base, self.config["beta"], somatic_marker
         )
 
         # 5. Signal
         self.S = compute_apgi_signal(z_e, z_i, pi_e, pi_i_eff)
 
         # 6. Ignition Probability
-        B_t = compute_ignition_probability(
-            self.S, self.theta, self.config['alpha']
-        )
+        B_t = compute_ignition_probability(self.S, self.theta, self.config["alpha"])
 
         # 7. Ignition Detection
         ignition = detect_ignition_event(self.S, self.theta)
@@ -51,14 +46,7 @@ class APGIPipeline:
         # 8. Reset Rule
         if ignition:
             self.S, self.theta = apply_reset_rule(
-                self.S, self.theta,
-                rho=self.config['rho'],
-                delta=self.config['delta']
+                self.S, self.theta, rho=self.config["rho"], delta=self.config["delta"]
             )
 
-        return {
-            'S': self.S,
-            'theta': self.theta,
-            'ignition': ignition,
-            'B_t': B_t
-        }
+        return {"S": self.S, "theta": self.theta, "ignition": ignition, "B_t": B_t}
