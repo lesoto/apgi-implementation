@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from core.dynamics import signal_drift, update_prediction, update_threshold_ode
+import numpy as np
+
+from core.dynamics import signal_drift, update_prediction
+from core.allostatic import allostatic_threshold_ode, update_threshold_euler
 from core.ignition import (
     compute_ignition_probability,
     detect_ignition_event,
@@ -30,6 +33,8 @@ from core.threshold import (
     threshold_decay,
     update_threshold_discrete,
 )
+from stats.hurst import estimate_hurst_robust
+from stats.spectral_model import validate_pink_noise
 
 
 @dataclass
@@ -62,6 +67,9 @@ class HierarchicalState:
 
 class APGIPipeline:
     """APGI one-step update implementing the full corrected mathematical pipeline."""
+
+    M: float
+    history: dict[str, list[float]]
 
     def __init__(self, config: dict):
         # Copy to avoid mutating the caller's dict
@@ -118,6 +126,12 @@ class APGIPipeline:
 
         # Somatic marker state if enabled
         self.M = self.config.get("M_somatic", 0.0)  # Somatic marker ∈ [-2, +2]
+
+        self.history = {
+            "S": [],
+            "theta": [],
+            "B": [],
+        }
 
     def step(
         self,
@@ -196,7 +210,10 @@ class APGIPipeline:
                     if level < self.hierarchical.n_levels - 1
                     else None
                 )
-                pi_minus = self.hierarchical.pis[level - 1] if level > 0 else None
+                # Bottom-up coupling from lower level error ψ(ε_{ℓ-1})
+                epsilon_minus_1 = (
+                    abs(z_i_eff) if level == 1 else (0.0 if level > 1 else None)
+                )
                 epsilon = abs(z_i_eff if level == 0 else 0.0)
 
                 dpi_dt = precision_coupling_ode_core(
@@ -205,7 +222,7 @@ class APGIPipeline:
                     epsilon_ell=epsilon,
                     alpha_gain=self.config.get("alpha_gain", 0.1),
                     pi_ell_plus_1=pi_plus,
-                    pi_ell_minus_1=pi_minus,
+                    epsilon_ell_minus_1=epsilon_minus_1,
                     C_down=self.config.get("C_down", 0.1),
                     C_up=self.config.get("C_up", 0.05),
                 )
@@ -253,7 +270,7 @@ class APGIPipeline:
             C_t = compute_metabolic_cost(self.S, self.config["c0"], self.config["c1"])
 
         V_t = compute_information_value(
-            z_e_n, z_i_n, self.config["v1"], self.config["v2"]
+            z_e_n, z_i_eff, self.config["v1"], self.config["v2"]
         )
 
         # 7b) Threshold update: discrete or continuous ODE per APGI spec
@@ -261,20 +278,17 @@ class APGIPipeline:
         # Note: δ_reset·B is part of core allostatic update, applied BEFORE NE modulation
         if self.config.get("use_continuous_threshold_ode", False):
             dt = self.config.get("dt", 1.0)
-            self.theta_dot = update_threshold_ode(
+            self.theta_dot = allostatic_threshold_ode(
                 theta=self.theta,
-                theta_base=self.config["theta_base"],
-                C=C_t,
-                V=V_t,
-                tau_theta=self.config.get("tau_theta", 1000.0),
-                eta=self.config["eta"],
-                noise_std=self.config.get("theta_noise_std", 0.01),
+                theta_0=self.config["theta_base"],
+                gamma=1.0 / self.config.get("tau_theta", 1000.0),
+                B_prev=self.B_prev,
+                delta=self.config["delta"],
             )
-            # Continuous ODE form: dθ/dt = -(θ-θ_base)/τ_θ + η(C-V)
-            # Refractory boost δ_reset·B applied as part of update
-            theta_next = (
-                self.theta + dt * self.theta_dot + self.config["delta"] * self.B_prev
-            )
+            # Add allostatic mismatch contribution to theta_dot
+            self.theta_dot += self.config["eta"] * (C_t - V_t)
+
+            theta_next = update_threshold_euler(self.theta, self.theta_dot, dt)
         else:
             # Discrete form: θ += η(C-V) + δ_reset·B_prev
             # Refractory boost is part of the allostatic update per spec Section 4
@@ -349,6 +363,11 @@ class APGIPipeline:
         self.B_prev = B_t
         self.t += self.config.get("dt", 1.0)
 
+        # Update history for validation
+        self.history["S"].append(self.S)
+        self.history["theta"].append(self.theta)
+        self.history["B"].append(float(B_t))
+
         result = {
             "z_e": z_e,
             "z_i": z_i,
@@ -380,3 +399,31 @@ class APGIPipeline:
             result["hierarchical_thetas"] = self.hierarchical.thetas.copy()
 
         return result
+
+    def validate(self) -> dict:
+        """Perform statistical validation on the accumulated history."""
+
+        if len(self.history["theta"]) < 64:
+            return {"status": "insufficient_data"}
+
+        # Validate threshold 1/f dynamics
+        theta_arr = np.array(self.history["theta"])
+        fs = 1.0 / self.config.get("dt", 1.0)
+
+        # Estimate Hurst exponent
+        hurst_val = estimate_hurst_robust(theta_arr, fs=fs)
+
+        # Check for pink noise
+        # Re-compute PSD for validate_pink_noise
+        from stats.hurst import welch_periodogram
+
+        freqs, psd = welch_periodogram(theta_arr, fs=fs)
+        pink_stats = validate_pink_noise(freqs, psd)
+
+        return {
+            "status": "success",
+            "hurst_exponent": hurst_val,
+            "is_pink_noise": pink_stats["is_pink_noise"],
+            "beta": pink_stats["beta"],
+            "data_points": len(theta_arr),
+        }

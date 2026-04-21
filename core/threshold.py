@@ -18,11 +18,11 @@ def compute_metabolic_cost_realistic(
 
 
 def compute_information_value(
-    z_e: float, z_i: float, v1: float = 1.0, v2: float = 1.0
+    z_e: float, z_i_eff: float, v1: float = 1.0, v2: float = 1.0
 ) -> float:
-    """V(t)≈v1|z_e|+v2|z_i|."""
+    """V(t)≈v1|z_e|+v2|z_i_eff|."""
 
-    return float(v1 * abs(z_e) + v2 * abs(z_i))
+    return float(v1 * abs(z_e) + v2 * abs(z_i_eff))
 
 
 def apply_ne_threshold_modulation(theta: float, g_ne: float, gamma_ne: float) -> float:

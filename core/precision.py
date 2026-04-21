@@ -99,7 +99,7 @@ def precision_coupling_ode_core(
     epsilon_ell: float,
     alpha_gain: float,
     pi_ell_plus_1: float | None,
-    pi_ell_minus_1: float | None,
+    epsilon_ell_minus_1: float | None,
     C_down: float,
     C_up: float,
     psi: Callable[[float], float] | None = None,
@@ -116,18 +116,18 @@ def precision_coupling_ode_core(
     - C_up·ψ(ϵ_{ℓ-1}): Bottom-up error coupling
 
     Args:
-        pi_ell: Current level precision
-        tau_pi: Precision decay time constant
-        epsilon_ell: Current level prediction error
-        alpha_gain: Error-to-precision gain
-        pi_ell_plus_1: Higher level precision (None for top level)
-        pi_ell_minus_1: Lower level precision (None for bottom level)
-        C_down: Top-down coupling strength
-        C_up: Bottom-up coupling strength
-        psi: Nonlinear error transfer function
+    - pi_ell: Current level precision
+    - tau_pi: Precision decay time constant
+    - epsilon_ell: Current level prediction error
+    - alpha_gain: Error-to-precision gain
+    - pi_ell_plus_1: Higher level precision (None for top level)
+    - epsilon_ell_minus_1: Lower level prediction error (None for bottom level)
+    - C_down: Top-down coupling strength
+    - C_up: Bottom-up coupling strength
+    - psi: Nonlinear error transfer function ψ
 
     Returns:
-        dΠ_ℓ/dt (precision change rate)
+    - dΠ_ℓ/dt (precision change rate)
     """
 
     decay = -pi_ell / tau_pi
@@ -138,8 +138,8 @@ def precision_coupling_ode_core(
         top_down = C_down * (pi_ell_plus_1 - pi_ell)
 
     bottom_up = 0.0
-    if pi_ell_minus_1 is not None:
-        error_lower = abs(epsilon_ell)
+    if epsilon_ell_minus_1 is not None:
+        error_lower = abs(epsilon_ell_minus_1)
         if psi is not None:
             error_lower = psi(error_lower)
         bottom_up = C_up * error_lower
