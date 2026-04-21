@@ -14,13 +14,74 @@ class LiquidNetwork:
         self.W_res = W_raw * (spectral_radius / rho) if rho > 0.0 else W_raw
         self.W_in = np.random.randn(n_units) * 0.1
         self.x = np.zeros(n_units, dtype=float)
+        # Adaptive time constant state
+        self.tau_current = 100.0  # Default τ in ms
+        self.tau_base = 100.0
 
-    def step(self, u: float, tau: float, dt: float = 1.0, activation=np.tanh):
-        """x_dot = -x/τ + f(W_res x + W_in u)."""
+    def compute_adaptive_tau(
+        self,
+        precision: float,
+        tau_min: float = 10.0,
+        tau_max: float = 500.0,
+        pi_ref: float = 1.0,
+    ) -> float:
+        """Compute adaptive time constant τ(t) modulated by precision.
 
-        if tau <= 0:
+        Higher precision → faster dynamics (lower τ)
+        Lower precision → slower dynamics (higher τ)
+
+        Formula: τ(t) = τ_base · (π_ref / π)^α with α=0.5
+
+        Args:
+            precision: Current precision value
+            tau_min: Minimum time constant (fastest)
+            tau_max: Maximum time constant (slowest)
+            pi_ref: Reference precision for baseline
+
+        Returns:
+            Adaptive time constant τ(t)
+        """
+
+        if precision <= 0:
+            return tau_max
+
+        # Inverse relationship: high precision → fast (low tau)
+        alpha = 0.5  # Modulation exponent
+        tau_adaptive = self.tau_base * (pi_ref / precision) ** alpha
+
+        return float(np.clip(tau_adaptive, tau_min, tau_max))
+
+    def step(
+        self,
+        u: float,
+        tau: float | None = None,
+        dt: float = 1.0,
+        activation=np.tanh,
+        precision: float | None = None,
+    ):
+        """x_dot = -x/τ + f(W_res x + W_in u).
+
+        Args:
+            u: Input signal
+            tau: Fixed time constant (if None, uses precision-adaptive)
+            dt: Time step
+            activation: Nonlinearity function
+            precision: Precision for adaptive τ(t) (optional)
+        """
+
+        # Determine time constant
+        if tau is not None:
+            tau_eff = tau
+        elif precision is not None:
+            tau_eff = self.compute_adaptive_tau(precision)
+            self.tau_current = tau_eff
+        else:
+            tau_eff = self.tau_current
+
+        if tau_eff <= 0:
             raise ValueError("tau must be > 0")
-        dx_dt = -self.x / tau + activation(self.W_res @ self.x + self.W_in * u)
+
+        dx_dt = -self.x / tau_eff + activation(self.W_res @ self.x + self.W_in * u)
         self.x += dt * dx_dt
         return self.x
 
