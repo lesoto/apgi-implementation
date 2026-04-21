@@ -76,6 +76,29 @@ def hurst_from_slope(beta_spec: float) -> float:
     return float((beta_spec + 1.0) / 2.0)
 
 
+def power_spectrum(
+    freqs: np.ndarray,
+    tau_levels: np.ndarray,
+    sigma_levels: np.ndarray,
+) -> np.ndarray:
+    """Analytic multi-timescale PSD: S(f) = Σ_l σ_l²τ_l² / (1 + (2πfτ_l)²).
+
+    Gives the closed-form power spectral density of a superposition of
+    first-order Ornstein-Uhlenbeck processes with timescales τ_l and
+    noise amplitudes σ_l.
+    """
+
+    f = np.asarray(freqs, dtype=float)
+    taus = np.asarray(tau_levels, dtype=float)
+    sigmas = np.asarray(sigma_levels, dtype=float)
+    if len(taus) != len(sigmas):
+        raise ValueError("tau_levels and sigma_levels must have the same length")
+    S = np.zeros_like(f)
+    for tau, sigma in zip(taus, sigmas):
+        S += (sigma**2 * tau**2) / (1.0 + (2.0 * np.pi * f * tau) ** 2)
+    return S
+
+
 def estimate_hurst_robust(
     signal: np.ndarray,
     fs: float = 1.0,

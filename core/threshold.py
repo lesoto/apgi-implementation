@@ -51,3 +51,32 @@ def apply_refractory_boost(theta_next: float, B: int, delta: float) -> float:
     """Post-ignition boost: θ <- θ + δ*B."""
 
     return float(theta_next + delta * int(B))
+
+
+def update_threshold_ode(
+    theta: float,
+    theta_0: float,
+    dS_dt: float,
+    B_prev: int,
+    gamma: float,
+    delta: float,
+    lam: float,
+) -> float:
+    """Continuous threshold dynamics (rate of change):
+    dθ/dt = γ(θ_0 - θ) + δ·B(t-1) - λ|dS/dt|.
+
+    Args:
+        theta: Current threshold.
+        theta_0: Resting/baseline threshold.
+        dS_dt: Current signal rate of change (from ODE).
+        B_prev: Ignition state at previous timestep.
+        gamma: Mean-reversion rate toward θ_0.
+        delta: Threshold boost per ignition event.
+        lam: Signal-rate-driven threshold reduction coefficient.
+    """
+
+    return float(
+        gamma * (theta_0 - theta)
+        + delta * int(B_prev)
+        - lam * abs(dS_dt)
+    )

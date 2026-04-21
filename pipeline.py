@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from core.dynamics import signal_drift
 from core.ignition import (
     compute_ignition_probability,
     detect_ignition_event,
@@ -12,14 +13,12 @@ from core.precision import (
     apply_dopamine_bias_to_error,
     apply_ne_gain,
     compute_precision,
+    update_mean_ema,
     update_variance_ema,
 )
-from core.preprocessing import compute_prediction_error, normalize_error
-from core.signal import (
-    integrate_signal_leaky,
-    instantaneous_signal,
-    stabilize_signal_log,
-)
+from core.preprocessing import compute_prediction_error
+from core.sde import integrate_euler_maruyama
+from core.signal import instantaneous_signal, stabilize_signal_log
 from core.threshold import (
     apply_ne_threshold_modulation,
     apply_refractory_boost,
@@ -35,15 +34,19 @@ from core.threshold import (
 class PrecisionState:
     sigma2_e: float
     sigma2_i: float
+    mu_e: float = field(default=0.0)  # EMA mean for exteroceptive errors
+    mu_i: float = field(default=0.0)  # EMA mean for interoceptive errors
 
 
 class APGIPipeline:
     """APGI one-step update implementing the full corrected mathematical pipeline."""
 
     def __init__(self, config: dict):
-        self.config = config
+        # Copy to avoid mutating the caller's dict
+        self.config = dict(config)
+
         # Validate NE configuration to prevent double-counting
-        if config.get("ne_on_precision", False) and config.get(
+        if self.config.get("ne_on_precision", False) and self.config.get(
             "ne_on_threshold", False
         ):
             import warnings
@@ -56,7 +59,7 @@ class APGIPipeline:
                 stacklevel=2,
             )
         # Auto-adjust NE parameters for threshold mode to prevent runaway
-        if config.get("ne_on_threshold", False) and config.get("gamma_ne", 0.1) >= 0.1:
+        if self.config.get("ne_on_threshold", False) and self.config.get("gamma_ne", 0.1) >= 0.1:
             import warnings
 
             warnings.warn(
@@ -68,32 +71,37 @@ class APGIPipeline:
             )
             self.config["gamma_ne"] = 0.01
             self.config["kappa"] = 0.15
-        self.S = float(config["S0"])
-        self.theta = float(config["theta_0"])
+
+        self.S = float(self.config["S0"])
+        self.theta = float(self.config["theta_0"])
         self.state = PrecisionState(
-            sigma2_e=float(config["sigma2_e0"]),
-            sigma2_i=float(config["sigma2_i0"]),
+            sigma2_e=float(self.config["sigma2_e0"]),
+            sigma2_i=float(self.config["sigma2_i0"]),
         )
         self.B_prev = 0
+        self._t = 0.0  # continuous time for SDE
 
     def step(self, x_e: float, x_hat_e: float, x_i: float, x_hat_i: float):
         # 1) Raw prediction errors
         z_e = compute_prediction_error(x_e, x_hat_e)
         z_i = compute_prediction_error(x_i, x_hat_i)
 
-        # 2) Online variance update (EMA)
+        # 2) Online mean + variance update (EMA, centered)
+        self.state.mu_e = update_mean_ema(self.state.mu_e, z_e, self.config["alpha_e"])
+        self.state.mu_i = update_mean_ema(self.state.mu_i, z_i, self.config["alpha_i"])
         self.state.sigma2_e = update_variance_ema(
-            self.state.sigma2_e, z_e, self.config["alpha_e"]
+            self.state.sigma2_e, z_e, self.state.mu_e, self.config["alpha_e"]
         )
         self.state.sigma2_i = update_variance_ema(
-            self.state.sigma2_i, z_i, self.config["alpha_i"]
+            self.state.sigma2_i, z_i, self.state.mu_i, self.config["alpha_i"]
         )
 
-        # Optional normalization
-        z_e_n = normalize_error(z_e, self.state.sigma2_e**0.5, self.config["eps"])
-        z_i_n = normalize_error(z_i, self.state.sigma2_i**0.5, self.config["eps"])
+        # 3) Proper z-score normalization: (z - μ) / (σ + ε)
+        eps = self.config["eps"]
+        z_e_n = (z_e - self.state.mu_e) / (self.state.sigma2_e ** 0.5 + eps)
+        z_i_n = (z_i - self.state.mu_i) / (self.state.sigma2_i ** 0.5 + eps)
 
-        # 3) Precision with clamping
+        # 4) Precision with clamping
         pi_e = compute_precision(
             self.state.sigma2_e,
             self.config["eps"],
@@ -107,7 +115,7 @@ class APGIPipeline:
             self.config["pi_max"],
         )
 
-        # 4) Neuromodulation (+ dopamine correction)
+        # 5) Neuromodulation (+ dopamine correction)
         pi_e_eff = apply_ach_gain(pi_e, self.config["g_ach"])
         pi_i_eff = (
             apply_ne_gain(pi_i, self.config["g_ne"])
@@ -116,14 +124,33 @@ class APGIPipeline:
         )
         z_i_eff = apply_dopamine_bias_to_error(z_i_n, self.config["beta"])
 
-        # 5) Instantaneous + leaky accumulated signal
+        # 6) Instantaneous signal (diagnostic) + SDE integration via ODE drift
         S_inst = instantaneous_signal(z_e_n, z_i_eff, pi_e_eff, pi_i_eff)
-        self.S = integrate_signal_leaky(self.S, S_inst, self.config["lam"])
+
+        # Wire dynamics.py (signal_drift) + sde.py (integrate_euler_maruyama):
+        # dS/dt = -S/τ_S + Π_e|z_e| + β·Π_i|z_i| + σ·dW
+        _z_e_n = z_e_n
+        _z_i_n = z_i_n
+        _pi_e_eff = pi_e_eff
+        _pi_i_eff = pi_i_eff
+        _beta = self.config["beta"]
+        _tau_s = self.config["tau_s"]
+        drift_fn = lambda s, _t: signal_drift(
+            s, _z_e_n, _z_i_n, _pi_e_eff, _pi_i_eff, _beta, _tau_s
+        )
+        self.S = integrate_euler_maruyama(
+            self.S,
+            drift_fn,
+            self.config["noise_std"],
+            self._t,
+            self.config["dt"],
+        )
+        self._t += self.config["dt"]
         self.S = stabilize_signal_log(
             self.S, enabled=self.config["signal_log_nonlinearity"]
         )
 
-        # 6) Cost/value and threshold update
+        # 7) Cost/value and threshold update
         if self.config["use_realistic_cost"]:
             C_t = compute_metabolic_cost_realistic(
                 self.S, self.B_prev, self.config["c1"], self.config["c2"]
@@ -141,7 +168,7 @@ class APGIPipeline:
                 theta_next, self.config["g_ne"], self.config["gamma_ne"]
             )
 
-        # 7) Ignition
+        # 8) Ignition
         p_ignite = compute_ignition_probability(
             self.S, theta_next, self.config["ignite_tau"]
         )
@@ -150,7 +177,7 @@ class APGIPipeline:
         else:
             B_t = int(detect_ignition_event(self.S, theta_next))
 
-        # 8) Refractory effects
+        # 9) Refractory effects
         theta_next = apply_refractory_boost(theta_next, B_t, self.config["delta"])
         theta_next = threshold_decay(
             theta_next, self.config["theta_base"], self.config["kappa"]
@@ -164,6 +191,8 @@ class APGIPipeline:
             "z_i": z_i,
             "z_e_norm": z_e_n,
             "z_i_norm": z_i_n,
+            "mu_e": self.state.mu_e,
+            "mu_i": self.state.mu_i,
             "pi_e": pi_e,
             "pi_i": pi_i,
             "pi_e_eff": pi_e_eff,

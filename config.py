@@ -39,6 +39,10 @@ CONFIG = {
     # Ignition dynamics
     "ignite_tau": 0.5,
     "stochastic_ignition": False,
+    # Continuous-time signal ODE / SDE parameters
+    "tau_s": 5.0,      # Signal decay time constant (dt/tau_s ≈ lam)
+    "dt": 1.0,          # Integration time step
+    "noise_std": 0.01,  # SDE diffusion coefficient
     # Multi-scale recommendation parameter
     "timescale_k": 1.6,
 }
