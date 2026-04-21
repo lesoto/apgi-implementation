@@ -23,12 +23,24 @@ def compute_precision(
     return clamp(raw, pi_min, pi_max)
 
 
-def update_variance_ema(prev_sigma2: float, z: float, alpha: float) -> float:
-    """Online EMA variance: σ²(t+1)=(1-α)σ²(t)+α z²(t)."""
+def update_mean_ema(prev_mean: float, z: float, alpha: float) -> float:
+    """Online EMA mean: μ(t+1) = (1-α)μ(t) + α·z(t)."""
 
     if not (0.0 < alpha <= 1.0):
         raise ValueError("alpha must be in (0,1]")
-    return float((1.0 - alpha) * prev_sigma2 + alpha * (z**2))
+    return float((1.0 - alpha) * prev_mean + alpha * z)
+
+
+def update_variance_ema(prev_sigma2: float, z: float, mu: float, alpha: float) -> float:
+    """Online EMA variance: σ²(t+1) = (1-α)σ²(t) + α·(z-μ)².
+
+    Uses centered squared deviation to avoid overestimation when errors
+    have nonzero mean.
+    """
+
+    if not (0.0 < alpha <= 1.0):
+        raise ValueError("alpha must be in (0,1]")
+    return float((1.0 - alpha) * prev_sigma2 + alpha * (z - mu) ** 2)
 
 
 def apply_ach_gain(pi_e: float, g_ach: float) -> float:
@@ -38,13 +50,13 @@ def apply_ach_gain(pi_e: float, g_ach: float) -> float:
 
 
 def apply_ne_gain(pi_i: float, g_ne: float) -> float:
-    """Π_i_eff = g_NE * Π_i."""
+    """Π_i_eff = g_NE * Π_i (linear approximation)."""
 
     return float(g_ne * pi_i)
 
 
 def apply_dopamine_bias_to_error(z_i: float, beta: float) -> float:
-    """Dopamine correction: z_i_eff = z_i + β (not precision scaling)."""
+    """Dopamine additive bias on error: z_i_eff = z_i + β."""
 
     return float(z_i + beta)
 
@@ -78,7 +90,6 @@ def compute_interoceptive_precision_exponential(
 
     modulation = np.exp(beta_somatic * M)
     pi_eff = pi_baseline * modulation
-
     return float(np.clip(pi_eff, pi_min, pi_max))
 
 
@@ -119,18 +130,13 @@ def precision_coupling_ode_core(
         dΠ_ℓ/dt (precision change rate)
     """
 
-    # Self-decay
     decay = -pi_ell / tau_pi
-
-    # Error-driven gain
     error_drive = alpha_gain * abs(epsilon_ell)
 
-    # Top-down coupling (from higher level)
     top_down = 0.0
     if pi_ell_plus_1 is not None:
         top_down = C_down * (pi_ell_plus_1 - pi_ell)
 
-    # Bottom-up coupling (from lower level error)
     bottom_up = 0.0
     if pi_ell_minus_1 is not None:
         error_lower = abs(epsilon_ell)
@@ -148,20 +154,7 @@ def update_precision_euler(
     pi_min: float = 1e-4,
     pi_max: float = 1e4,
 ) -> float:
-    """Update precision using Euler integration.
-
-    Π(t+dt) = Π(t) + dt · dΠ/dt
-
-    Args:
-        pi: Current precision
-        dpi_dt: Precision change rate
-        dt: Time step
-        pi_min: Minimum precision
-        pi_max: Maximum precision
-
-    Returns:
-        Updated precision (clamped)
-    """
+    """Update precision using Euler integration: Π(t+dt) = Π(t) + dt·dΠ/dt."""
 
     pi_new = pi + dt * dpi_dt
     return float(np.clip(pi_new, pi_min, pi_max))

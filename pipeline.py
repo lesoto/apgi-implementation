@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from core.dynamics import signal_drift, update_threshold_ode
 from core.ignition import (
     compute_ignition_probability,
     detect_ignition_event,
@@ -14,15 +15,13 @@ from core.precision import (
     compute_interoceptive_precision_exponential,
     compute_precision,
     precision_coupling_ode_core,
+    update_mean_ema,
     update_precision_euler,
     update_variance_ema,
 )
-from core.preprocessing import compute_prediction_error, normalize_error
-from core.signal import (
-    integrate_signal_leaky,
-    instantaneous_signal,
-    stabilize_signal_log,
-)
+from core.preprocessing import compute_prediction_error
+from core.sde import integrate_euler_maruyama
+from core.signal import instantaneous_signal, stabilize_signal_log
 from core.threshold import (
     apply_ne_threshold_modulation,
     apply_refractory_boost,
@@ -32,7 +31,6 @@ from core.threshold import (
     threshold_decay,
     update_threshold_discrete,
 )
-from core.dynamics import update_threshold_ode
 
 
 @dataclass
@@ -41,6 +39,8 @@ class PrecisionState:
     sigma2_i: float
     pi_e: float = 1.0
     pi_i: float = 1.0
+    mu_e: float = field(default=0.0)  # EMA mean for exteroceptive errors
+    mu_i: float = field(default=0.0)  # EMA mean for interoceptive errors
 
 
 @dataclass
@@ -65,9 +65,11 @@ class APGIPipeline:
     """APGI one-step update implementing the full corrected mathematical pipeline."""
 
     def __init__(self, config: dict):
-        self.config = config
+        # Copy to avoid mutating the caller's dict
+        self.config = dict(config)
+
         # Validate NE configuration to prevent double-counting
-        if config.get("ne_on_precision", False) and config.get(
+        if self.config.get("ne_on_precision", False) and self.config.get(
             "ne_on_threshold", False
         ):
             import warnings
@@ -80,7 +82,7 @@ class APGIPipeline:
                 stacklevel=2,
             )
         # Auto-adjust NE parameters for threshold mode to prevent runaway
-        if config.get("ne_on_threshold", False) and config.get("gamma_ne", 0.1) >= 0.1:
+        if self.config.get("ne_on_threshold", False) and self.config.get("gamma_ne", 0.1) >= 0.1:
             import warnings
 
             warnings.warn(
@@ -92,45 +94,47 @@ class APGIPipeline:
             )
             self.config["gamma_ne"] = 0.01
             self.config["kappa"] = 0.15
-        self.S = float(config["S0"])
-        self.theta = float(config["theta_0"])
+
+        self.S = float(self.config["S0"])
+        self.theta = float(self.config["theta_0"])
         self.theta_dot = 0.0  # For continuous ODE tracking
         self.state = PrecisionState(
-            sigma2_e=float(config["sigma2_e0"]),
-            sigma2_i=float(config["sigma2_i0"]),
-            pi_e=1.0,
-            pi_i=1.0,
+            sigma2_e=float(self.config["sigma2_e0"]),
+            sigma2_i=float(self.config["sigma2_i0"]),
         )
         self.B_prev = 0
-        self.t = 0.0  # Time tracking for phase
+        self.t = 0.0  # Continuous time (phase tracking + SDE)
 
         # Hierarchical state if enabled
         self.hierarchical = None
-        if config.get("use_hierarchical", False):
-            n_levels = config.get("n_levels", 3)
+        if self.config.get("use_hierarchical", False):
+            n_levels = self.config.get("n_levels", 3)
             self.hierarchical = HierarchicalState(n_levels=n_levels)
 
         # Somatic marker state if enabled
-        self.M = config.get("M_somatic", 0.0)  # Somatic marker ∈ [-2, +2]
+        self.M = self.config.get("M_somatic", 0.0)  # Somatic marker ∈ [-2, +2]
 
     def step(self, x_e: float, x_hat_e: float, x_i: float, x_hat_i: float):
         # 1) Raw prediction errors
         z_e = compute_prediction_error(x_e, x_hat_e)
         z_i = compute_prediction_error(x_i, x_hat_i)
 
-        # 2) Online variance update (EMA)
+        # 2) Online mean + variance update (EMA, centered)
+        self.state.mu_e = update_mean_ema(self.state.mu_e, z_e, self.config["alpha_e"])
+        self.state.mu_i = update_mean_ema(self.state.mu_i, z_i, self.config["alpha_i"])
         self.state.sigma2_e = update_variance_ema(
-            self.state.sigma2_e, z_e, self.config["alpha_e"]
+            self.state.sigma2_e, z_e, self.state.mu_e, self.config["alpha_e"]
         )
         self.state.sigma2_i = update_variance_ema(
-            self.state.sigma2_i, z_i, self.config["alpha_i"]
+            self.state.sigma2_i, z_i, self.state.mu_i, self.config["alpha_i"]
         )
 
-        # Optional normalization
-        z_e_n = normalize_error(z_e, self.state.sigma2_e**0.5, self.config["eps"])
-        z_i_n = normalize_error(z_i, self.state.sigma2_i**0.5, self.config["eps"])
+        # 3) Proper z-score normalization: (z - μ) / (σ + ε)
+        eps = self.config["eps"]
+        z_e_n = (z_e - self.state.mu_e) / (self.state.sigma2_e ** 0.5 + eps)
+        z_i_n = (z_i - self.state.mu_i) / (self.state.sigma2_i ** 0.5 + eps)
 
-        # 3) Precision with clamping
+        # 4) Precision with clamping
         pi_e = compute_precision(
             self.state.sigma2_e,
             self.config["eps"],
@@ -146,10 +150,10 @@ class APGIPipeline:
         self.state.pi_e = pi_e
         self.state.pi_i = pi_i
 
-        # 4) Neuromodulation (+ dopamine correction)
+        # 5) Neuromodulation (+ dopamine correction)
         pi_e_eff = apply_ach_gain(pi_e, self.config["g_ach"])
 
-        # Interoceptive precision: use exponential somatic modulation if enabled
+        # Interoceptive precision: exponential somatic form or linear NE gain
         if self.config.get("use_somatic_precision", False):
             pi_i_eff = compute_interoceptive_precision_exponential(
                 pi_i,
@@ -165,7 +169,7 @@ class APGIPipeline:
 
         z_i_eff = apply_dopamine_bias_to_error(z_i_n, self.config["beta"])
 
-        # 4b) Hierarchical precision ODE if enabled
+        # 5b) Hierarchical precision ODE if enabled
         if self.hierarchical is not None and self.config.get(
             "use_hierarchical_precision_ode", False
         ):
@@ -178,7 +182,6 @@ class APGIPipeline:
                     else None
                 )
                 pi_minus = self.hierarchical.pis[level - 1] if level > 0 else None
-                # Use level 0 error for all levels (simplified)
                 epsilon = abs(z_i_eff if level == 0 else 0.0)
 
                 dpi_dt = precision_coupling_ode_core(
@@ -200,14 +203,32 @@ class APGIPipeline:
                     self.config["pi_max"],
                 )
 
-        # 5) Instantaneous + leaky accumulated signal
+        # 6) Instantaneous signal (diagnostic) + SDE integration via ODE drift
         S_inst = instantaneous_signal(z_e_n, z_i_eff, pi_e_eff, pi_i_eff)
-        self.S = integrate_signal_leaky(self.S, S_inst, self.config["lam"])
+
+        # Wire dynamics.py (signal_drift) + sde.py (integrate_euler_maruyama):
+        # dS/dt = -S/τ_S + Π_e|z_e| + β·Π_i|z_i| + σ·dW
+        _z_e_n = z_e_n
+        _z_i_n = z_i_n
+        _pi_e_eff = pi_e_eff
+        _pi_i_eff = pi_i_eff
+        _beta = self.config["beta"]
+        _tau_s = self.config.get("tau_s", 5.0)
+        drift_fn = lambda s, _t: signal_drift(
+            s, _z_e_n, _z_i_n, _pi_e_eff, _pi_i_eff, _beta, _tau_s
+        )
+        self.S = integrate_euler_maruyama(
+            self.S,
+            drift_fn,
+            self.config.get("noise_std", 0.01),
+            self.t,
+            self.config.get("dt", 1.0),
+        )
         self.S = stabilize_signal_log(
             self.S, enabled=self.config["signal_log_nonlinearity"]
         )
 
-        # 6) Cost/value and threshold update
+        # 7) Cost/value and threshold update
         if self.config["use_realistic_cost"]:
             C_t = compute_metabolic_cost_realistic(
                 self.S, self.B_prev, self.config["c1"], self.config["c2"]
@@ -219,7 +240,7 @@ class APGIPipeline:
             z_e_n, z_i_n, self.config["v1"], self.config["v2"]
         )
 
-        # 6b) Threshold update: discrete or continuous ODE
+        # 7b) Threshold update: discrete or continuous ODE
         if self.config.get("use_continuous_threshold_ode", False):
             dt = self.config.get("dt", 1.0)
             self.theta_dot = update_threshold_ode(
@@ -243,20 +264,18 @@ class APGIPipeline:
                 theta_next, self.config["g_ne"], self.config["gamma_ne"]
             )
 
-        # 6c) Phase-locked threshold modulation if enabled
+        # 7c) Phase-locked threshold modulation if enabled
         if self.hierarchical is not None and self.config.get(
             "use_phase_modulation", False
         ):
             from oscillation.threshold_modulation import modulate_threshold_by_phase
 
-            # Update phases: ϕ(t) = ωt + ϕ_0
             for level in range(self.hierarchical.n_levels):
                 omega = self.config.get("omega_phases", [0.1, 0.05, 0.01])[level]
                 self.hierarchical.phases[level] = (
                     omega * self.t + self.hierarchical.phases[level]
                 ) % (2 * 3.14159)
 
-            # Apply phase modulation to threshold
             if self.hierarchical.n_levels > 1:
                 theta_next = modulate_threshold_by_phase(
                     theta_next,
@@ -265,7 +284,7 @@ class APGIPipeline:
                     self.config.get("kappa_phase", 0.1),
                 )
 
-        # 7) Ignition
+        # 8) Ignition
         p_ignite = compute_ignition_probability(
             self.S, theta_next, self.config["ignite_tau"]
         )
@@ -274,7 +293,7 @@ class APGIPipeline:
         else:
             B_t = int(detect_ignition_event(self.S, theta_next))
 
-        # 8) Refractory effects
+        # 9) Refractory effects
         theta_next = apply_refractory_boost(theta_next, B_t, self.config["delta"])
         theta_next = threshold_decay(
             theta_next, self.config["theta_base"], self.config["kappa"]
@@ -289,6 +308,8 @@ class APGIPipeline:
             "z_i": z_i,
             "z_e_norm": z_e_n,
             "z_i_norm": z_i_n,
+            "mu_e": self.state.mu_e,
+            "mu_i": self.state.mu_i,
             "pi_e": pi_e,
             "pi_i": pi_i,
             "pi_e_eff": pi_e_eff,
@@ -305,7 +326,6 @@ class APGIPipeline:
             "M_somatic": self.M,
         }
 
-        # Add hierarchical state if enabled
         if self.hierarchical is not None:
             result["hierarchical_pis"] = self.hierarchical.pis.copy()
             result["hierarchical_phases"] = self.hierarchical.phases.copy()

@@ -45,3 +45,29 @@ def aggregate_multiscale_signal(phi_values, pi_values, weights) -> float:
 
 def apply_reset_rule(S: float, theta: float, rho: float = 0.1, delta: float = 2.0):
     return float(S * rho), float(theta + delta)
+
+
+def phase_signal(omega: float, t: float, phi0: float = 0.0) -> float:
+    """Oscillatory phase state: ϕ_l(t) = ω_l·t + ϕ_0."""
+
+    return float(omega * t + phi0)
+
+
+def modulate_threshold(
+    theta_0: float, pi_above: float, phi_above: float, k_down: float
+) -> float:
+    """Phase-coupled top-down threshold modulation:
+    θ_mod = θ_0 · (1 + k_down · Π_above · cos(ϕ_above)).
+    """
+
+    return float(theta_0 * (1.0 + k_down * pi_above * np.cos(phi_above)))
+
+
+def bottom_up_cascade(
+    theta: float, S_lower: float, theta_lower: float, k_up: float
+) -> float:
+    """Hierarchical ignition suppression: θ' = θ·(1 - k_up) if S_lower > θ_lower."""
+
+    if S_lower > theta_lower:
+        return float(theta * (1.0 - k_up))
+    return float(theta)
