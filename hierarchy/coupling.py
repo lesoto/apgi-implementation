@@ -15,28 +15,28 @@ from typing import Callable
 def estimate_hierarchy_levels(
     tau_min: float,
     tau_max: float,
-    overlap_factor: float = 2.0,
+    k: float = 1.6,
 ) -> int:
-    """Estimate optimal number of hierarchical levels.
+    """Estimate optimal number of hierarchical levels L per APGI spec.
 
-    Formula: N ≈ log(τ_max/τ_min) / log(overlap_factor)
+    Formula: L = floor( log(τ_max/τ_min) / log(k) ) + 1
 
     Args:
         tau_min: Minimum timescale (fastest level, e.g., 10ms)
         tau_max: Maximum timescale (slowest level, e.g., years)
-        overlap_factor: Overlap between adjacent levels (typically 2-3)
+        k: Timescale separation factor (default: 1.6)
 
     Returns:
-        Recommended number of hierarchy levels
+        Exact number of hierarchy levels L
     """
 
-    if tau_min <= 0 or tau_max <= 0 or overlap_factor <= 1:
-        raise ValueError("tau_min, tau_max must be > 0, overlap_factor > 1")
+    if tau_min <= 0 or tau_max <= 0 or k <= 1:
+        raise ValueError("tau_min, tau_max must be > 0, k > 1")
 
     ratio = tau_max / tau_min
-    N = np.log10(ratio) / np.log10(overlap_factor)
+    L = int(np.floor(np.log(ratio) / np.log(k))) + 1
 
-    return int(np.ceil(N))
+    return L
 
 
 def precision_coupling_ode(
@@ -105,7 +105,7 @@ def phase_locked_threshold(
     kappa_down: float,
     phase_sensitivity: float = 1.0,
 ) -> float:
-    """Compute phase-locked threshold facilitation from higher level.
+    """Compute phase-locked threshold facilitation from higher level (§8.4).
 
     Formula: θ_{t,ℓ} = θ_{0,ℓ} · [1 + κ_down · Π_{ℓ+1} · cos(ϕ_{ℓ+1})]
 
@@ -131,6 +131,33 @@ def phase_locked_threshold(
         phase_modulation = 1.0 + (phase_modulation - 1.0) * phase_sensitivity
 
     return float(theta_0_ell * phase_modulation)
+
+
+def bottom_up_threshold_cascade(
+    theta_ell: float,
+    S_ell_minus_1: float,
+    theta_ell_minus_1: float,
+    kappa_up: float,
+) -> float:
+    """Compute bottom-up threshold cascade (§8.4).
+
+    Formula: θ_ℓ ← θ_ℓ · [1 − κ_up · H(S_{ℓ−1} − θ_{ℓ−1})]
+    where H is Heaviside function (1 if superthreshold, else 0).
+
+    Args:
+        theta_ell: Current threshold at level ℓ
+        S_ell_minus_1: Signal at level ℓ-1
+        theta_ell_minus_1: Threshold at level ℓ-1
+        kappa_up: Cascade strength
+
+    Returns:
+        Modulated threshold
+    """
+
+    is_superthreshold = float(S_ell_minus_1 > theta_ell_minus_1)
+    modulation = 1.0 - kappa_up * is_superthreshold
+
+    return float(theta_ell * modulation)
 
 
 def update_phase_dynamics(
@@ -267,21 +294,26 @@ class HierarchicalPrecisionNetwork:
     def compute_thresholds(
         self,
         theta_0: np.ndarray,
+        S_levels: np.ndarray | None = None,
         kappa_down: float = 0.1,
+        kappa_up: float = 0.0,
     ) -> np.ndarray:
-        """Compute phase-locked thresholds for all levels.
+        """Compute modulated thresholds for all levels including PAC and cascade.
 
         Args:
             theta_0: Baseline thresholds for each level
-            kappa_down: Phase coupling strength
+            S_levels: Current signal levels (for bottom-up cascade)
+            kappa_down: Top-down phase coupling strength
+            kappa_up: Bottom-up cascade strength
 
         Returns:
-            Phase-modulated thresholds
+            Phase-modulated and cascade-modulated thresholds
         """
 
         thetas = np.zeros(self.n_levels)
 
         for ell in range(self.n_levels):
+            # 1) Top-down Phase-Amplitude Coupling (§8.4)
             if ell < self.n_levels - 1:
                 # Higher level modulates this level
                 thetas[ell] = phase_locked_threshold(
@@ -291,7 +323,16 @@ class HierarchicalPrecisionNetwork:
                     kappa_down=kappa_down,
                 )
             else:
-                # Top level: no modulation
+                # Top level: no top-down PAC
                 thetas[ell] = theta_0[ell]
+
+            # 2) Bottom-up Threshold Cascade (§8.4)
+            if ell > 0 and S_levels is not None and kappa_up > 0:
+                thetas[ell] = bottom_up_threshold_cascade(
+                    theta_ell=thetas[ell],
+                    S_ell_minus_1=S_levels[ell - 1],
+                    theta_ell_minus_1=thetas[ell - 1],
+                    kappa_up=kappa_up,
+                )
 
         return thetas

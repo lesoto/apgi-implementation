@@ -12,7 +12,7 @@ def signal_drift(
     beta: float,
     tau_s: float,
 ) -> float:
-    """Deterministic ODE drift (no noise): dS/dt|_det = -S/τ_S + Π_e|z_e| + Π_i|z_i| + β.
+    """Deterministic ODE drift (no noise): dS/dt|_det = -S/τ_S + Π_e|z_e| + Π_i|z_i_eff|.
 
     Separates the deterministic component so it can be passed as the drift
     argument to integrate_euler_maruyama in sde.py.
@@ -20,7 +20,11 @@ def signal_drift(
 
     if tau_s <= 0:
         raise ValueError("tau_s must be > 0")
-    return float(-S / tau_s + pi_e * abs(z_e) + pi_i * abs(z_i) + beta)
+
+    # z_i_eff includes the dopamine bias: z_i_eff = z_i + beta
+    z_i_eff = z_i + beta
+
+    return float(-S / tau_s + pi_e * abs(z_e) + pi_i * abs(z_i_eff))
 
 
 def update_signal_ode(
@@ -31,14 +35,34 @@ def update_signal_ode(
     pi_i: float,
     beta: float,
     tau_s: float,
+    dt: float = 1.0,
     noise_std: float = 0.01,
 ) -> float:
-    """dS/dt = -S/τ_S + Π^e|z^e| + Π^i|z^i| + β + η_S(t)."""
+    """dS/dt = -S/τ_S + Π^e|z^e| + Π^i|z^i_eff| + η_S(t).
+
+    Implements Euler-Maruyama integration step:
+    S(t+dt) = S(t) + dS/dt * dt + noise_std * sqrt(dt) * N(0,1)
+    """
 
     if tau_s <= 0:
         raise ValueError("tau_s must be > 0")
-    noise = float(np.random.normal(0.0, noise_std))
-    return float(-S / tau_s + pi_e * abs(z_e) + pi_i * abs(z_i) + beta + noise)
+
+    # z_i_eff includes the dopamine bias: z_i_eff = z_i + beta
+    z_i_eff = z_i + beta
+
+    drift = -S / tau_s + pi_e * abs(z_e) + pi_i * abs(z_i_eff)
+    noise = float(np.random.normal(0.0, noise_std * np.sqrt(dt)))
+
+    return float(S + drift * dt + noise)
+
+
+def compute_precision_coupled_noise_std(pi_e_eff: float, pi_i_eff: float) -> float:
+    """σ_S = 1 / sqrt(Π_e^eff + Π_i^eff) (§7.3)."""
+
+    total_pi = pi_e_eff + pi_i_eff
+    if total_pi <= 0:
+        return 1.0  # Default to high noise if precision is zero
+    return float(1.0 / np.sqrt(total_pi))
 
 
 def update_prediction(
@@ -77,11 +101,15 @@ def update_threshold_ode(
     V: float,
     tau_theta: float,
     eta: float,
+    dt: float = 1.0,
     noise_std: float = 0.01,
 ) -> float:
-    """Continuous threshold dynamics ODE per APGI spec.
+    """Continuous threshold dynamics ODE per APGI spec (§7.2).
 
     dθ/dt = -(θ - θ_base)/τ_θ + η·(C - V) + η_θ(t)
+
+    Implements Euler-Maruyama integration step:
+    θ(t+dt) = θ(t) + dθ/dt * dt + noise_std * sqrt(dt) * N(0,1)
 
     Components:
     - Decay term: -(θ - θ_base)/τ_θ (mean-reversion to baseline)
@@ -110,7 +138,7 @@ def update_threshold_ode(
     # Allostatic update (cost - value)
     allostatic_term = eta * (C - V)
 
-    # Stochastic noise
-    noise = float(np.random.normal(0.0, noise_std))
+    drift = decay_term + allostatic_term
+    noise = float(np.random.normal(0.0, noise_std * np.sqrt(dt)))
 
-    return float(decay_term + allostatic_term + noise)
+    return float(theta + drift * dt + noise)

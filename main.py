@@ -178,8 +178,11 @@ def run_multiscale_pipeline(
 
         # Per-level precision from actual variance estimates
         pi_levels = [
-            compute_precision(
-                sigma2_levels[i], cfg["eps"], cfg["pi_min"], cfg["pi_max"]
+            compute_precision(  # type: ignore[arg-type]
+                sigma2_levels[i],
+                cfg["eps"],  # type: ignore[arg-type]
+                cfg["pi_min"],  # type: ignore[arg-type]
+                cfg["pi_max"],  # type: ignore[arg-type]
             )
             for i in range(n_levels)
         ]

@@ -1,6 +1,7 @@
 """Oscillatory phase coupling module for APGI.
 
-Implements phase dynamics ϕ_l(t) = ω_l t + ϕ_0 with cross-level coupling.
+Implements phase dynamics ϕ_l(t) = ω_l t + ϕ_0 with cross-level coupling,
+Kuramoto oscillators with phase noise, and phase reset on ignition.
 """
 
 from __future__ import annotations
@@ -14,6 +15,11 @@ from oscillation.threshold_modulation import (
     compute_modulation_factor,
     modulate_threshold_by_phase,
 )
+from oscillation.kuramoto import (
+    OrnsteinUhlenbeckNoise,
+    KuramotoOscillators,
+    HierarchicalKuramotoSystem,
+)
 
 __all__ = [
     "compute_phase",
@@ -21,4 +27,7 @@ __all__ = [
     "update_phase_euler",
     "compute_modulation_factor",
     "modulate_threshold_by_phase",
+    "OrnsteinUhlenbeckNoise",
+    "KuramotoOscillators",
+    "HierarchicalKuramotoSystem",
 ]

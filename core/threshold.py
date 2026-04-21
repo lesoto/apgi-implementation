@@ -75,7 +75,7 @@ def apply_refractory_boost(theta_next: float, B: int, delta: float) -> float:
     return float(theta_next + delta * int(B))
 
 
-def update_threshold_ode(
+def update_threshold_ode_deprecated(
     theta: float,
     theta_0: float,
     dS_dt: float,
@@ -84,17 +84,11 @@ def update_threshold_ode(
     delta: float,
     lam: float,
 ) -> float:
-    """Continuous threshold dynamics (rate of change):
+    """[DEPRECATED] Continuous threshold dynamics (rate of change):
     dθ/dt = γ(θ_0 - θ) + δ·B(t-1) - λ|dS/dt|.
 
-    Args:
-        theta: Current threshold.
-        theta_0: Resting/baseline threshold.
-        dS_dt: Current signal rate of change (from ODE).
-        B_prev: Ignition state at previous timestep.
-        gamma: Mean-reversion rate toward θ_0.
-        delta: Threshold boost per ignition event.
-        lam: Signal-rate-driven threshold reduction coefficient.
+    Warning: Derivative coupling to dS/dt is removed from the APGI spec.
+    Use core.allostatic.allostatic_threshold_ode instead.
     """
 
     return float(gamma * (theta_0 - theta) + delta * int(B_prev) - lam * abs(dS_dt))

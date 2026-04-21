@@ -4,8 +4,12 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from core.dynamics import signal_drift, update_prediction
-from core.allostatic import allostatic_threshold_ode, update_threshold_euler
+from core.dynamics import (
+    compute_precision_coupled_noise_std,
+    update_prediction,
+    update_signal_ode,
+)
+from core.allostatic import allostatic_threshold_ode
 from core.ignition import (
     compute_ignition_probability,
     detect_ignition_event,
@@ -23,7 +27,6 @@ from core.precision import (
     update_variance_ema,
 )
 from core.preprocessing import compute_prediction_error
-from core.sde import integrate_euler_maruyama
 from core.signal import instantaneous_signal, stabilize_signal_log
 from core.threshold import (
     apply_ne_threshold_modulation,
@@ -33,6 +36,8 @@ from core.threshold import (
     threshold_decay,
     update_threshold_discrete,
 )
+from core.thermodynamics import compute_landauer_cost
+from core.validation import validate_config, ValidationError
 from stats.hurst import estimate_hurst_robust
 from stats.spectral_model import validate_pink_noise
 
@@ -74,6 +79,19 @@ class APGIPipeline:
     def __init__(self, config: dict):
         # Copy to avoid mutating the caller's dict
         self.config = dict(config)
+
+        # Validate configuration against spec constraints (§15)
+        try:
+            validate_config(self.config)
+        except ValidationError as e:
+            import warnings
+
+            warnings.warn(
+                f"Configuration validation failed: {e}. "
+                "Some constraints may be violated. Spec §15.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         # Validate NE configuration to prevent double-counting
         if self.config.get("ne_on_precision", False) and self.config.get(
@@ -127,11 +145,64 @@ class APGIPipeline:
         # Somatic marker state if enabled
         self.M = self.config.get("M_somatic", 0.0)  # Somatic marker ∈ [-2, +2]
 
+        # Reservoir layer if enabled (§10)
+        self.reservoir = None
+        if self.config.get("use_reservoir", False):
+            from reservoir.liquid_state_machine import LiquidStateMachine
+
+            self.reservoir = LiquidStateMachine(
+                N=self.config.get("reservoir_size", 100),
+                M=2,  # [z_e, z_i]
+                tau_res=self.config.get("reservoir_tau", 1.0),
+                spectral_radius=self.config.get("reservoir_spectral_radius", 0.9),
+                input_scale=self.config.get("reservoir_input_scale", 0.1),
+            )
+
+        # Kuramoto oscillators if enabled (§9)
+        self.kuramoto = None
+        if self.config.get("use_kuramoto", False):
+            from oscillation.kuramoto import HierarchicalKuramotoSystem
+
+            n_levels = self.config.get("n_levels", 3)
+            self.kuramoto = HierarchicalKuramotoSystem(
+                n_levels=n_levels,
+                config=self.config,
+            )
+
+        # Observable mapping if enabled (§14)
+        self.neural_observables = None
+        self.behavioral_observables = None
+        self.prediction_validator = None
+        if self.config.get("use_observable_mapping", False):
+            from validation.observable_mapping import (
+                NeuralObservableExtractor,
+                BehavioralObservableExtractor,
+                KeyTestablePredictionValidator,
+            )
+
+            self.neural_observables = NeuralObservableExtractor()
+            self.behavioral_observables = BehavioralObservableExtractor()
+            self.prediction_validator = KeyTestablePredictionValidator(
+                tau_sigma=self.config.get("ignite_tau", 0.5)
+            )
+
+        # Stability analyzer if enabled (§7)
+        self.stability_analyzer = None
+        if self.config.get("use_stability_analysis", False):
+            from analysis.stability import StabilityAnalyzer
+
+            self.stability_analyzer = StabilityAnalyzer(self.config)
+
         self.history = {
             "S": [],
             "theta": [],
             "B": [],
         }
+
+        # Thermodynamic cost history if enabled (§11)
+        if self.config.get("use_thermodynamic_cost", False):
+            self.history["C_landauer"] = []
+            self.history["bits_erased"] = []
 
     def step(
         self,
@@ -238,24 +309,23 @@ class APGIPipeline:
         # 6) Instantaneous signal (diagnostic) + SDE integration via ODE drift
         S_inst = instantaneous_signal(z_e_n, z_i_eff, pi_e_eff, pi_i_eff)
 
-        # Wire dynamics.py (signal_drift) + sde.py (integrate_euler_maruyama):
+        # Wire dynamics.py (update_signal_ode)
         # dS/dt = -S/τ_S + Π_e|z_e| + β·Π_i|z_i| + σ·dW
-        _z_e_n = z_e_n
-        _z_i_n = z_i_n
-        _pi_e_eff = pi_e_eff
-        _pi_i_eff = pi_i_eff
-        _beta = self.config["beta"]
-        _tau_s = self.config.get("tau_s", 5.0)
+        # Spec §7.3: σ_S = 1/sqrt(Π_e^eff + Π_i^eff)
+        adaptive_noise_std = compute_precision_coupled_noise_std(pi_e_eff, pi_i_eff)
+        dt = self.config.get("dt", 1.0)
+        tau_s = self.config.get("tau_s", 5.0)
 
-        def drift_fn(s: float, _t: float) -> float:
-            return signal_drift(s, _z_e_n, _z_i_n, _pi_e_eff, _pi_i_eff, _beta, _tau_s)
-
-        self.S = integrate_euler_maruyama(
+        self.S = update_signal_ode(
             self.S,
-            drift_fn,
-            self.config.get("noise_std", 0.01),
-            self.t,
-            self.config.get("dt", 1.0),
+            z_e_n,
+            z_i_n,
+            pi_e_eff,
+            pi_i_eff,
+            self.config["beta"],
+            tau_s,
+            dt,
+            adaptive_noise_std,
         )
         self.S = stabilize_signal_log(
             self.S, enabled=self.config["signal_log_nonlinearity"]
@@ -269,6 +339,23 @@ class APGIPipeline:
         else:
             C_t = compute_metabolic_cost(self.S, self.config["c0"], self.config["c1"])
 
+        # 7a) Thermodynamic cost validation (§11)
+        C_landauer = 0.0
+        bits_erased = 0.0
+        if self.config.get("use_thermodynamic_cost", False):
+            from core.thermodynamics import compute_information_bits
+
+            C_landauer = compute_landauer_cost(
+                self.S,
+                self.config["eps"],
+                k_b=self.config.get("k_boltzmann", 1.38e-23),
+                T_env=self.config.get("T_env", 310.0),
+                kappa_meta=self.config.get("kappa_meta", 1.0),
+            )
+            bits_erased = compute_information_bits(self.S, self.config["eps"])
+            self.history["C_landauer"].append(C_landauer)
+            self.history["bits_erased"].append(bits_erased)
+
         V_t = compute_information_value(
             z_e_n, z_i_eff, self.config["v1"], self.config["v2"]
         )
@@ -277,18 +364,19 @@ class APGIPipeline:
         # Spec: θ(t+1) = θ(t) + η[C(t) - V(t)] + δ_reset·B(t) (with B from previous step)
         # Note: δ_reset·B is part of core allostatic update, applied BEFORE NE modulation
         if self.config.get("use_continuous_threshold_ode", False):
-            dt = self.config.get("dt", 1.0)
-            self.theta_dot = allostatic_threshold_ode(
+            self.theta = allostatic_threshold_ode(
                 theta=self.theta,
                 theta_0=self.config["theta_base"],
                 gamma=1.0 / self.config.get("tau_theta", 1000.0),
                 B_prev=self.B_prev,
                 delta=self.config["delta"],
+                C=C_t,
+                V=V_t,
+                eta=self.config["eta"],
+                dt=dt,
+                noise_std=self.config.get("noise_std", 0.01),
             )
-            # Add allostatic mismatch contribution to theta_dot
-            self.theta_dot += self.config["eta"] * (C_t - V_t)
-
-            theta_next = update_threshold_euler(self.theta, self.theta_dot, dt)
+            theta_next = self.theta
         else:
             # Discrete form: θ += η(C-V) + δ_reset·B_prev
             # Refractory boost is part of the allostatic update per spec Section 4
@@ -359,6 +447,23 @@ class APGIPipeline:
                 self.config["pi_max"],
             )
 
+        # 11) Reservoir layer update (§10)
+        S_reservoir = 0.0
+        if self.reservoir is not None:
+            u_res = np.array([z_e_n, z_i_eff])
+            self.reservoir.step(
+                u_res,
+                tau=self.config.get("reservoir_tau", 1.0),
+                dt=dt,
+                precision=pi_e_eff,
+                S_target=self.S,
+                theta=self.theta,
+                A_amp=self.config.get("reservoir_amplification", 0.0),
+            )
+            S_reservoir = self.reservoir.readout(
+                method=self.config.get("reservoir_readout_method", "linear")
+            )
+
         self.theta = theta_next
         self.B_prev = B_t
         self.t += self.config.get("dt", 1.0)
@@ -392,6 +497,51 @@ class APGIPipeline:
             "x_hat_i": self.x_hat_i,
             "M_somatic": self.M,
         }
+
+        # Add thermodynamic info if enabled
+        if self.config.get("use_thermodynamic_cost", False):
+            result["C_landauer"] = C_landauer
+            result["bits_erased"] = bits_erased
+
+        # Add reservoir info if enabled
+        if self.reservoir is not None:
+            result["S_reservoir"] = S_reservoir
+            result["reservoir_state_norm"] = float(np.linalg.norm(self.reservoir.x))
+
+        # Add Kuramoto oscillator info if enabled (§9)
+        if self.kuramoto is not None:
+            kuramoto_result = self.kuramoto.step(dt=dt)
+            result["kuramoto_phases"] = kuramoto_result["phases"].tolist()
+            result["kuramoto_synchronization"] = kuramoto_result["synchronization"]
+
+            # Apply phase reset on ignition
+            if B_t == 1:
+                # Reset phase at level 0 (or all levels)
+                self.kuramoto.apply_ignition_reset(level=0)
+
+        # Add observable mapping if enabled (§14)
+        if self.neural_observables is not None:
+            neural_obs = self.neural_observables.step(self.S, self.theta, B_t)
+            result["neural_gamma_power"] = neural_obs["gamma_power"]
+            result["neural_erp_amplitude"] = neural_obs["erp_amplitude"]
+            result["neural_ignition_rate"] = neural_obs["ignition_rate"]
+
+        if self.behavioral_observables is not None:
+            behavioral_obs = self.behavioral_observables.step(self.S, self.theta, B_t)
+            result["behavioral_rt_variability"] = behavioral_obs["rt_variability"]
+            result["behavioral_response_criterion"] = behavioral_obs[
+                "response_criterion"
+            ]
+            result["behavioral_decision_rate"] = behavioral_obs["decision_rate"]
+
+        if self.prediction_validator is not None:
+            pred_result = self.prediction_validator.step(self.S, self.theta, B_t)
+            result["prediction_margin"] = pred_result["delta"]
+            result["prediction_p_ign"] = pred_result["p_ign"]
+
+        # Add stability analysis if enabled (§7)
+        if self.stability_analyzer is not None:
+            self.stability_analyzer.step(self.S, self.theta)
 
         if self.hierarchical is not None:
             result["hierarchical_pis"] = self.hierarchical.pis.copy()

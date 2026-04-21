@@ -18,15 +18,24 @@ def allostatic_threshold_ode(
     gamma: float,
     B_prev: int,
     delta: float,
+    C: float = 0.0,
+    V: float = 0.0,
+    eta: float = 0.0,
+    dt: float = 1.0,
+    noise_std: float = 0.01,
 ) -> float:
-    """Compute dθ/dt for allostatic threshold dynamics per APGI spec.
+    """Compute dθ/dt for allostatic threshold dynamics per APGI spec (§7.2).
 
     Formula: dθ/dt = -γ_θ(θ - θ_base) + δ_reset·B(t) + η[C(t) - V(t)]
+
+    Implements Euler-Maruyama integration step:
+    θ(t+dt) = θ(t) + dθ/dt * dt + noise_std * sqrt(dt) * N(0,1)
 
     Components:
     - -γ_θ(θ - θ_base): Mean-reversion to baseline (exponential decay)
     - δ_reset·B(t): Post-ignition refractory boost
     - η[C(t) - V(t)]: Allostatic cost-value mismatch
+    - η_θ(t): Stochastic noise term
 
     Args:
         theta: Current threshold
@@ -34,15 +43,24 @@ def allostatic_threshold_ode(
         gamma: Mean-reversion rate (γ_θ = 1/τ_θ)
         B_prev: Previous ignition state (0 or 1)
         delta: Refractory boost magnitude (δ_reset)
+        C: Metabolic cost
+        V: Information value
+        eta: Allostatic learning rate
+        dt: Integration time step
+        noise_std: Noise amplitude
 
     Returns:
-        dθ/dt (threshold change rate)
+        Updated threshold θ(t+dt)
     """
 
     mean_reversion = -gamma * (theta - theta_0)
     refractory = delta * B_prev
+    allostatic = eta * (C - V)
 
-    return float(mean_reversion + refractory)
+    drift = mean_reversion + refractory + allostatic
+    noise = float(np.random.normal(0.0, noise_std * np.sqrt(dt)))
+
+    return float(theta + drift * dt + noise)
 
 
 def update_threshold_euler(
@@ -97,29 +115,35 @@ class AllostaticThresholdController:
         self.dt = dt
         self.B_prev = 0
 
-    def step(self, C: float, V: float, eta: float, B: int) -> float:
-        """Single ODE step for threshold update.
+    def step(
+        self, C: float, V: float, eta: float, B: int, noise_std: float = 0.01
+    ) -> float:
+        """Single ODE step for threshold update with stochastic scaling.
 
         Args:
             C: Metabolic cost
             V: Information value
             eta: Allostatic learning rate
             B: Current ignition state
+            noise_std: Threshold noise amplitude
 
         Returns:
             Updated threshold
         """
 
-        # Compute threshold ODE per APGI spec
-        # dθ/dt = -γ_θ(θ - θ_base) + δ_reset·B(t) + η[C(t) - V(t)]
-        mean_reversion = -self.gamma * (self.theta - self.theta_0)
-        refractory = self.delta * self.B_prev
-        allostatic = eta * (C - V)
-
-        theta_dot = mean_reversion + refractory + allostatic
-
-        # Euler update
-        self.theta = update_threshold_euler(self.theta, theta_dot, self.dt)
+        # Compute threshold update per APGI spec (§7.2) with correct scaling
+        self.theta = allostatic_threshold_ode(
+            theta=self.theta,
+            theta_0=self.theta_0,
+            gamma=self.gamma,
+            B_prev=self.B_prev,
+            delta=self.delta,
+            C=C,
+            V=V,
+            eta=eta,
+            dt=self.dt,
+            noise_std=noise_std,
+        )
 
         # Store state for next step
         self.B_prev = B
