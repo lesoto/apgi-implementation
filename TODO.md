@@ -1,241 +1,180 @@
-# APGI TODO 
+# APGI TODO — Implementation Evaluation Update (2026-04-21)
 
-## Minor Gaps (Non-Blocking) — 5% Remaining
+This file was updated after a static code audit of the current repository against the **APGI Unified Mathematical Specification** pipeline:
 
-### 1. Sliding Window Variance Method (§1.2)
-**Status:** Not implemented (EMA available)
-**Impact:** Low — EMA is standard and sufficient
+**Signal preprocessing → precision dynamics → ignition → allostatic threshold → reservoir implementation → hierarchical coupling → statistical validation**.
 
-### 2. Ornstein-Uhlenbeck Signal Noise (§7.3)
-**Status:** White noise implemented, OU not available
-**Impact:** Low — White noise is standard
-
-### 3. Configuration Exposures
-**Status:** Some parameters hardcoded
-**Items:**
-- Reset factor ρ (hardcoded, not exposed)
-- Precision decay timescale τ_Π (hardcoded as 1000.0 ms)
-- Bottom-up modulation function ψ(ε) (hardcoded as abs())
-- Sigmoid naming (ignite_tau vs tau_sigma)
-**Impact:** Low — Defaults work well
-
-### 4. Runtime Validation Checks
-**Status:** Most implemented, some missing
-**Items:**
-- Level count L ≥ 1 validation
-- Hurst approximation validity check (β_spec ∈ (1,3))
-- Lorentzian superposition validation
-- Systematic bias handling documentation
-**Impact:** Low — Constraints are satisfied by design
-
-### 5. Cross-Level Modulation Testing (§8.4)
-**Status:** Implemented but not fully tested
-**Impact:** Low — Works correctly
-
-
-## Actions
-
-1. Expose reset factor ρ as config parameter
-2. Expose precision decay timescale τ_Π
-3. Expose bottom-up modulation function ψ(ε)
-4. Standardize sigmoid naming (tau_sigma)
-5. Add runtime level count validation
-6. Add Hurst approximation validity check
-7. Add Lorentzian superposition validation
-8. Document systematic bias handling
-9. Implement sliding window variance method
-10. Add OU noise option for signal dynamics
-11. Enhance cross-level modulation tests
-12. Add empirical data validation examples
-
-
-## Critical Gaps (Must Fix for 90+/100)
-
-1. **Reservoir Implementation (§10)** — 0% complete
-   - Impact: High (biologically plausible layer)
-   - Effort: Medium (well-specified)
-   - Priority: **HIGH**
-
-2. **Thermodynamic Constraints (§11)** — 0% complete
-   - Impact: High (theoretical foundation)
-   - Effort: Low (straightforward calculation)
-   - Priority: **HIGH**
-
-3. **Oscillatory Phase Coupling (§9)** — 40% complete
-   - Impact: Medium (hierarchical dynamics)
-   - Effort: Medium (Kuramoto oscillators)
-   - Priority: **MEDIUM**
-
-4. **Observable Mapping Validation (§14)** — 60% complete
-   - Impact: High (falsifiability)
-   - Effort: High (requires empirical data)
-   - Priority: **MEDIUM**
+> Note: this assessment is based on code inspection and available tests. Full runtime verification is currently blocked in this environment because `numpy` is not installed for `pytest` collection.
 
 ---
 
-## Recommended Improvements to Reach 90/100
+## Overall Ratings (1–100)
 
-### Tier 1: Essential (Implement First)
-1. **Implement Landauer's principle** (§11)
-   - Add thermodynamic cost calculation
-   - Integrate with metabolic cost model
-   - Estimated effort: 2-3 hours
+- **Correctness:** **72/100**
+- **Accuracy to specification:** **68/100**
+- **Completeness:** **77/100**
 
-2. **Implement full reservoir layer** (§10)
-   - Add CfC dynamics
-   - Implement suprathreshold amplification
-   - Estimated effort: 4-6 hours
+### Why these scores
 
-3. **Enforce parameter validation** (§15)
-   - Add pre-flight checks for all constraints
-   - Raise errors for invalid configurations
-   - Estimated effort: 1-2 hours
-
-### Tier 2: Important (Implement Second)
-4. **Implement Kuramoto oscillators** (§9)
-   - Add coupled phase dynamics
-   - Implement phase noise
-   - Estimated effort: 3-4 hours
-
-5. **Complete observable mapping** (§14)
-   - Add neural/behavioral extraction
-   - Implement single-trial analysis
-   - Estimated effort: 4-5 hours
-
-6. **Add fixed-point stability analysis** (§7)
-   - Implement Jacobian validation
-   - Add eigenvalue checking
-   - Estimated effort: 2-3 hours
-
-### Tier 3: Polish (Implement Third)
-7. **Improve documentation** (All sections)
-   - Add inline spec references
-   - Document design choices
-   - Estimated effort: 2-3 hours
-
-8. **Add comprehensive testing** (All sections)
-   - Unit tests for each component
-   - Integration tests for pipeline
-   - Estimated effort: 4-5 hours
+- Strong coverage exists for most major subsystems (precision, threshold, Kuramoto, reservoir, thermodynamics, spectral utilities).
+- However, there are several **spec-critical mismatches** in the end-to-end pipeline ordering and equations (notably signal update/reset, β usage in dynamics, and threshold/value wiring differences), which lower correctness/accuracy.
+- Completeness is relatively high because nearly all major sections have code artifacts, but some are partial or not fully integrated.
 
 ---
 
-## Specific Code Improvements
+## Section-by-Section Audit
 
-### Issue 1: NE Double-Counting (§2.3)
-**Current:**
-```python
-if self.config.get("ne_on_precision", False) and self.config.get("ne_on_threshold", False):
-    import warnings
-    warnings.warn(...)  # Only warns
-```
+## 1) Signal preprocessing
 
-**Recommended:**
-```python
-if self.config.get("ne_on_precision", False) and self.config.get("ne_on_threshold", False):
-    raise ValueError(
-        "NE cannot modulate both precision and threshold simultaneously. "
-        "Set exactly one of ne_on_precision or ne_on_threshold to True. "
-        "See spec Section 2.3-2.4."
-    )
-```
+### Status
+- Implemented: raw prediction error, EMA mean/variance, z-score-like normalization.
+- Optional sliding-window stats exist via `RunningStats`, but are **not integrated as a selectable pipeline method**.
 
-### Issue 2: Missing Landauer's Principle (§11)
-**Add to config.py:**
-```python
-# Thermodynamic parameters (§11)
-"k_boltzmann": 1.38e-23,  # J/K
-"T_env": 310.0,  # Ambient temperature (Kelvin, ~37°C)
-"kappa_meta": 1.0,  # Metabolic cost-per-bit coefficient
-```
+### Findings
+- ✅ Raw prediction error matches spec intent.
+- ✅ Centered EMA variance is implemented (good handling of bias).
+- ⚠️ Sliding-window variance is utility-level only, not a first-class mode with `T_win`/Bessel options.
 
-**Add to core/thermodynamics.py:**
-```python
-def compute_landauer_cost(S: float, eps: float, k_b: float, T: float) -> float:
-    """Compute minimum thermodynamic cost per Landauer's principle.
-    
-    E_min = N_erase · k_B · T · ln(2)
-    where N_erase ≈ log₂(S / ε_stab)
-    """
-    if S <= eps:
-        return 0.0
-    n_erase = np.log2(S / eps)
-    return n_erase * k_b * T * np.log(2)
-```
-
-### Issue 3: Missing Reservoir Layer (§10)
-**Add to reservoir/liquid_state_machine.py:**
-```python
-class LiquidStateMachine:
-    """Reservoir computing layer per APGI spec §10."""
-    
-    def __init__(self, N: int, M: int, tau_res: float = 1.0):
-        self.N = N  # Reservoir size
-        self.M = M  # Input dimension
-        self.W_res = np.random.randn(N, N) * 0.1  # Fixed random weights
-        self.W_in = np.random.randn(N, M) * 0.1   # Fixed input weights
-        self.W_out = np.zeros((N, 1))  # Trained readout
-        self.x = np.zeros(N)  # Reservoir state
-        self.tau_res = tau_res
-    
-    def step(self, u: np.ndarray, S_margin: float) -> float:
-        """Update reservoir and compute readout."""
-        # Reservoir dynamics with suprathreshold amplification
-        dx = (-self.x / self.tau_res + 
-              np.tanh(self.W_res @ self.x + self.W_in @ u))
-        
-        # Suprathreshold amplification when S > θ
-        if S_margin > 0:
-            dx += 0.1 * self.x * S_margin  # A_amp = 0.1
-        
-        self.x += dx
-        return float(self.W_out.T @ self.x)
-```
-
-### Issue 4: Missing Phase Coupling (§9)
-**Add to oscillation/kuramoto.py:**
-```python
-def kuramoto_phase_update(
-    phi: np.ndarray,
-    omega: np.ndarray,
-    K: np.ndarray,
-    noise_std: float = 0.01
-) -> np.ndarray:
-    """Update phases via Kuramoto model.
-    
-    dφ_ℓ/dt = ω_ℓ + Σ_j K_{ℓj} sin(φ_j - φ_ℓ) + ξ_ℓ(t)
-    """
-    n = len(phi)
-    dphi = omega.copy()
-    
-    for i in range(n):
-        for j in range(n):
-            dphi[i] += K[i, j] * np.sin(phi[j] - phi[i])
-    
-    # Add phase noise
-    dphi += np.random.normal(0, noise_std, n)
-    
-    return phi + dphi
-```
+### Score: **80/100**
 
 ---
 
-## Validation Checklist
+## 2) Precision dynamics
 
-- [ ] All 15 specification sections have corresponding code
-- [ ] Parameter constraints validated at runtime
-- [ ] NE double-counting prevented (error, not warning)
-- [ ] Landauer's principle implemented
-- [ ] Reservoir layer implemented
-- [ ] Kuramoto oscillators implemented
-- [ ] Observable mapping validated
-- [ ] Fixed-point stability checked
-- [ ] dt constraint validated
-- [ ] All timescale constraints validated
-- [ ] Comprehensive unit tests pass
-- [ ] Integration tests pass
-- [ ] Documentation complete with spec references
-- [ ] Example notebooks demonstrate all features
-- [ ] Falsifiable predictions documented
+### Status
+- Precision inversion/clamping implemented.
+- ACh/NE gains and dopamine additive bias implemented.
+- Hierarchical precision ODE implemented in core/hierarchy functions.
+
+### Findings
+- ✅ `Π = 1/(σ²+ε)` with clamp is present.
+- ✅ DA is additive on interoceptive error (`z_i + β`).
+- ⚠️ Pipeline still warns (instead of hard-failing) on NE double-counting in one path.
+- ⚠️ Hierarchical ODE integration in pipeline is simplified and not clearly level-generalized from actual per-level errors.
+
+### Score: **75/100**
 
 ---
+
+## 3) Ignition mechanism
+
+### Status
+- Hard and soft ignition are implemented.
+- Sigmoid temperature (`ignite_tau`) and Bernoulli sampling are present.
+
+### Findings
+- ✅ Correct hard-threshold convention (`S > θ`).
+- ✅ Soft ignition probability and sampling are present.
+- ✅ Margin utility exists.
+
+### Score: **88/100**
+
+---
+
+## 4) Allostatic threshold dynamics
+
+### Status
+- Core update and decay are implemented.
+- Metabolic and information terms are implemented.
+
+### Findings
+- ✅ `θ += η(C−V)+δ·B_prev` then decay exists.
+- ✅ NE threshold modulation function exists.
+- ⚠️ In integrated pipeline, some sequencing/term choices differ from canonical table semantics (especially combined with signal update/reset behavior).
+
+### Score: **72/100**
+
+---
+
+## 5) Reservoir implementation
+
+### Status
+- Substantial implementation exists: random fixed reservoir, spectral radius control, step dynamics, readout, ridge training.
+
+### Findings
+- ✅ Reservoir state ODE-style update is present.
+- ✅ Suprathreshold amplification term is present.
+- ✅ Readout APIs included.
+- ⚠️ Optional layer integration in pipeline is currently “add-on” rather than a fully alternative execution path replacing steps 7–8 in a spec-explicit mode.
+
+### Score: **85/100**
+
+---
+
+## 6) Hierarchical coupling
+
+### Status
+- Helper modules implement multi-timescale integrators, coupling, phase-threshold mechanisms.
+
+### Findings
+- ✅ Timescale hierarchy and weighted aggregation utilities exist.
+- ✅ Top-down/bottom-up threshold modulation functions exist.
+- ⚠️ End-to-end hierarchical execution in `APGIPipeline.step()` is only partial; coupling uses approximated placeholders for some level errors.
+
+### Score: **70/100**
+
+---
+
+## 7) Statistical validation
+
+### Status
+- Spectral/Lorentzian and Hurst-related utilities exist.
+- Stability analysis module exists.
+- Observable mapping module exists.
+
+### Findings
+- ✅ Lorentzian superposition + 1/f exponent estimation implemented.
+- ✅ Hurst estimation + validation paths present.
+- ✅ Stability Jacobian/eigenvalue checks implemented.
+- ⚠️ Empirical/behavioral validation is still simulation/proxy-centric, not a full dataset-driven validation pipeline.
+
+### Score: **82/100**
+
+---
+
+## Critical Mismatches to Fix First (highest impact on correctness)
+
+1. **Post-ignition signal reset missing in main pipeline**
+   - Spec requires `S ← ρ·S` on ignition.
+   - `pipeline.py` does not apply reset factor after `B_t == 1`.
+
+2. **Signal accumulation equation mismatch in integrated path**
+   - Spec discrete core uses `S(t+1)=(1−λ)S+λS_inst`.
+   - Pipeline currently advances `S` through ODE utility in a way that mixes terms (including β use in dynamics input) rather than directly applying canonical leaky update in the minimal loop.
+
+3. **Config/notation inconsistency**
+   - Uses `beta` and `ignite_tau`; spec glossary prefers `β_DA`, `τ_σ`.
+   - Not wrong computationally, but increases audit ambiguity and implementation drift risk.
+
+4. **Validation policy inconsistency for NE double-counting**
+   - Validator raises error, but pipeline catches validation errors and converts to warning; this can allow forbidden configurations to continue.
+
+5. **Sliding-window method not fully wired**
+   - Utility exists, but there is no clean `EMA vs T_win` runtime switch in pipeline flow.
+
+---
+
+## Updated Action Plan
+
+## Tier 1 (must do for 85+ correctness)
+1. Implement explicit **post-ignition `S ← ρ·S`** in `APGIPipeline.step()` with validated `reset_factor`.
+2. Add a strict **minimal canonical mode** that follows Section 13 step order exactly (including discrete leaky accumulation path).
+3. Enforce NE separation as a hard failure at runtime (no warning fallback for invalid dual modulation).
+4. Rename/alias config parameters to spec names (`beta_da`, `tau_sigma`) while maintaining backward compatibility.
+
+## Tier 2 (must do for 90+ accuracy)
+5. Add true **EMA vs sliding-window switch** with Bessel correction option for small windows.
+6. Tighten hierarchical integration by computing per-level errors/states instead of placeholders.
+7. Add regression tests for exact timestep ordering and equation fidelity against reference equations.
+
+## Tier 3 (polish/completeness)
+8. Add end-to-end validation notebook/script for spectral + observable predictions on synthetic/empirical data.
+9. Harmonize docs with actual file names/entry points and remove stale claims.
+
+---
+
+## Validation Run Notes (current environment)
+
+- `pytest -q` currently fails during collection because dependency `numpy` is missing in the runtime environment.
+- No behavior-level runtime score adjustment was possible from tests in this environment.
+
