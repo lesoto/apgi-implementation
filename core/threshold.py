@@ -40,11 +40,33 @@ def threshold_decay(theta: float, theta_base: float, kappa: float) -> float:
 
 
 def update_threshold_discrete(
-    theta: float, metabolic_cost: float, information_value: float, eta: float = 0.1
+    theta: float,
+    metabolic_cost: float,
+    information_value: float,
+    eta: float = 0.1,
+    delta: float = 0.5,
+    B_prev: int = 0,
 ) -> float:
-    """Core: θ(t+1)=θ(t)+η[C(t)-V(t)]."""
+    """Core allostatic update per APGI spec Section 4.
 
-    return float(theta + eta * (metabolic_cost - information_value))
+    Formula: θ(t+1) = θ(t) + η[C(t) - V(t)] + δ_reset·B(t)
+
+    The refractory boost δ_reset·B is part of the core allostatic update,
+    applied BEFORE NE modulation and ignition decision.
+
+    Args:
+        theta: Current threshold
+        metabolic_cost: C(t) - metabolic cost of signal/ignition
+        information_value: V(t) - expected information value of errors
+        eta: Allostatic learning rate
+        delta: Refractory boost magnitude (δ_reset)
+        B_prev: Previous ignition state (0 or 1)
+
+    Returns:
+        Updated threshold
+    """
+
+    return float(theta + eta * (metabolic_cost - information_value) + delta * B_prev)
 
 
 def apply_refractory_boost(theta_next: float, B: int, delta: float) -> float:
@@ -75,8 +97,4 @@ def update_threshold_ode(
         lam: Signal-rate-driven threshold reduction coefficient.
     """
 
-    return float(
-        gamma * (theta_0 - theta)
-        + delta * int(B_prev)
-        - lam * abs(dS_dt)
-    )
+    return float(gamma * (theta_0 - theta) + delta * int(B_prev) - lam * abs(dS_dt))

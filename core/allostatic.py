@@ -1,31 +1,15 @@
-"""Allostatic threshold dynamics with urgency sensitivity.
+"""Allostatic threshold dynamics.
 
-Implements continuous-time ODE for dynamic threshold adaptation:
-dθ/dt = γ(θ_0 - θ) + δ·B_{t-1} - λ·|dS/dt|
+Implements continuous-time ODE for dynamic threshold adaptation per APGI spec:
+dθ/dt = -γ_θ(θ - θ_base) + δ_reset·B(t) + η[C(t) - V(t)]
+
+Note: Derivative coupling to dS/dt was explicitly removed from the spec
+as it creates a second-order ODE system that is not required for APGI dynamics.
 """
 
 from __future__ import annotations
 
 import numpy as np
-
-
-def compute_signal_derivative(
-    S_current: float,
-    S_prev: float,
-    dt: float = 1.0,
-) -> float:
-    """Compute time derivative of signal dS/dt.
-
-    Args:
-        S_current: Current signal value
-        S_prev: Previous signal value
-        dt: Time step
-
-    Returns:
-        dS/dt (change rate)
-    """
-
-    return float((S_current - S_prev) / dt)
 
 
 def allostatic_threshold_ode(
@@ -34,36 +18,31 @@ def allostatic_threshold_ode(
     gamma: float,
     B_prev: int,
     delta: float,
-    dS_dt: float,
-    lambda_urgency: float,
 ) -> float:
-    """Compute dθ/dt for allostatic threshold dynamics.
+    """Compute dθ/dt for allostatic threshold dynamics per APGI spec.
 
-    Formula: dθ/dt = γ(θ_0 - θ) + δ·B_{t-1} - λ·|dS/dt|
+    Formula: dθ/dt = -γ_θ(θ - θ_base) + δ_reset·B(t) + η[C(t) - V(t)]
 
     Components:
-    - γ(θ_0 - θ): Baseline attraction (homeostatic pull)
-    - δ·B_{t-1}: Post-ignition refractory boost
-    - -λ·|dS/dt|: Urgency sensitivity (faster signal → lower threshold)
+    - -γ_θ(θ - θ_base): Mean-reversion to baseline (exponential decay)
+    - δ_reset·B(t): Post-ignition refractory boost
+    - η[C(t) - V(t)]: Allostatic cost-value mismatch
 
     Args:
         theta: Current threshold
-        theta_0: Baseline threshold
-        gamma: Baseline attraction rate
+        theta_0: Baseline threshold (θ_base)
+        gamma: Mean-reversion rate (γ_θ = 1/τ_θ)
         B_prev: Previous ignition state (0 or 1)
-        delta: Refractory boost magnitude
-        dS_dt: Signal derivative (rate of change)
-        lambda_urgency: Urgency sensitivity coefficient
+        delta: Refractory boost magnitude (δ_reset)
 
     Returns:
         dθ/dt (threshold change rate)
     """
 
-    homeostatic = gamma * (theta_0 - theta)
+    mean_reversion = -gamma * (theta - theta_0)
     refractory = delta * B_prev
-    urgency = -lambda_urgency * abs(dS_dt)
 
-    return float(homeostatic + refractory + urgency)
+    return float(mean_reversion + refractory)
 
 
 def update_threshold_euler(
@@ -92,52 +71,22 @@ def update_threshold_euler(
     return float(np.clip(theta_new, theta_min, theta_max))
 
 
-def compute_urgency_factor(
-    dS_dt: float,
-    lambda_urgency: float = 0.1,
-    normalize: bool = True,
-) -> float:
-    """Compute urgency-based threshold modulation factor.
-
-    Urgency reduces threshold when signal changes rapidly, enabling
-    faster response to unexpected events.
-
-    Args:
-        dS_dt: Signal rate of change
-        lambda_urgency: Urgency sensitivity
-        normalize: Whether to apply tanh normalization
-
-    Returns:
-        Urgency factor (typically negative, reducing threshold)
-    """
-
-    raw_urgency = -lambda_urgency * abs(dS_dt)
-
-    if normalize:
-        # Soft normalization to prevent extreme values
-        return float(np.tanh(raw_urgency))
-
-    return float(raw_urgency)
-
-
 class AllostaticThresholdController:
-    """Continuous-time threshold controller with ODE dynamics."""
+    """Continuous-time threshold controller with ODE dynamics per APGI spec."""
 
     def __init__(
         self,
         theta_0: float = 1.0,
         gamma: float = 0.01,
         delta: float = 0.5,
-        lambda_urgency: float = 0.1,
         dt: float = 1.0,
     ):
         """Initialize allostatic controller.
 
         Args:
-            theta_0: Baseline threshold
-            gamma: Homeostatic attraction rate
-            delta: Refractory boost magnitude
-            lambda_urgency: Urgency sensitivity
+            theta_0: Baseline threshold (θ_base)
+            gamma: Mean-reversion rate (γ_θ = 1/τ_θ)
+            delta: Refractory boost magnitude (δ_reset)
             dt: Integration time step
         """
 
@@ -145,41 +94,34 @@ class AllostaticThresholdController:
         self.theta_0 = theta_0
         self.gamma = gamma
         self.delta = delta
-        self.lambda_urgency = lambda_urgency
         self.dt = dt
-        self.S_prev = 0.0
         self.B_prev = 0
 
-    def step(self, S: float, B: int) -> float:
+    def step(self, C: float, V: float, eta: float, B: int) -> float:
         """Single ODE step for threshold update.
 
         Args:
-            S: Current accumulated signal
+            C: Metabolic cost
+            V: Information value
+            eta: Allostatic learning rate
             B: Current ignition state
 
         Returns:
             Updated threshold
         """
 
-        # Compute signal derivative
-        dS_dt = compute_signal_derivative(S, self.S_prev, self.dt)
+        # Compute threshold ODE per APGI spec
+        # dθ/dt = -γ_θ(θ - θ_base) + δ_reset·B(t) + η[C(t) - V(t)]
+        mean_reversion = -self.gamma * (self.theta - self.theta_0)
+        refractory = self.delta * self.B_prev
+        allostatic = eta * (C - V)
 
-        # Compute threshold ODE
-        theta_dot = allostatic_threshold_ode(
-            theta=self.theta,
-            theta_0=self.theta_0,
-            gamma=self.gamma,
-            B_prev=self.B_prev,
-            delta=self.delta,
-            dS_dt=dS_dt,
-            lambda_urgency=self.lambda_urgency,
-        )
+        theta_dot = mean_reversion + refractory + allostatic
 
         # Euler update
         self.theta = update_threshold_euler(self.theta, theta_dot, self.dt)
 
         # Store state for next step
-        self.S_prev = S
         self.B_prev = B
 
         return self.theta
@@ -188,5 +130,4 @@ class AllostaticThresholdController:
         """Reset controller state."""
 
         self.theta = theta if theta is not None else self.theta_0
-        self.S_prev = 0.0
         self.B_prev = 0

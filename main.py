@@ -172,19 +172,18 @@ def run_multiscale_pipeline(
             phi_i[i] = update_multiscale_feature(phi_i[i], z_i, taus[i])
             # EMA rate proportional to 1/τ_i; min to keep it in (0,1]
             alpha_l = min(1.0, 1.0 / taus[i])
-            sigma2_levels[i] = (
-                (1.0 - alpha_l) * sigma2_levels[i]
-                + alpha_l * (phi_e[i] ** 2 + phi_i[i] ** 2)
+            sigma2_levels[i] = (1.0 - alpha_l) * sigma2_levels[i] + alpha_l * (
+                phi_e[i] ** 2 + phi_i[i] ** 2
             )
 
         # Per-level precision from actual variance estimates
         pi_levels = [
-            compute_precision(sigma2_levels[i], cfg["eps"], cfg["pi_min"], cfg["pi_max"])
+            compute_precision(
+                sigma2_levels[i], cfg["eps"], cfg["pi_min"], cfg["pi_max"]
+            )
             for i in range(n_levels)
         ]
-        S_multiscale = aggregate_multiscale_signal(
-            phi_e + phi_i, pi_levels, weights
-        )
+        S_multiscale = aggregate_multiscale_signal(phi_e + phi_i, pi_levels, weights)
 
         # Run standard pipeline for comparison
         result = pipeline.step(x_e, x_hat_e, x_i, x_hat_i)

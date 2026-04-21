@@ -6,7 +6,9 @@ import numpy as np
 class LiquidNetwork:
     def __init__(self, n_units: int = 500, spectral_radius: float = 0.9):
         if not (0.0 < spectral_radius < 1.0):
-            raise ValueError("spectral_radius must be in (0, 1) for echo state property")
+            raise ValueError(
+                "spectral_radius must be in (0, 1) for echo state property"
+            )
         self.n = n_units
         W_raw = np.random.randn(n_units, n_units) * 0.1
         # Normalize so ρ(W_res) = spectral_radius, guaranteeing echo state property
@@ -58,8 +60,11 @@ class LiquidNetwork:
         dt: float = 1.0,
         activation=np.tanh,
         precision: float | None = None,
+        S_target: float | None = None,
+        theta: float | None = None,
+        A_amp: float = 0.0,
     ):
-        """x_dot = -x/τ + f(W_res x + W_in u).
+        """x_dot = -x/τ + f(W_res x + W_in u) + A_amp * x * [S - θ]_+.
 
         Args:
             u: Input signal
@@ -67,6 +72,9 @@ class LiquidNetwork:
             dt: Time step
             activation: Nonlinearity function
             precision: Precision for adaptive τ(t) (optional)
+            S_target: Current signal for suprathreshold amplification (§10.3)
+            theta: Threshold for suprathreshold amplification (§10.3)
+            A_amp: Suprathreshold amplification strength
         """
 
         # Determine time constant
@@ -81,7 +89,16 @@ class LiquidNetwork:
         if tau_eff <= 0:
             raise ValueError("tau must be > 0")
 
+        # 1) Standard reservoir dynamics (§10.1)
+        # dx/dt = -x/τ + f(W_res x + W_in u)
         dx_dt = -self.x / tau_eff + activation(self.W_res @ self.x + self.W_in * u)
+
+        # 2) Suprathreshold amplification (§10.3)
+        # dx/dt += A_amp * x * [S - θ]_+
+        if S_target is not None and theta is not None and A_amp > 0:
+            suprath_gain = max(0.0, S_target - theta)
+            dx_dt += A_amp * self.x * suprath_gain
+
         self.x += dt * dx_dt
         return self.x
 

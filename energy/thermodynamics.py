@@ -7,6 +7,44 @@ ATP_ENERGY = 5.2e-21  # Energy per ATP molecule at ~300K (~50 kJ/mol)
 TYPICAL_TEMP = 310.0  # Body temperature in Kelvin (~37°C)
 
 
+def estimate_bits_erased(S: float, eps_stab: float = 1e-6) -> float:
+    """Estimate number of bits erased during ignition per §11.
+
+    N_erase ≈ log₂(S(t) / ε_stab)
+
+    Args:
+        S: Signal level at time of ignition
+        eps_stab: Numerical stability constant (default 10⁻⁶ per spec)
+
+    Returns:
+        Estimated bits erased
+    """
+    if S <= 0:
+        return 0.0
+    return float(np.log2(max(S, eps_stab) / eps_stab))
+
+
+def metabolic_cost_landauer(
+    N_erase: float,
+    kappa_meta: float,
+    T_env: float = TYPICAL_TEMP,
+) -> float:
+    """Compute metabolic cost mapped to Landauer's bound per §11.
+
+    C(t) ≥ κ_meta · N_erase(t) · k_B · T_env · ln(2)
+
+    Args:
+        N_erase: Bits erased
+        kappa_meta: Metabolic conversion coefficient
+        T_env: Ambient temperature in Kelvin
+
+    Returns:
+        Mapped metabolic cost
+    """
+    e_min = N_erase * K_B * T_env * np.log(2)
+    return float(kappa_meta * e_min)
+
+
 def metabolic_cost(kappa: float, bits: float) -> float:
     """Compute metabolic cost in ATP molecules.
 

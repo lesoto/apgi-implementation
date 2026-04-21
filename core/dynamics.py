@@ -41,34 +41,60 @@ def update_signal_ode(
     return float(-S / tau_s + pi_e * abs(z_e) + beta * pi_i * abs(z_i) + noise)
 
 
+def update_prediction(
+    x_hat: float,
+    epsilon: float,
+    pi: float,
+    kappa: float,
+    pi_max: float = 100.0,
+) -> float:
+    """Generative Model Dynamics (Prediction Update) per §1.4.
+
+    x̂(t+1) = x̂(t) + κ · Π(t) · ε(t)
+
+    Stability condition: κ < 2 / Π_max ensures gradient descent convergence.
+
+    Args:
+        x_hat: Current prediction
+        epsilon: Raw prediction error (x - x_hat)
+        pi: Precision (Bayesian confidence)
+        kappa: Prediction learning rate
+        pi_max: Maximum precision clamp (for stability check)
+
+    Returns:
+        Updated prediction x_hat(t+1)
+    """
+
+    # Optional stability check: κ < 2 / Π_max
+    # We don't enforce it strictly here but document it.
+    return float(x_hat + kappa * pi * epsilon)
+
+
 def update_threshold_ode(
     theta: float,
-    S: float,
+    theta_base: float,
     C: float,
     V: float,
     tau_theta: float,
     eta: float,
-    gamma: float = 0.1,
     noise_std: float = 0.01,
 ) -> float:
-    """Continuous threshold dynamics ODE.
+    """Continuous threshold dynamics ODE per APGI spec.
 
-    dθ/dt = -(θ - θ_base)/τ_θ + η·(C - V) + γ·S + η_θ(t)
+    dθ/dt = -(θ - θ_base)/τ_θ + η·(C - V) + η_θ(t)
 
     Components:
-    - Decay term: -(θ - θ_base)/τ_θ (relaxation to baseline)
+    - Decay term: -(θ - θ_base)/τ_θ (mean-reversion to baseline)
     - Allostatic term: η·(C - V) (cost-value mismatch)
-    - Signal-driven term: γ·S (signal-dependent adaptation)
     - Noise term: η_θ(t) (stochastic fluctuations)
 
     Args:
         theta: Current threshold
-        S: Current signal value
+        theta_base: Baseline threshold value
         C: Metabolic cost
         V: Information value
-        tau_theta: Threshold decay time constant
+        tau_theta: Threshold decay time constant (τ_θ)
         eta: Allostatic learning rate
-        gamma: Signal-driven adaptation strength
         noise_std: Standard deviation of threshold noise
 
     Returns:
@@ -78,16 +104,13 @@ def update_threshold_ode(
     if tau_theta <= 0:
         raise ValueError("tau_theta must be > 0")
 
-    # Decay toward baseline (implicit θ_base = 0 in ODE, handled externally)
-    decay_term = -theta / tau_theta
+    # Mean-reversion toward baseline: -(θ - θ_base)/τ_θ
+    decay_term = -(theta - theta_base) / tau_theta
 
     # Allostatic update (cost - value)
     allostatic_term = eta * (C - V)
 
-    # Signal-driven adaptation
-    signal_term = gamma * S
-
     # Stochastic noise
     noise = float(np.random.normal(0.0, noise_std))
 
-    return float(decay_term + allostatic_term + signal_term + noise)
+    return float(decay_term + allostatic_term + noise)

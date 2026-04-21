@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from core.dynamics import signal_drift, update_threshold_ode
+from core.dynamics import signal_drift, update_prediction, update_threshold_ode
 from core.ignition import (
     compute_ignition_probability,
     detect_ignition_event,
@@ -24,7 +24,6 @@ from core.sde import integrate_euler_maruyama
 from core.signal import instantaneous_signal, stabilize_signal_log
 from core.threshold import (
     apply_ne_threshold_modulation,
-    apply_refractory_boost,
     compute_information_value,
     compute_metabolic_cost,
     compute_metabolic_cost_realistic,
@@ -82,7 +81,10 @@ class APGIPipeline:
                 stacklevel=2,
             )
         # Auto-adjust NE parameters for threshold mode to prevent runaway
-        if self.config.get("ne_on_threshold", False) and self.config.get("gamma_ne", 0.1) >= 0.1:
+        if (
+            self.config.get("ne_on_threshold", False)
+            and self.config.get("gamma_ne", 0.1) >= 0.1
+        ):
             import warnings
 
             warnings.warn(
@@ -98,6 +100,9 @@ class APGIPipeline:
         self.S = float(self.config["S0"])
         self.theta = float(self.config["theta_0"])
         self.theta_dot = 0.0  # For continuous ODE tracking
+        # Internalized predictions per §1.4 if enabled
+        self.x_hat_e = float(self.config.get("x_hat_e0", 0.0))
+        self.x_hat_i = float(self.config.get("x_hat_i0", 0.0))
         self.state = PrecisionState(
             sigma2_e=float(self.config["sigma2_e0"]),
             sigma2_i=float(self.config["sigma2_i0"]),
@@ -114,10 +119,20 @@ class APGIPipeline:
         # Somatic marker state if enabled
         self.M = self.config.get("M_somatic", 0.0)  # Somatic marker ∈ [-2, +2]
 
-    def step(self, x_e: float, x_hat_e: float, x_i: float, x_hat_i: float):
+    def step(
+        self,
+        x_e: float,
+        x_i: float,
+        x_hat_e: float | None = None,
+        x_hat_i: float | None = None,
+    ):
+        # Use provided predictions or internalized ones per §1.4
+        _x_hat_e = x_hat_e if x_hat_e is not None else self.x_hat_e
+        _x_hat_i = x_hat_i if x_hat_i is not None else self.x_hat_i
+
         # 1) Raw prediction errors
-        z_e = compute_prediction_error(x_e, x_hat_e)
-        z_i = compute_prediction_error(x_i, x_hat_i)
+        z_e = compute_prediction_error(x_e, _x_hat_e)
+        z_i = compute_prediction_error(x_i, _x_hat_i)
 
         # 2) Online mean + variance update (EMA, centered)
         self.state.mu_e = update_mean_ema(self.state.mu_e, z_e, self.config["alpha_e"])
@@ -131,8 +146,8 @@ class APGIPipeline:
 
         # 3) Proper z-score normalization: (z - μ) / (σ + ε)
         eps = self.config["eps"]
-        z_e_n = (z_e - self.state.mu_e) / (self.state.sigma2_e ** 0.5 + eps)
-        z_i_n = (z_i - self.state.mu_i) / (self.state.sigma2_i ** 0.5 + eps)
+        z_e_n = (z_e - self.state.mu_e) / (self.state.sigma2_e**0.5 + eps)
+        z_i_n = (z_i - self.state.mu_i) / (self.state.sigma2_i**0.5 + eps)
 
         # 4) Precision with clamping
         pi_e = compute_precision(
@@ -214,9 +229,10 @@ class APGIPipeline:
         _pi_i_eff = pi_i_eff
         _beta = self.config["beta"]
         _tau_s = self.config.get("tau_s", 5.0)
-        drift_fn = lambda s, _t: signal_drift(
-            s, _z_e_n, _z_i_n, _pi_e_eff, _pi_i_eff, _beta, _tau_s
-        )
+
+        def drift_fn(s: float, _t: float) -> float:
+            return signal_drift(s, _z_e_n, _z_i_n, _pi_e_eff, _pi_i_eff, _beta, _tau_s)
+
         self.S = integrate_euler_maruyama(
             self.S,
             drift_fn,
@@ -240,23 +256,35 @@ class APGIPipeline:
             z_e_n, z_i_n, self.config["v1"], self.config["v2"]
         )
 
-        # 7b) Threshold update: discrete or continuous ODE
+        # 7b) Threshold update: discrete or continuous ODE per APGI spec
+        # Spec: θ(t+1) = θ(t) + η[C(t) - V(t)] + δ_reset·B(t) (with B from previous step)
+        # Note: δ_reset·B is part of core allostatic update, applied BEFORE NE modulation
         if self.config.get("use_continuous_threshold_ode", False):
             dt = self.config.get("dt", 1.0)
             self.theta_dot = update_threshold_ode(
+                theta=self.theta,
+                theta_base=self.config["theta_base"],
+                C=C_t,
+                V=V_t,
+                tau_theta=self.config.get("tau_theta", 1000.0),
+                eta=self.config["eta"],
+                noise_std=self.config.get("theta_noise_std", 0.01),
+            )
+            # Continuous ODE form: dθ/dt = -(θ-θ_base)/τ_θ + η(C-V)
+            # Refractory boost δ_reset·B applied as part of update
+            theta_next = (
+                self.theta + dt * self.theta_dot + self.config["delta"] * self.B_prev
+            )
+        else:
+            # Discrete form: θ += η(C-V) + δ_reset·B_prev
+            # Refractory boost is part of the allostatic update per spec Section 4
+            theta_next = update_threshold_discrete(
                 self.theta,
-                self.S,
                 C_t,
                 V_t,
-                self.config.get("tau_theta", 1000.0),
                 self.config["eta"],
-                self.config.get("gamma_theta", 0.1),
-                self.config.get("theta_noise_std", 0.01),
-            )
-            theta_next = self.theta + dt * self.theta_dot
-        else:
-            theta_next = update_threshold_discrete(
-                self.theta, C_t, V_t, self.config["eta"]
+                self.config["delta"],
+                self.B_prev,
             )
 
         if self.config.get("ne_on_threshold", False):
@@ -293,11 +321,29 @@ class APGIPipeline:
         else:
             B_t = int(detect_ignition_event(self.S, theta_next))
 
-        # 9) Refractory effects
-        theta_next = apply_refractory_boost(theta_next, B_t, self.config["delta"])
+        # 9) Post-ignition threshold decay (exponential relaxation to baseline)
+        # Note: Refractory boost δ_reset·B was already applied in step 7b as part of
+        # the allostatic update per spec Section 13. Only decay is applied here.
         theta_next = threshold_decay(
             theta_next, self.config["theta_base"], self.config["kappa"]
         )
+
+        # 10) Internal Prediction Update per §1.4 Generative Model Dynamics
+        if self.config.get("use_internal_predictions", False):
+            self.x_hat_e = update_prediction(
+                self.x_hat_e,
+                z_e,
+                pi_e,
+                self.config.get("kappa_e", 0.01),
+                self.config["pi_max"],
+            )
+            self.x_hat_i = update_prediction(
+                self.x_hat_i,
+                z_i,
+                pi_i,
+                self.config.get("kappa_i", 0.01),
+                self.config["pi_max"],
+            )
 
         self.theta = theta_next
         self.B_prev = B_t
@@ -323,6 +369,8 @@ class APGIPipeline:
             "p_ignite": p_ignite,
             "B": B_t,
             "theta_dot": self.theta_dot,
+            "x_hat_e": self.x_hat_e,
+            "x_hat_i": self.x_hat_i,
             "M_somatic": self.M,
         }
 
