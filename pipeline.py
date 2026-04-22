@@ -76,6 +76,12 @@ class APGIPipeline:
 
     M: float
     history: dict[str, list[float]]
+    mu_e_levels: np.ndarray
+    mu_i_levels: np.ndarray
+    sigma2_e_levels: np.ndarray
+    sigma2_i_levels: np.ndarray
+    n_levels: int
+    taus: np.ndarray
 
     def _apply_hierarchical_preset(self, config: dict) -> dict:
         """Apply hierarchical mode preset to configuration.
@@ -149,65 +155,51 @@ class APGIPipeline:
         self,
         epsilon_e: float,
         epsilon_i: float,
-    ) -> tuple[list[float], list[float]]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Compute per-level z-scores for hierarchical system.
 
         Spec §7: Each level ℓ processes errors at its own timescale τ_ℓ.
+        This version is fully vectorized for performance (§4.1).
 
         Args:
             epsilon_e: Exteroceptive prediction error
             epsilon_i: Interoceptive prediction error
 
         Returns:
-            (z_e_levels, z_i_levels) — z-scores at each level
+            (z_e_levels, z_i_levels) — z-scores at each level (np.ndarray)
         """
         if not self.use_hierarchical:
-            # Single-scale: return single z-score pair
+            # Single-scale case
             z_e = (epsilon_e - self.state.mu_e) / (
                 self.state.sigma2_e**0.5 + self.config["eps"]
             )
             z_i = (epsilon_i - self.state.mu_i) / (
                 self.state.sigma2_i**0.5 + self.config["eps"]
             )
-            return [z_e], [z_i]
+            return np.array([z_e]), np.array([z_i])
 
-        # Multi-scale: compute per-level z-scores
-        z_e_levels = []
-        z_i_levels = []
+        # Multi-scale: fully vectorized EMA updates
+        alphas = 1.0 / self.taus
 
-        for ell in range(self.n_levels):
-            # Update per-level running statistics
-            tau_ell = self.taus[ell]
-            alpha_ell = 1.0 / tau_ell  # Faster adaptation at shorter timescales
+        # Vectorized mean updates
+        self.mu_e_levels = (1.0 - alphas) * self.mu_e_levels + alphas * epsilon_e
+        self.mu_i_levels = (1.0 - alphas) * self.mu_i_levels + alphas * epsilon_i
 
-            # Update per-level means
-            mu_e_ell = update_mean_ema(self.mu_e_levels[ell], epsilon_e, alpha_ell)
-            mu_i_ell = update_mean_ema(self.mu_i_levels[ell], epsilon_i, alpha_ell)
+        # Vectorized variance updates (centered)
+        self.sigma2_e_levels = (1.0 - alphas) * self.sigma2_e_levels + alphas * (
+            epsilon_e - self.mu_e_levels
+        ) ** 2
+        self.sigma2_i_levels = (1.0 - alphas) * self.sigma2_i_levels + alphas * (
+            epsilon_i - self.mu_i_levels
+        ) ** 2
 
-            # Update per-level variances
-            sigma2_e_ell = update_variance_ema(
-                self.sigma2_e_levels[ell], epsilon_e, mu_e_ell, alpha_ell
-            )
-            sigma2_i_ell = update_variance_ema(
-                self.sigma2_i_levels[ell], epsilon_i, mu_i_ell, alpha_ell
-            )
-
-            # Store updated statistics
-            self.mu_e_levels[ell] = mu_e_ell
-            self.mu_i_levels[ell] = mu_i_ell
-            self.sigma2_e_levels[ell] = sigma2_e_ell
-            self.sigma2_i_levels[ell] = sigma2_i_ell
-
-            # Compute z-scores
-            z_e_ell = (epsilon_e - mu_e_ell) / (
-                np.sqrt(sigma2_e_ell) + self.config["eps"]
-            )
-            z_i_ell = (epsilon_i - mu_i_ell) / (
-                np.sqrt(sigma2_i_ell) + self.config["eps"]
-            )
-
-            z_e_levels.append(z_e_ell)
-            z_i_levels.append(z_i_ell)
+        # Vectorized z-scores
+        z_e_levels = (epsilon_e - self.mu_e_levels) / (
+            np.sqrt(self.sigma2_e_levels) + self.config["eps"]
+        )
+        z_i_levels = (epsilon_i - self.mu_i_levels) / (
+            np.sqrt(self.sigma2_i_levels) + self.config["eps"]
+        )
 
         return z_e_levels, z_i_levels
 
@@ -299,10 +291,10 @@ class APGIPipeline:
             self.taus = build_timescales(
                 self.config.get("tau_0", 10.0), self.config.get("k", 1.6), n_levels
             )
-            self.mu_e_levels = [0.0] * n_levels
-            self.mu_i_levels = [0.0] * n_levels
-            self.sigma2_e_levels = [1.0] * n_levels
-            self.sigma2_i_levels = [1.0] * n_levels
+            self.mu_e_levels = np.zeros(n_levels)
+            self.mu_i_levels = np.zeros(n_levels)
+            self.sigma2_e_levels = np.ones(n_levels)
+            self.sigma2_i_levels = np.ones(n_levels)
 
             # Initialize HierarchicalPrecisionNetwork for proper per-level error computation
             if self.config.get("use_hierarchical_precision_ode", False):
@@ -316,10 +308,10 @@ class APGIPipeline:
             # Single-scale: initialize single z-score pair
             self.n_levels = 1
             self.taus = np.array([1.0])
-            self.mu_e_levels = [0.0]
-            self.mu_i_levels = [0.0]
-            self.sigma2_e_levels = [1.0]
-            self.sigma2_i_levels = [1.0]
+            self.mu_e_levels = np.zeros(1)
+            self.mu_i_levels = np.zeros(1)
+            self.sigma2_e_levels = np.ones(1)
+            self.sigma2_i_levels = np.ones(1)
 
         # Somatic marker state if enabled
         self.M = self.config.get("M_somatic", 0.0)  # Somatic marker ∈ [-2, +2]
@@ -471,26 +463,24 @@ class APGIPipeline:
             "use_hierarchical_precision_ode", False
         ):
             dt = self.config.get("dt", 1.0)
-            # Build epsilon array for all levels (current level + lower levels)
-            epsilon_array = np.zeros(self.hierarchical_network.n_levels)
-            epsilon_array[0] = abs(z_i_eff)  # Level 0 uses current interoceptive error
-            # For multi-level systems, lower levels would use their own errors
-            # For now, we use current error for all levels (can be extended with proper error tracking)
-            for level in range(1, self.hierarchical_network.n_levels):
-                epsilon_array[level] = (
-                    epsilon_array[level - 1] * 0.5
-                )  # Placeholder: decay error across levels
+            # Compute per-level z-scores for both channels via vectorized EMA (§7)
+            z_e_levels, z_i_levels = self._compute_per_level_errors(z_e, z_i)
 
-            # Step the hierarchical network
-            pis_new, _ = self.hierarchical_network.step(
-                epsilon_new=epsilon_array,
+            # Full precision cascade: combine exteroceptive + interoceptive errors
+            # per level so cross-level error propagation is complete (§7, §8.4)
+            combined_epsilon = np.abs(z_e_levels) + np.abs(z_i_levels)
+
+            # Step the hierarchical network using actual combined per-level errors
+            pis_new, phi_new = self.hierarchical_network.step(
+                epsilon_new=combined_epsilon,
                 dt=dt,
                 alpha_gain=self.config.get("alpha_gain", 0.1),
             )
 
-            # Update hierarchical state
+            # Update hierarchical state with both precision and phase
             assert self.hierarchical is not None  # Type guard for mypy
             self.hierarchical.pis = pis_new.tolist()
+            self.hierarchical.phases = phi_new.tolist()
 
         # 6) Instantaneous signal (diagnostic) + SDE integration via ODE drift
         S_inst = instantaneous_signal(z_e_n, z_i_eff, pi_e_eff, pi_i_eff)
@@ -596,13 +586,23 @@ class APGIPipeline:
             # Canonical semantics: θ(t+1) = θ(t) + η[C(t) - V(t)]
             # Refractory boost δ·B(t) applied AFTER ignition (step 9) per spec §6
             if self.config.get("use_continuous_threshold_ode", False):
-                # Continuous ODE form without refractory (applied in step 9)
+                # Continuous ODE form. By default, refractory boost (δ·B(t)) is
+                # handled post-ignition (step 9). When use_ode_refractory_drift=True
+                # the impulse is included inside the ODE drift for closer alignment
+                # with the analytic form in §7.4: dθ/dt = … + δ_reset·B(t)
+                if self.config.get("use_ode_refractory_drift", False):
+                    _ode_delta = self.config["delta"]
+                    _ode_B = self.B_prev
+                else:
+                    _ode_delta = 0.0
+                    _ode_B = 0
+
                 theta_next = allostatic_threshold_ode(
                     theta=self.theta,
                     theta_0=self.config["theta_base"],
                     gamma=1.0 / self.config.get("tau_theta", 1000.0),
-                    B_prev=0,  # Refractory handled in step 9
-                    delta=0.0,  # Refractory handled in step 9
+                    B_prev=_ode_B,
+                    delta=_ode_delta,
                     C=C_t,
                     V=V_t,
                     eta=self.config["eta"],
@@ -767,8 +767,22 @@ class APGIPipeline:
 
             # Apply phase reset on ignition
             if B_t == 1:
-                # Reset phase at level 0 (or all levels)
-                self.kuramoto.apply_ignition_reset(level=0)
+                # Broadcast phase reset across the full hierarchy when enabled.
+                # kuramoto_broadcast_ignition=True triggers ignition-induced phase
+                # resets at all levels with hierarchical distance decay (§9.2).
+                broadcast_ignition = self.config.get(
+                    "kuramoto_broadcast_ignition", False
+                )
+                if broadcast_ignition:
+                    # Full-hierarchy broadcast: reset every level with decay
+                    for _lvl in range(self.kuramoto.n_levels):
+                        self.kuramoto.apply_ignition_reset(
+                            level=_lvl,
+                            broadcast=True,
+                        )
+                else:
+                    # Default: reset only primary level 0
+                    self.kuramoto.apply_ignition_reset(level=0)
 
         # Add observable mapping if enabled (§14)
         if self.neural_observables is not None:

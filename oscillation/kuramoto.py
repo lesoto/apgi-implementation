@@ -176,23 +176,42 @@ class KuramotoOscillators:
         self,
         level: int,
         reset_amount: float = np.pi,
+        broadcast: bool = False,
+        broadcast_decay: float = 0.5,
     ) -> None:
         """Reset phase on ignition event.
 
         Spec §9: Phase reset on ignition
 
-        When ignition occurs at level ℓ, reset its phase by π radians
-        to represent the "reset" of neural activity.
+        When ignition occurs at level ℓ, reset its phase. If broadcast is True,
+        propagate the reset to other levels with exponential decay based on
+        hierarchical distance.
 
         Args:
             level: Level index where ignition occurred
             reset_amount: Amount to reset phase (default π)
+            broadcast: If True, propagate reset to all levels
+            broadcast_decay: Decay factor for propagation (0-1)
         """
 
-        if 0 <= level < self.n_levels:
-            self.phases[level] = (self.phases[level] + reset_amount) % (2 * np.pi)
-            # Also reset the noise process
-            self.noise_processes[level].reset()
+        if not (0 <= level < self.n_levels):
+            return
+
+        # Core level reset
+        self.phases[level] = (self.phases[level] + reset_amount) % (2 * np.pi)
+        self.noise_processes[level].reset()
+
+        if broadcast:
+            for j in range(self.n_levels):
+                if j == level:
+                    continue
+                # Hierarchical distance |j - level|
+                distance = abs(j - level)
+                effective_reset = reset_amount * (broadcast_decay**distance)
+                self.phases[j] = (self.phases[j] + effective_reset) % (2 * np.pi)
+                # Partial noise reset based on proximity
+                if np.random.random() < (broadcast_decay**distance):
+                    self.noise_processes[j].reset()
 
     def get_phases(self) -> np.ndarray:
         """Get current phases."""
@@ -289,15 +308,25 @@ class HierarchicalKuramotoSystem:
             "coherence": self.oscillators.get_phase_coherence(),
         }
 
-    def apply_ignition_reset(self, level: int) -> None:
+    def apply_ignition_reset(self, level: int, broadcast: bool | None = None) -> None:
         """Apply phase reset on ignition at given level.
 
         Args:
             level: Level where ignition occurred
+            broadcast: Override config broadcast setting
         """
 
         reset_amount = self.config.get("kuramoto_reset_amount", np.pi)
-        self.oscillators.reset_phase_on_ignition(level, reset_amount)
+        do_broadcast = (
+            broadcast
+            if broadcast is not None
+            else self.config.get("kuramoto_reset_broadcast", False)
+        )
+        decay = self.config.get("kuramoto_broadcast_decay", 0.5)
+
+        self.oscillators.reset_phase_on_ignition(
+            level, reset_amount, broadcast=do_broadcast, broadcast_decay=decay
+        )
 
     def get_phase_modulation_factor(self, level: int) -> float:
         """Get phase-dependent modulation factor for threshold.

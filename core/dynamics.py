@@ -101,12 +101,14 @@ def update_threshold_ode(
     V: float,
     tau_theta: float,
     eta: float,
+    delta: float = 0.0,
+    B: int = 0,
     dt: float = 1.0,
     noise_std: float = 0.01,
 ) -> float:
-    """Continuous threshold dynamics ODE per APGI spec (§7.2).
+    """Continuous threshold dynamics ODE per APGI spec (§7.2/7.4).
 
-    dθ/dt = -(θ - θ_base)/τ_θ + η·(C - V) + η_θ(t)
+    dθ/dt = -(θ - θ_base)/τ_θ + η·(C - V) + δ_reset·B(t) + η_θ(t)
 
     Implements Euler-Maruyama integration step:
     θ(t+dt) = θ(t) + dθ/dt * dt + noise_std * sqrt(dt) * N(0,1)
@@ -114,6 +116,7 @@ def update_threshold_ode(
     Components:
     - Decay term: -(θ - θ_base)/τ_θ (mean-reversion to baseline)
     - Allostatic term: η·(C - V) (cost-value mismatch)
+    - Refractory term: δ_reset·B(t) (post-ignition jump)
     - Noise term: η_θ(t) (stochastic fluctuations)
 
     Args:
@@ -123,10 +126,13 @@ def update_threshold_ode(
         V: Information value
         tau_theta: Threshold decay time constant (τ_θ)
         eta: Allostatic learning rate
+        delta: Refractory boost magnitude (δ_reset)
+        B: Ignition state (0 or 1)
+        dt: Integration time step
         noise_std: Standard deviation of threshold noise
 
     Returns:
-        dθ/dt (threshold change rate)
+        Updated threshold θ(t+dt)
     """
 
     if tau_theta <= 0:
@@ -138,7 +144,11 @@ def update_threshold_ode(
     # Allostatic update (cost - value)
     allostatic_term = eta * (C - V)
 
-    drift = decay_term + allostatic_term
+    # Refractory boost (impulse-like term in ODE)
+    # Note: B(t) is treated as a density-like term per spec §7.4
+    refractory_term = delta * int(B)
+
+    drift = decay_term + allostatic_term + refractory_term
     noise = float(np.random.normal(0.0, noise_std * np.sqrt(dt)))
 
     return float(theta + drift * dt + noise)
