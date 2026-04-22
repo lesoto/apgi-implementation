@@ -24,16 +24,23 @@ This guide documents all APGI parameters, their valid ranges, physical meanings,
 **Spec Reference:** §1, §7.1
 
 **Constraints:**
+
 - Must be positive
+
 - Should be ≤ tau_theta and tau_pi
+
 - Affects integration speed
 
 **Guidance:**
+
 - Smaller values: Faster response, more noise
+
 - Larger values: Slower response, more filtering
+
 - Typical: 5-10 ms for cortical timescales
 
 **Example:**
+
 ```python
 config["tau_s"] = 5.0  # 5 ms signal timescale
 ```
@@ -50,16 +57,23 @@ config["tau_s"] = 5.0  # 5 ms signal timescale
 **Spec Reference:** §2.4, §7.3
 
 **Constraints:**
+
 - Must be positive
+
 - Should be ≥ tau_s
+
 - Affects precision learning speed
 
 **Guidance:**
+
 - Smaller values: Faster precision adaptation
+
 - Larger values: Slower precision adaptation
+
 - Typical: 1000 ms for slow learning
 
 **Example:**
+
 ```python
 config["tau_pi"] = 1000.0  # 1 second precision timescale
 ```
@@ -76,16 +90,23 @@ config["tau_pi"] = 1000.0  # 1 second precision timescale
 **Spec Reference:** §4, §7.3
 
 **Constraints:**
+
 - Must be positive
+
 - Should be ≥ tau_s
+
 - Affects threshold learning speed
 
 **Guidance:**
+
 - Smaller values: Faster threshold adaptation
+
 - Larger values: Slower threshold adaptation
+
 - Typical: 1000 ms for slow learning
 
 **Example:**
+
 ```python
 config["tau_theta"] = 1000.0  # 1 second threshold timescale
 ```
@@ -102,16 +123,23 @@ config["tau_theta"] = 1000.0  # 1 second threshold timescale
 **Spec Reference:** §1.3, §2.2
 
 **Constraints:**
+
 - Must be positive
+
 - Should be very small
+
 - Affects numerical stability
 
 **Guidance:**
+
 - Smaller values: More accurate but less stable
+
 - Larger values: More stable but less accurate
+
 - Typical: 1e-8 for double precision
 
 **Example:**
+
 ```python
 config["eps_stab"] = 1e-8  # 1e-8 stability constant
 ```
@@ -130,16 +158,23 @@ config["eps_stab"] = 1e-8  # 1e-8 stability constant
 **Spec Reference:** §2.2
 
 **Constraints:**
+
 - Must be positive
+
 - Must be < pi_max
+
 - Affects precision range
 
 **Guidance:**
+
 - Smaller values: Allow more uncertainty
+
 - Larger values: Enforce minimum confidence
+
 - Typical: 0.01 for moderate uncertainty
 
 **Example:**
+
 ```python
 config["pi_min"] = 0.01  # Minimum precision 0.01
 ```
@@ -156,16 +191,23 @@ config["pi_min"] = 0.01  # Minimum precision 0.01
 **Spec Reference:** §2.2
 
 **Constraints:**
+
 - Must be > pi_min
+
 - Affects precision range
+
 - Prevents precision explosion
 
 **Guidance:**
+
 - Smaller values: Limit maximum confidence
+
 - Larger values: Allow high confidence
+
 - Typical: 100 for moderate confidence
 
 **Example:**
+
 ```python
 config["pi_max"] = 100.0  # Maximum precision 100
 ```
@@ -181,15 +223,21 @@ config["pi_max"] = 100.0  # Maximum precision 100
 **Spec Reference:** §2.3, §15.1
 
 **Constraints:**
+
 - Cannot be True if ne_on_threshold is True
+
 - Enforced at initialization
 
 **Guidance:**
+
 - True: NE increases precision (attention)
+
 - False: NE does not affect precision
+
 - Typical: False (NE modulates threshold instead)
 
 **Example:**
+
 ```python
 config["ne_on_precision"] = False  # NE does not modulate precision
 ```
@@ -205,15 +253,21 @@ config["ne_on_precision"] = False  # NE does not modulate precision
 **Spec Reference:** §2.3, §15.1
 
 **Constraints:**
+
 - Cannot be True if ne_on_precision is True
+
 - Enforced at initialization
 
 **Guidance:**
+
 - True: NE lowers threshold (arousal)
+
 - False: NE does not affect threshold
+
 - Typical: True (NE modulates threshold)
 
 **Example:**
+
 ```python
 config["ne_on_threshold"] = True  # NE modulates threshold
 ```
@@ -232,16 +286,23 @@ config["ne_on_threshold"] = True  # NE modulates threshold
 **Spec Reference:** §3.2
 
 **Constraints:**
+
 - Must be > 0
+
 - Must be < 1
+
 - Enforced at initialization
 
 **Guidance:**
+
 - Smaller values: More filtering, slower response
+
 - Larger values: Less filtering, faster response
+
 - Typical: 0.2 for moderate integration
 
 **Example:**
+
 ```python
 config["lam"] = 0.2  # 20% integration rate
 ```
@@ -257,15 +318,21 @@ config["lam"] = 0.2  # 20% integration rate
 **Spec Reference:** §3.3
 
 **Constraints:**
+
 - Optional feature
+
 - Only applies when dimensionless
 
 **Guidance:**
+
 - True: Compress large signal ranges
+
 - False: Linear signal accumulation
+
 - Typical: False (for interpretability)
 
 **Example:**
+
 ```python
 config["use_log_compression"] = False  # No log-compression
 ```
@@ -284,15 +351,21 @@ config["use_log_compression"] = False  # No log-compression
 **Spec Reference:** §4.2
 
 **Constraints:**
+
 - Must be positive
+
 - Affects cost computation
 
 **Guidance:**
+
 - Smaller values: Lower cost, higher threshold
+
 - Larger values: Higher cost, lower threshold
+
 - Typical: 0.2 for moderate cost
 
 **Example:**
+
 ```python
 config["c1"] = 0.2  # Signal cost coefficient
 ```
@@ -309,15 +382,21 @@ config["c1"] = 0.2  # Signal cost coefficient
 **Spec Reference:** §4.2
 
 **Constraints:**
+
 - Must be positive
+
 - Affects refractory period
 
 **Guidance:**
+
 - Smaller values: Lower ignition cost
+
 - Larger values: Higher ignition cost
+
 - Typical: 0.1 for moderate cost
 
 **Example:**
+
 ```python
 config["c2"] = 0.1  # Ignition cost coefficient
 ```
@@ -334,16 +413,23 @@ config["c2"] = 0.1  # Ignition cost coefficient
 **Spec Reference:** §4.1
 
 **Constraints:**
+
 - Must be positive
+
 - Should be < 1
+
 - Affects learning speed
 
 **Guidance:**
+
 - Smaller values: Slower learning
+
 - Larger values: Faster learning
+
 - Typical: 0.1 for moderate learning
 
 **Example:**
+
 ```python
 config["eta"] = 0.1  # 10% learning rate
 ```
@@ -360,15 +446,21 @@ config["eta"] = 0.1  # 10% learning rate
 **Spec Reference:** §4.1, §6
 
 **Constraints:**
+
 - Must be positive
+
 - Affects refractory period
 
 **Guidance:**
+
 - Smaller values: Shorter refractory period
+
 - Larger values: Longer refractory period
+
 - Typical: 0.5 for moderate refractory
 
 **Example:**
+
 ```python
 config["delta_reset"] = 0.5  # 50% refractory boost
 ```
@@ -385,15 +477,21 @@ config["delta_reset"] = 0.5  # 50% refractory boost
 **Spec Reference:** §4.5, §7.3
 
 **Constraints:**
+
 - Must be positive
+
 - Affects threshold relaxation
 
 **Guidance:**
+
 - Smaller values: Slower decay
+
 - Larger values: Faster decay
+
 - Typical: 0.15 for moderate decay
 
 **Example:**
+
 ```python
 config["kappa"] = 0.15  # 15% decay rate
 ```
@@ -410,15 +508,21 @@ config["kappa"] = 0.15  # 15% decay rate
 **Spec Reference:** §4.1
 
 **Constraints:**
+
 - Must be positive
+
 - Affects threshold dynamics
 
 **Guidance:**
+
 - Smaller values: Lower baseline, more ignitions
+
 - Larger values: Higher baseline, fewer ignitions
+
 - Typical: 0.5 for moderate baseline
 
 **Example:**
+
 ```python
 config["theta_base"] = 0.5  # Baseline threshold 0.5
 ```
@@ -437,15 +541,21 @@ config["theta_base"] = 0.5  # Baseline threshold 0.5
 **Spec Reference:** §5.2
 
 **Constraints:**
+
 - Must be positive
+
 - Affects ignition sharpness
 
 **Guidance:**
+
 - Smaller values: Sharper transition
+
 - Larger values: Smoother transition
+
 - Typical: 0.5 for moderate sharpness
 
 **Example:**
+
 ```python
 config["ignite_tau"] = 0.5  # Sigmoid temperature 0.5
 ```
@@ -461,15 +571,21 @@ config["ignite_tau"] = 0.5  # Sigmoid temperature 0.5
 **Spec Reference:** §5.1, §5.2
 
 **Constraints:**
+
 - Optional feature
+
 - Affects ignition behavior
 
 **Guidance:**
+
 - True: Stochastic ignition (probabilistic)
+
 - False: Deterministic ignition (binary)
+
 - Typical: False (for interpretability)
 
 **Example:**
+
 ```python
 config["use_soft_ignition"] = False  # Hard ignition
 ```
@@ -488,16 +604,23 @@ config["use_soft_ignition"] = False  # Hard ignition
 **Spec Reference:** §6.1
 
 **Constraints:**
+
 - Must be > 0
+
 - Must be < 1
+
 - Enforced at initialization
 
 **Guidance:**
+
 - Smaller values: More signal reset
+
 - Larger values: Less signal reset
+
 - Typical: 0.5 for moderate reset
 
 **Example:**
+
 ```python
 config["reset_factor"] = 0.5  # 50% signal retention
 ```
@@ -516,16 +639,23 @@ config["reset_factor"] = 0.5  # 50% signal retention
 **Spec Reference:** §7.4
 
 **Constraints:**
+
 - Must be positive
+
 - Must be ≤ min(tau_s, tau_theta, tau_pi) / 10
+
 - Enforced at initialization
 
 **Guidance:**
+
 - Smaller values: More accurate, slower
+
 - Larger values: Less accurate, faster
+
 - Typical: 1.0 ms for 1 kHz sampling
 
 **Example:**
+
 ```python
 config["dt"] = 1.0  # 1 ms time step
 ```
@@ -542,15 +672,21 @@ config["dt"] = 1.0  # 1 ms time step
 **Spec Reference:** §7.1, §7.2
 
 **Constraints:**
+
 - Must be positive
+
 - Affects stochasticity
 
 **Guidance:**
+
 - Smaller values: Less noise
+
 - Larger values: More noise
+
 - Typical: 0.1 for moderate noise
 
 **Example:**
+
 ```python
 config["sigma_s"] = 0.1  # Signal noise amplitude
 ```
@@ -568,15 +704,21 @@ config["sigma_s"] = 0.1  # Signal noise amplitude
 **Spec Reference:** §8
 
 **Constraints:**
+
 - Optional feature
+
 - Requires n_levels and timescale_k
 
 **Guidance:**
+
 - True: Multi-scale processing
+
 - False: Single-scale processing
+
 - Typical: False (for simplicity)
 
 **Example:**
+
 ```python
 config["use_hierarchy"] = False  # No hierarchical system
 ```
@@ -593,15 +735,21 @@ config["use_hierarchy"] = False  # No hierarchical system
 **Spec Reference:** §8.1
 
 **Constraints:**
+
 - Must be ≥ 1
+
 - Only used if use_hierarchy is True
 
 **Guidance:**
+
 - Smaller values: Fewer timescales
+
 - Larger values: More timescales
+
 - Typical: 5 for cortical hierarchy
 
 **Example:**
+
 ```python
 config["n_levels"] = 5  # 5 hierarchical levels
 ```
@@ -618,16 +766,23 @@ config["n_levels"] = 5  # 5 hierarchical levels
 **Spec Reference:** §8.1
 
 **Constraints:**
+
 - Must be > 1
+
 - Enforced at initialization
+
 - Only used if use_hierarchy is True
 
 **Guidance:**
+
 - Smaller values: Closer timescales
+
 - Larger values: More separated timescales
+
 - Typical: 1.6 for cortical hierarchy
 
 **Example:**
+
 ```python
 config["timescale_k"] = 1.6  # Timescale ratio 1.6
 ```
@@ -645,15 +800,21 @@ config["timescale_k"] = 1.6  # Timescale ratio 1.6
 **Spec Reference:** §9
 
 **Constraints:**
+
 - Optional feature
+
 - Requires kuramoto_tau_xi and kuramoto_sigma_xi
 
 **Guidance:**
+
 - True: Coupled phase dynamics
+
 - False: No oscillatory coupling
+
 - Typical: False (for simplicity)
 
 **Example:**
+
 ```python
 config["use_kuramoto"] = False  # No Kuramoto oscillators
 ```
@@ -670,15 +831,21 @@ config["use_kuramoto"] = False  # No Kuramoto oscillators
 **Spec Reference:** §9
 
 **Constraints:**
+
 - Must be positive
+
 - Only used if use_kuramoto is True
 
 **Guidance:**
+
 - Smaller values: Faster noise
+
 - Larger values: Slower noise
+
 - Typical: 1.0 ms for neural timescales
 
 **Example:**
+
 ```python
 config["kuramoto_tau_xi"] = 1.0  # 1 ms OU timescale
 ```
@@ -695,15 +862,21 @@ config["kuramoto_tau_xi"] = 1.0  # 1 ms OU timescale
 **Spec Reference:** §9
 
 **Constraints:**
+
 - Must be positive
+
 - Only used if use_kuramoto is True
 
 **Guidance:**
+
 - Smaller values: Less noise
+
 - Larger values: More noise
+
 - Typical: 0.1 for moderate noise
 
 **Example:**
+
 ```python
 config["kuramoto_sigma_xi"] = 0.1  # OU noise amplitude
 ```
@@ -721,15 +894,21 @@ config["kuramoto_sigma_xi"] = 0.1  # OU noise amplitude
 **Spec Reference:** §10
 
 **Constraints:**
+
 - Optional feature
+
 - Requires reservoir_size and reservoir_tau
 
 **Guidance:**
+
 - True: Liquid state machine
+
 - False: No reservoir layer
+
 - Typical: False (for simplicity)
 
 **Example:**
+
 ```python
 config["use_reservoir"] = False  # No reservoir layer
 ```
@@ -746,16 +925,23 @@ config["use_reservoir"] = False  # No reservoir layer
 **Spec Reference:** §10
 
 **Constraints:**
+
 - Must be ≥ 10
+
 - Only used if use_reservoir is True
+
 - Affects memory and computation
 
 **Guidance:**
+
 - Smaller values: Faster, less capacity
+
 - Larger values: Slower, more capacity
+
 - Typical: 100 for moderate capacity
 
 **Example:**
+
 ```python
 config["reservoir_size"] = 100  # 100 reservoir neurons
 ```
@@ -772,15 +958,21 @@ config["reservoir_size"] = 100  # 100 reservoir neurons
 **Spec Reference:** §10
 
 **Constraints:**
+
 - Must be positive
+
 - Only used if use_reservoir is True
 
 **Guidance:**
+
 - Smaller values: Faster dynamics
+
 - Larger values: Slower dynamics
+
 - Typical: 1.0 ms for neural timescales
 
 **Example:**
+
 ```python
 config["reservoir_tau"] = 1.0  # 1 ms reservoir timescale
 ```
@@ -798,15 +990,21 @@ config["reservoir_tau"] = 1.0  # 1 ms reservoir timescale
 **Spec Reference:** §11
 
 **Constraints:**
+
 - Optional feature
+
 - Requires k_boltzmann, T_env, kappa_meta
 
 **Guidance:**
+
 - True: Thermodynamic grounding
+
 - False: No thermodynamic cost
+
 - Typical: False (for simplicity)
 
 **Example:**
+
 ```python
 config["use_thermodynamics"] = False  # No thermodynamic cost
 ```
@@ -823,15 +1021,21 @@ config["use_thermodynamics"] = False  # No thermodynamic cost
 **Spec Reference:** §11
 
 **Constraints:**
+
 - Must be positive
+
 - Physical constant (do not change)
+
 - Only used if use_thermodynamics is True
 
 **Guidance:**
+
 - Use default value (physical constant)
+
 - Do not modify
 
 **Example:**
+
 ```python
 config["k_boltzmann"] = 1.38e-23  # Boltzmann constant
 ```
@@ -848,15 +1052,21 @@ config["k_boltzmann"] = 1.38e-23  # Boltzmann constant
 **Spec Reference:** §11
 
 **Constraints:**
+
 - Must be positive
+
 - Typical: 310 K (37°C, body temperature)
+
 - Only used if use_thermodynamics is True
 
 **Guidance:**
+
 - Use 310 K for biological systems
+
 - Adjust for different environments
 
 **Example:**
+
 ```python
 config["T_env"] = 310.0  # 37°C body temperature
 ```
@@ -873,17 +1083,25 @@ config["T_env"] = 310.0  # 37°C body temperature
 **Spec Reference:** §11
 
 **Constraints:**
+
 - Must be positive
+
 - Affects thermodynamic cost scaling
+
 - Only used if use_thermodynamics is True
 
 **Guidance:**
+
 - 1.0: Ideal efficiency
+
 - < 1.0: Better than ideal
+
 - > 1.0: Worse than ideal
+
 - Typical: 1.0 for baseline
 
 **Example:**
+
 ```python
 config["kappa_meta"] = 1.0  # Ideal metabolic efficiency
 ```
@@ -901,15 +1119,21 @@ config["kappa_meta"] = 1.0  # Ideal metabolic efficiency
 **Spec Reference:** §14
 
 **Constraints:**
+
 - Optional feature
+
 - Enables empirical validation
 
 **Guidance:**
+
 - True: Extract neural/behavioral observables
+
 - False: No observable extraction
+
 - Typical: False (for simplicity)
 
 **Example:**
+
 ```python
 config["use_observable_mapping"] = False  # No observable extraction
 ```
@@ -927,15 +1151,21 @@ config["use_observable_mapping"] = False  # No observable extraction
 **Spec Reference:** §7
 
 **Constraints:**
+
 - Optional feature
+
 - Enables theoretical validation
 
 **Guidance:**
+
 - True: Compute eigenvalues and stability
+
 - False: No stability analysis
+
 - Typical: False (for speed)
 
 **Example:**
+
 ```python
 config["use_stability_analysis"] = False  # No stability analysis
 ```
@@ -947,6 +1177,7 @@ config["use_stability_analysis"] = False  # No stability analysis
 All parameters are validated at pipeline initialization. Invalid configurations raise `ValueError` with descriptive messages.
 
 **Validation Categories:**
+
 1. ✅ Neuromodulator separation (NE mutual exclusivity)
 2. ✅ Signal accumulation (lam ∈ (0,1))
 3. ✅ Threshold dynamics (kappa > 0, reset_factor ∈ (0,1))
@@ -961,6 +1192,7 @@ All parameters are validated at pipeline initialization. Invalid configurations 
 ## Quick Reference
 
 ### Minimal Configuration
+
 ```python
 config = {
     "tau_s": 5.0,
@@ -973,12 +1205,14 @@ config = {
 ```
 
 ### Full Configuration
+
 ```python
 from config import CONFIG
 config = CONFIG.copy()
 ```
 
 ### Validation
+
 ```python
 from core.validation import validate_config
 validate_config(config)  # Raises ValueError if invalid
@@ -989,7 +1223,9 @@ validate_config(config)  # Raises ValueError if invalid
 ## References
 
 - APGI Specification: `APGI-Specs.md`
-- API Reference: `docs/API_REFERENCE.md`
-- Design Choices: `docs/DESIGN_CHOICES.md`
-- Troubleshooting: `docs/TROUBLESHOOTING.md`
 
+- API Reference: `docs/API_REFERENCE.md`
+
+- Design Choices: `docs/DESIGN_CHOICES.md`
+
+- Troubleshooting: `docs/TROUBLESHOOTING.md`

@@ -249,7 +249,6 @@ $$k \in [1.3, 2.0]$$
 
 Test $\varphi$ later
 
-
 ---
 
 ## 11. IMPLEMENTATION STATUS & FEATURES
@@ -360,7 +359,7 @@ validate_config(config)  # Raises ValueError if invalid
 ### 14.1 Neural Observables
 
 | Internal Variable | Neural Observable | Measurement |
-|---|---|---|
+| :--- | :--- | :--- |
 | $S(t)$ | Gamma-band power (30-100 Hz) | LFP/EEG |
 | $\theta(t)$ | P300/N200 ERP amplitude | ERP |
 | $B(t)$ | Global ignition (gamma synchrony) | Coherence |
@@ -368,7 +367,7 @@ validate_config(config)  # Raises ValueError if invalid
 ### 14.2 Behavioral Observables
 
 | Internal Variable | Behavioral Observable | Measurement |
-|---|---|---|
+| :--- | :--- | :--- |
 | $S(t)$ | Perceptual sensitivity (d') | Psychophysics |
 | $\theta(t)$ | RT variability, response criterion | Reaction time |
 | $B(t)$ | Overt decision/button press | Behavior |
@@ -394,6 +393,7 @@ Minimum energy cost for erasing information:
 $$E_{\text{min}} = \kappa_{\text{meta}} \cdot N_{\text{erase}} \cdot k_B \cdot T_{\text{env}} \cdot \ln(2)$$
 
 where:
+
 - $N_{\text{erase}} \approx \log_2(S / \epsilon_{\text{stab}})$ (information bits)
 - $k_B = 1.38 \times 10^{-23}$ J/K (Boltzmann constant)
 - $T_{\text{env}} = 310$ K (body temperature)
@@ -454,7 +454,7 @@ print(f"Eigenvalues: {result['eigenvalues']}")
 ### 17.1 Overall Rating: 95/100 ✅
 
 | Section | Topic | Rating | Status |
-|---------|-------|--------|--------|
+| :--- | :--- | :--- | :--- |
 | 1 | Signal Preprocessing | 85/100 | ✅ |
 | 2 | Precision System | 78/100 | ⚠️ |
 | 3 | Signal Accumulation | 88/100 | ✅ |
@@ -531,6 +531,7 @@ print(f"Eigenvalues: {result['eigenvalues']}")
 **Status:** 🚀 Production Ready
 
 The APGI implementation is complete, tested, documented, and ready for:
+
 - Research applications
 - Empirical validation
 - Clinical use

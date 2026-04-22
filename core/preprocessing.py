@@ -21,8 +21,21 @@ class RunningStats:
     def mean(self) -> float:
         return float(np.mean(self.window)) if self.window else 0.0
 
-    def variance(self) -> float:
-        return float(np.var(self.window)) if self.window else 1.0
+    def variance(self, bessel_correction: bool = True) -> float:
+        """Compute variance with optional Bessel correction for unbiased estimation.
+
+        Args:
+            bessel_correction: If True, use N-1 denominator (unbiased). If False, use N (MLE).
+
+        Returns:
+            Sample variance with Bessel correction if enabled.
+        """
+        if not self.window:
+            return 1.0
+        if bessel_correction:
+            return float(np.var(self.window, ddof=1))
+        else:
+            return float(np.var(self.window, ddof=0))
 
     def std(self) -> float:
         return float(np.sqrt(self.variance()))

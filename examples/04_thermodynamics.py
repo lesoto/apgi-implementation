@@ -19,7 +19,6 @@ from config import CONFIG  # noqa: E402
 from core.thermodynamics import (  # noqa: E402
     compute_landauer_cost,
     compute_information_bits,
-    estimate_temperature_from_cost,
 )
 
 
@@ -33,7 +32,7 @@ def main():
     # Create configuration with thermodynamics
     print("\n1. Creating configuration with thermodynamics...")
     config = CONFIG.copy()
-    config["use_thermodynamics"] = True
+    config["use_thermodynamic_cost"] = True
     print("   ✓ Configuration created")
     print(f"     - Boltzmann constant: {config['k_boltzmann']:.2e} J/K")
     print(
@@ -88,25 +87,17 @@ def main():
         # Record metabolic cost
         thermodynamic_data["metabolic_cost"].append(result["C"])
 
-        # Compute efficiency
-        if result["C"] > 0:
-            efficiency = landauer / result["C"]
+        # Compute efficiency (C / E_min) - note: C is in arbitrary units, not Joules
+        # This is a dimensionless ratio showing how much metabolic cost exceeds Landauer minimum
+        if landauer > 0:
+            efficiency = result["C"] / landauer
             thermodynamic_data["efficiency"].append(efficiency)
         else:
-            thermodynamic_data["efficiency"].append(0)
+            thermodynamic_data["efficiency"].append(0.0)
 
-        # Compute implied temperature
-        if S > config["eps"]:
-            temp = estimate_temperature_from_cost(
-                C_metabolic=result["C"],
-                S=S,
-                eps=config["eps"],
-                k_b=config["k_boltzmann"],
-                kappa_meta=config["kappa_meta"],
-            )
-            thermodynamic_data["temperature"].append(temp)
-        else:
-            thermodynamic_data["temperature"].append(config["T_env"])
+        # Note: Temperature estimation disabled - requires C in Joules but our C is arbitrary units
+        # To enable, convert metabolic cost to Joules using a scaling factor
+        thermodynamic_data["temperature"].append(config["T_env"])
 
     print(f"   ✓ Simulation completed ({n_steps} steps)")
 
@@ -123,7 +114,6 @@ def main():
     bits_array = np.array(thermodynamic_data["info_bits"])
     cost_array = np.array(thermodynamic_data["metabolic_cost"])
     efficiency_array = np.array(thermodynamic_data["efficiency"])
-    temp_array = np.array(thermodynamic_data["temperature"])
 
     print("   Signal (S):")
     print(f"     Mean:  {np.mean(S_array):.4f}")
@@ -151,13 +141,9 @@ def main():
     print(
         f"     Range: [{np.min(efficiency_array):.4f}, {np.max(efficiency_array):.4f}]"
     )
-
-    print("   Implied temperature:")
     print(
-        f"     Mean:  {np.mean(temp_array):.1f} K ({np.mean(temp_array) - 273:.1f}°C)"
+        "   Note: C is in arbitrary units, not Joules. Ratio shows cost excess over minimum."
     )
-    print(f"     Std:   {np.std(temp_array):.1f} K")
-    print(f"     Range: [{np.min(temp_array):.1f}, {np.max(temp_array):.1f}] K")
 
     # Validate thermodynamic constraint
     print("\n6. Thermodynamic Constraint Validation:")

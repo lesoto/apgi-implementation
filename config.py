@@ -12,10 +12,14 @@ CONFIG = {
     # EMA variance update
     "alpha_e": 0.05,
     "alpha_i": 0.05,
+    # Variance estimation method
+    "variance_method": "ema",  # "ema" or "sliding_window"
+    "T_win": 50,  # Sliding window size (only used if variance_method == "sliding_window")
     # Neuromodulation
     "g_ach": 1.0,
     "g_ne": 1.0,
-    "beta": 0.0,
+    "beta": 0.0,  # Spec alias: beta_da
+    "beta_da": 0.0,  # Spec-preferred name (alias for backward compatibility)
     # Prevent NE double-counting (recommended)
     "ne_on_precision": True,
     "ne_on_threshold": False,
@@ -26,9 +30,12 @@ CONFIG = {
     # Signal accumulation
     "lam": 0.2,
     "signal_log_nonlinearity": True,
+    "use_canonical_discrete_mode": False,  # Use discrete leaky accumulation instead of ODE
     # Threshold update + refractory dynamics
     "eta": 0.1,
     "delta": 0.5,
+    # Post-ignition reset (§6)
+    "reset_factor": 0.5,  # Signal reset factor ρ ∈ (0,1)
     # Cost-value model
     "use_realistic_cost": True,
     "c0": 0.0,
@@ -37,7 +44,8 @@ CONFIG = {
     "v1": 0.5,
     "v2": 0.5,
     # Ignition dynamics
-    "ignite_tau": 0.5,
+    "ignite_tau": 0.5,  # Spec alias: tau_sigma
+    "tau_sigma": 0.5,  # Spec-preferred name (alias for backward compatibility)
     "stochastic_ignition": False,
     # Continuous-time signal ODE / SDE parameters
     "tau_s": 5.0,  # Signal decay time constant (dt/tau_s ≈ lam)

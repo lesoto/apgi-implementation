@@ -5,6 +5,7 @@
 APGI is a unified computational framework for modeling allostatic threshold dynamics in biological systems. It integrates signal processing, precision-weighted accumulation, threshold adaptation, and ignition mechanisms with optional advanced features including Kuramoto oscillators, reservoir computing, and thermodynamic constraints.
 
 **Key Features:**
+
 - ✅ Complete signal preprocessing pipeline (§1)
 - ✅ Free Energy Principle-grounded precision system (§2)
 - ✅ Precision-weighted signal accumulation (§3)
@@ -82,21 +83,25 @@ python examples/04_thermodynamics.py
 ## Documentation
 
 ### Getting Started
+
 - **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation
 - **[Quick Start Guide](examples/01_basic_usage.py)** - Basic usage example
 - **[Parameter Constraints](docs/PARAMETER_CONSTRAINTS.md)** - Parameter guide
 
 ### Understanding the System
+
 - **[Design Choices](docs/DESIGN_CHOICES.md)** - Implementation rationale
 - **[Specification](APGI-Specs.md)** - Full mathematical specification
 - **[Observable Mapping](examples/03_observable_mapping.py)** - Neural/behavioral observables
 
 ### Troubleshooting & Advanced Topics
+
 - **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Common errors and solutions
 - **[Advanced Features](examples/02_advanced_features.py)** - Kuramoto, reservoir, stability
 - **[Thermodynamics](examples/04_thermodynamics.py)** - Landauer's principle analysis
 
 ### Implementation Details
+
 - **[Phase 1 Summary](PHASE_1_IMPLEMENTATION_SUMMARY.md)** - Thermodynamics, validation, reservoir
 - **[Phase 2 Summary](PHASE_2_IMPLEMENTATION_SUMMARY.md)** - Kuramoto, observable mapping, stability
 - **[Phase 3 Summary](PHASE_3_IMPLEMENTATION_SUMMARY.md)** - Documentation and polish
@@ -108,7 +113,7 @@ python examples/04_thermodynamics.py
 
 ### Core Components
 
-```
+```text
 APGIPipeline
 ├── Signal Preprocessing (§1)
 │   ├── Prediction error computation
@@ -162,7 +167,7 @@ APGIPipeline
 
 ### Module Organization
 
-```
+```text
 apgi-implementation/
 ├── core/                          # Core components
 │   ├── preprocessing.py           # Signal preprocessing
@@ -291,7 +296,7 @@ python -m pytest tests/ --cov=. --cov-report=html
 ## Performance
 
 | Metric | Value | Notes |
-|--------|-------|-------|
+| :--- | :--- | :--- |
 | Pipeline step | ~0.1 ms | Single step execution |
 | Memory (base) | ~10 MB | Minimal configuration |
 | Memory (per 1000 steps) | ~1 MB | History storage |
@@ -305,7 +310,7 @@ python -m pytest tests/ --cov=. --cov-report=html
 ### Overall Rating: 95/100 ✅
 
 | Section | Topic | Rating | Status |
-|---------|-------|--------|--------|
+| :--- | :--- | :--- | :--- |
 | 1 | Signal Preprocessing | 85/100 | ✅ |
 | 2 | Precision System | 78/100 | ⚠️ |
 | 3 | Signal Accumulation | 88/100 | ✅ |
@@ -329,28 +334,33 @@ See [Spec Compliance Checklist](SPEC_COMPLIANCE_CHECKLIST.md) for details.
 ## Key Features
 
 ### Signal Processing
+
 - Online variance estimation (EMA)
 - Z-score normalization
 - Generative model dynamics (optional)
 
 ### Precision System
+
 - Free Energy Principle grounding
 - Precision clamping [0.01, 100]
 - Neuromodulatory gains (ACh, NE, DA)
 - Precision ODE (optional)
 
 ### Threshold Dynamics
+
 - Allostatic update rule
 - Metabolic cost computation
 - Information value computation
 - Exponential decay
 
 ### Ignition Mechanism
+
 - Hard threshold (binary)
 - Soft threshold (sigmoid)
 - Ignition margin computation
 
 ### Advanced Features
+
 - **Kuramoto Oscillators:** Coupled phase dynamics with OU noise
 - **Reservoir Layer:** Liquid state machine with ridge regression
 - **Thermodynamics:** Landauer's principle grounding
@@ -363,16 +373,19 @@ See [Spec Compliance Checklist](SPEC_COMPLIANCE_CHECKLIST.md) for details.
 ## Neuromodulation
 
 ### Acetylcholine (ACh)
+
 - Modulates exteroceptive precision
 - Increases attention to external signals
 - Typical range: 0.5-1.5
 
 ### Norepinephrine (NE)
+
 - Modulates either precision or threshold (not both)
 - Increases arousal/vigilance
 - Typical range: 0-1.0
 
 ### Dopamine (DA)
+
 - Additive bias to interoceptive signal
 - Encodes motivation/reward
 - Typical range: -1.0 to 1.0
@@ -382,16 +395,19 @@ See [Spec Compliance Checklist](SPEC_COMPLIANCE_CHECKLIST.md) for details.
 ## Observable Mapping
 
 ### Neural Observables
+
 - **S(t) → Gamma-band power** (30-100 Hz)
 - **θ(t) → P300/N200 ERP amplitude**
 - **B(t) → Global ignition (gamma synchrony)**
 
 ### Behavioral Observables
+
 - **S(t) → Perceptual sensitivity (d')**
 - **θ(t) → RT variability, response criterion**
 - **B(t) → Overt decision/button press**
 
 ### Key Testable Prediction
+
 - Hit rate ∝ P_ign(t) = σ(Δ(t) / τ_σ)
 - Margin Δ(t) = S(t) - θ(t) outperforms S(t) alone
 
@@ -400,17 +416,20 @@ See [Spec Compliance Checklist](SPEC_COMPLIANCE_CHECKLIST.md) for details.
 ## Thermodynamic Grounding
 
 ### Landauer's Principle
-```
+
+```text
 E_min = κ_meta · N_erase · k_B · T_env · ln(2)
 where N_erase ≈ log₂(S / ε_stab)
 ```
 
 ### Metabolic Constraint
-```
+
+```text
 C(t) ≥ κ_meta · N_erase(t) · k_B · T_env · ln(2)
 ```
 
 ### Physical Constants
+
 - Boltzmann constant: 1.38e-23 J/K
 - Environment temperature: 310 K (37°C)
 - Metabolic efficiency: 1.0 (configurable)
@@ -422,12 +441,15 @@ C(t) ≥ κ_meta · N_erase(t) · k_B · T_env · ln(2)
 ### Common Errors
 
 **Error:** `ValueError: lam must be in (0,1)`
+
 - **Solution:** Set `config["lam"]` to value between 0 and 1
 
 **Error:** `ValueError: NE cannot modulate both precision and threshold`
+
 - **Solution:** Set either `ne_on_precision` or `ne_on_threshold` to False
 
 **Error:** `ValueError: dt=X exceeds max Y`
+
 - **Solution:** Reduce `dt` or increase timescales
 
 See [Troubleshooting Guide](docs/TROUBLESHOOTING.md) for more solutions.
@@ -461,7 +483,7 @@ python -m pytest tests/ -v
 - Write comprehensive docstrings
 - Include spec references (§X.Y format)
 
-### Testing
+### Test Coverage
 
 - Write tests for new features
 - Ensure all tests pass
@@ -472,21 +494,25 @@ python -m pytest tests/ -v
 ## References
 
 ### Specification
+
 - [APGI Specification](APGI-Specs.md) - Full mathematical specification
 - [Improvement Roadmap](IMPROVEMENT_ROADMAP.md) - Implementation roadmap
 
 ### Implementation
+
 - [Phase 1 Summary](PHASE_1_IMPLEMENTATION_SUMMARY.md) - Thermodynamics, validation, reservoir
 - [Phase 2 Summary](PHASE_2_IMPLEMENTATION_SUMMARY.md) - Kuramoto, observable mapping, stability
 - [Phase 3 Summary](PHASE_3_IMPLEMENTATION_SUMMARY.md) - Documentation and polish
 
-### Documentation
+### Documentation Links
+
 - [API Reference](docs/API_REFERENCE.md) - Complete API documentation
 - [Design Choices](docs/DESIGN_CHOICES.md) - Implementation rationale
 - [Parameter Constraints](docs/PARAMETER_CONSTRAINTS.md) - Parameter guide
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Common errors and solutions
 
 ### Examples
+
 - [Basic Usage](examples/01_basic_usage.py) - Simple introduction
 - [Advanced Features](examples/02_advanced_features.py) - All features
 - [Observable Mapping](examples/03_observable_mapping.py) - Neural/behavioral observables
@@ -518,6 +544,7 @@ If you use APGI in your research, please cite:
 ## Contact
 
 For questions, issues, or contributions, please:
+
 1. Check [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
 2. Review [API Reference](docs/API_REFERENCE.md)
 3. Run relevant [examples](examples/)

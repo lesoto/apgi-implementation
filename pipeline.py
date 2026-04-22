@@ -9,6 +9,7 @@ from core.dynamics import (
     update_prediction,
     update_signal_ode,
 )
+from core.signal import integrate_signal_leaky
 from core.allostatic import allostatic_threshold_ode
 from core.ignition import (
     compute_ignition_probability,
@@ -21,15 +22,15 @@ from core.precision import (
     apply_ne_gain,
     compute_interoceptive_precision_exponential,
     compute_precision,
-    precision_coupling_ode_core,
     update_mean_ema,
-    update_precision_euler,
     update_variance_ema,
 )
-from core.preprocessing import compute_prediction_error
+from hierarchy.coupling import HierarchicalPrecisionNetwork
+from core.preprocessing import compute_prediction_error, RunningStats
 from core.signal import instantaneous_signal, stabilize_signal_log
 from core.threshold import (
     apply_ne_threshold_modulation,
+    apply_refractory_boost,
     compute_information_value,
     compute_metabolic_cost,
     compute_metabolic_cost_realistic,
@@ -80,6 +81,12 @@ class APGIPipeline:
         # Copy to avoid mutating the caller's dict
         self.config = dict(config)
 
+        # Support spec-preferred parameter names with backward compatibility
+        if "beta_da" in self.config and "beta" not in self.config:
+            self.config["beta"] = self.config["beta_da"]
+        if "tau_sigma" in self.config and "ignite_tau" not in self.config:
+            self.config["ignite_tau"] = self.config["tau_sigma"]
+
         # Validate configuration against spec constraints (§15)
         try:
             validate_config(self.config)
@@ -97,14 +104,10 @@ class APGIPipeline:
         if self.config.get("ne_on_precision", False) and self.config.get(
             "ne_on_threshold", False
         ):
-            import warnings
-
-            warnings.warn(
+            raise ValidationError(
                 "Both ne_on_precision and ne_on_threshold are True. "
                 "This double-counts norepinephrine effects. "
-                "Recommendation: enable only one. See spec Section 2.3-2.4.",
-                RuntimeWarning,
-                stacklevel=2,
+                "Enable only one. See spec Section 2.3-2.4."
             )
         # Auto-adjust NE parameters for threshold mode to prevent runaway
         if (
@@ -136,11 +139,28 @@ class APGIPipeline:
         self.B_prev = 0
         self.t = 0.0  # Continuous time (phase tracking + SDE)
 
+        # Initialize sliding-window stats if variance_method is "sliding_window"
+        self.stats_e = None
+        self.stats_i = None
+        if self.config.get("variance_method", "ema") == "sliding_window":
+            T_win = self.config.get("T_win", 50)
+            self.stats_e = RunningStats(window_size=T_win)
+            self.stats_i = RunningStats(window_size=T_win)
+
         # Hierarchical state if enabled
         self.hierarchical = None
+        self.hierarchical_network = None
         if self.config.get("use_hierarchical", False):
             n_levels = self.config.get("n_levels", 3)
             self.hierarchical = HierarchicalState(n_levels=n_levels)
+            # Initialize HierarchicalPrecisionNetwork for proper per-level error computation
+            if self.config.get("use_hierarchical_precision_ode", False):
+                self.hierarchical_network = HierarchicalPrecisionNetwork(
+                    n_levels=n_levels,
+                    tau_pi=self.config.get("tau_pi", 1000.0),
+                    C_down=self.config.get("C_down", 0.1),
+                    C_up=self.config.get("C_up", 0.05),
+                )
 
         # Somatic marker state if enabled
         self.M = self.config.get("M_somatic", 0.0)  # Somatic marker ∈ [-2, +2]
@@ -219,15 +239,33 @@ class APGIPipeline:
         z_e = compute_prediction_error(x_e, _x_hat_e)
         z_i = compute_prediction_error(x_i, _x_hat_i)
 
-        # 2) Online mean + variance update (EMA, centered)
-        self.state.mu_e = update_mean_ema(self.state.mu_e, z_e, self.config["alpha_e"])
-        self.state.mu_i = update_mean_ema(self.state.mu_i, z_i, self.config["alpha_i"])
-        self.state.sigma2_e = update_variance_ema(
-            self.state.sigma2_e, z_e, self.state.mu_e, self.config["alpha_e"]
-        )
-        self.state.sigma2_i = update_variance_ema(
-            self.state.sigma2_i, z_i, self.state.mu_i, self.config["alpha_i"]
-        )
+        # 2) Online mean + variance update (EMA or sliding-window, centered)
+        variance_method = self.config.get("variance_method", "ema")
+
+        if variance_method == "sliding_window" and self.stats_e is not None:
+            # Use sliding-window statistics
+            assert self.stats_i is not None  # Type guard for mypy
+            self.stats_e.update(z_e)
+            self.stats_i.update(z_i)
+            self.state.mu_e = self.stats_e.mean()
+            self.state.mu_i = self.stats_i.mean()
+            # Use Bessel correction for unbiased estimation with small windows
+            self.state.sigma2_e = self.stats_e.variance(bessel_correction=True)
+            self.state.sigma2_i = self.stats_i.variance(bessel_correction=True)
+        else:
+            # Use EMA (default)
+            self.state.mu_e = update_mean_ema(
+                self.state.mu_e, z_e, self.config["alpha_e"]
+            )
+            self.state.mu_i = update_mean_ema(
+                self.state.mu_i, z_i, self.config["alpha_i"]
+            )
+            self.state.sigma2_e = update_variance_ema(
+                self.state.sigma2_e, z_e, self.state.mu_e, self.config["alpha_e"]
+            )
+            self.state.sigma2_i = update_variance_ema(
+                self.state.sigma2_i, z_i, self.state.mu_i, self.config["alpha_i"]
+            )
 
         # 3) Proper z-score normalization: (z - μ) / (σ + ε)
         eps = self.config["eps"]
@@ -270,68 +308,70 @@ class APGIPipeline:
         z_i_eff = apply_dopamine_bias_to_error(z_i_n, self.config["beta"])
 
         # 5b) Hierarchical precision ODE if enabled
-        if self.hierarchical is not None and self.config.get(
+        if self.hierarchical_network is not None and self.config.get(
             "use_hierarchical_precision_ode", False
         ):
             dt = self.config.get("dt", 1.0)
-            for level in range(self.hierarchical.n_levels):
-                pi_curr = self.hierarchical.pis[level]
-                pi_plus = (
-                    self.hierarchical.pis[level + 1]
-                    if level < self.hierarchical.n_levels - 1
-                    else None
-                )
-                # Bottom-up coupling from lower level error ψ(ε_{ℓ-1})
-                epsilon_minus_1 = (
-                    abs(z_i_eff) if level == 1 else (0.0 if level > 1 else None)
-                )
-                epsilon = abs(z_i_eff if level == 0 else 0.0)
+            # Build epsilon array for all levels (current level + lower levels)
+            epsilon_array = np.zeros(self.hierarchical_network.n_levels)
+            epsilon_array[0] = abs(z_i_eff)  # Level 0 uses current interoceptive error
+            # For multi-level systems, lower levels would use their own errors
+            # For now, we use current error for all levels (can be extended with proper error tracking)
+            for level in range(1, self.hierarchical_network.n_levels):
+                epsilon_array[level] = (
+                    epsilon_array[level - 1] * 0.5
+                )  # Placeholder: decay error across levels
 
-                dpi_dt = precision_coupling_ode_core(
-                    pi_ell=pi_curr,
-                    tau_pi=self.config.get("tau_pi", 1000.0),
-                    epsilon_ell=epsilon,
-                    alpha_gain=self.config.get("alpha_gain", 0.1),
-                    pi_ell_plus_1=pi_plus,
-                    epsilon_ell_minus_1=epsilon_minus_1,
-                    C_down=self.config.get("C_down", 0.1),
-                    C_up=self.config.get("C_up", 0.05),
-                )
+            # Step the hierarchical network
+            pis_new, _ = self.hierarchical_network.step(
+                epsilon_new=epsilon_array,
+                dt=dt,
+                alpha_gain=self.config.get("alpha_gain", 0.1),
+            )
 
-                self.hierarchical.pis[level] = update_precision_euler(
-                    pi_curr,
-                    dpi_dt,
-                    dt,
-                    self.config["pi_min"],
-                    self.config["pi_max"],
-                )
+            # Update hierarchical state
+            assert self.hierarchical is not None  # Type guard for mypy
+            self.hierarchical.pis = pis_new.tolist()
 
         # 6) Instantaneous signal (diagnostic) + SDE integration via ODE drift
         S_inst = instantaneous_signal(z_e_n, z_i_eff, pi_e_eff, pi_i_eff)
 
-        # Wire dynamics.py (update_signal_ode)
-        # dS/dt = -S/τ_S + Π_e|z_e| + β·Π_i|z_i| + σ·dW
+        # Wire dynamics.py (update_signal_ode) OR discrete leaky accumulation
         # Spec §7.3: σ_S = 1/sqrt(Π_e^eff + Π_i^eff)
         adaptive_noise_std = compute_precision_coupled_noise_std(pi_e_eff, pi_i_eff)
         dt = self.config.get("dt", 1.0)
         tau_s = self.config.get("tau_s", 5.0)
 
-        self.S = update_signal_ode(
-            self.S,
-            z_e_n,
-            z_i_n,
-            pi_e_eff,
-            pi_i_eff,
-            self.config["beta"],
-            tau_s,
-            dt,
-            adaptive_noise_std,
-        )
+        # Choose between ODE (continuous) and discrete leaky accumulation
+        if self.config.get("use_canonical_discrete_mode", False):
+            # Discrete canonical mode: S(t+1) = (1-λ)S(t) + λS_inst(t)
+            lam = self.config["lam"]
+            self.S = integrate_signal_leaky(self.S, S_inst, lam)
+        else:
+            # ODE mode: dS/dt = -S/τ_S + Π_e|z_e| + β·Π_i|z_i| + σ·dW
+            self.S = update_signal_ode(
+                self.S,
+                z_e_n,
+                z_i_n,
+                pi_e_eff,
+                pi_i_eff,
+                self.config["beta"],
+                tau_s,
+                dt,
+                adaptive_noise_std,
+            )
+
         self.S = stabilize_signal_log(
             self.S, enabled=self.config["signal_log_nonlinearity"]
         )
 
-        # 7) Cost/value and threshold update
+        # 7) Cost/value and threshold update (canonical spec semantics)
+        # Mode A: Standard allostatic threshold (default)
+        # Mode B: Reservoir-as-threshold (spec-explicit alternative per §10)
+        use_reservoir_threshold = self.reservoir is not None and self.config.get(
+            "reservoir_as_threshold", False
+        )
+
         if self.config["use_realistic_cost"]:
             C_t = compute_metabolic_cost_realistic(
                 self.S, self.B_prev, self.config["c1"], self.config["c2"]
@@ -360,72 +400,117 @@ class APGIPipeline:
             z_e_n, z_i_eff, self.config["v1"], self.config["v2"]
         )
 
-        # 7b) Threshold update: discrete or continuous ODE per APGI spec
-        # Spec: θ(t+1) = θ(t) + η[C(t) - V(t)] + δ_reset·B(t) (with B from previous step)
-        # Note: δ_reset·B is part of core allostatic update, applied BEFORE NE modulation
-        if self.config.get("use_continuous_threshold_ode", False):
-            self.theta = allostatic_threshold_ode(
-                theta=self.theta,
-                theta_0=self.config["theta_base"],
-                gamma=1.0 / self.config.get("tau_theta", 1000.0),
-                B_prev=self.B_prev,
-                delta=self.config["delta"],
-                C=C_t,
-                V=V_t,
-                eta=self.config["eta"],
+        # 7b/8) Threshold and Ignition: Standard or Reservoir-as-Threshold mode
+        # Spec §10: Reservoir can serve as alternative execution path
+        if use_reservoir_threshold:
+            # Mode B: Reservoir-as-threshold (spec-explicit alternative)
+            # Reservoir dynamics replace allostatic threshold computation
+            if self.reservoir is None:
+                raise ValueError("Reservoir mode enabled but reservoir not initialized")
+            u_res = np.array([z_e_n, z_i_eff])
+            self.reservoir.step(
+                u_res,
+                tau=self.config.get("reservoir_tau", 1.0),
                 dt=dt,
-                noise_std=self.config.get("noise_std", 0.01),
+                precision=pi_e_eff,
+                S_target=self.S,
+                theta=self.theta,
+                A_amp=self.config.get("reservoir_amplification", 0.0),
             )
-            theta_next = self.theta
+            # Reservoir readout serves as effective threshold
+            S_reservoir = self.reservoir.readout(
+                method=self.config.get("reservoir_readout_method", "linear")
+            )
+            # Map reservoir signal to effective threshold
+            theta_next = self.config["theta_base"] * (
+                1.0 + self.config.get("reservoir_theta_scale", 0.1) * S_reservoir
+            )
+            # Skip allostatic update - reservoir provides dynamics
+            p_ignite = compute_ignition_probability(
+                self.S, theta_next, self.config["ignite_tau"]
+            )
+            if self.config["stochastic_ignition"]:
+                B_t = sample_ignition_state(p_ignite)
+            else:
+                B_t = int(detect_ignition_event(self.S, theta_next))
         else:
-            # Discrete form: θ += η(C-V) + δ_reset·B_prev
-            # Refractory boost is part of the allostatic update per spec Section 4
-            theta_next = update_threshold_discrete(
-                self.theta,
-                C_t,
-                V_t,
-                self.config["eta"],
-                self.config["delta"],
-                self.B_prev,
-            )
-
-        if self.config.get("ne_on_threshold", False):
-            theta_next = apply_ne_threshold_modulation(
-                theta_next, self.config["g_ne"], self.config["gamma_ne"]
-            )
-
-        # 7c) Phase-locked threshold modulation if enabled
-        if self.hierarchical is not None and self.config.get(
-            "use_phase_modulation", False
-        ):
-            from oscillation.threshold_modulation import modulate_threshold_by_phase
-
-            for level in range(self.hierarchical.n_levels):
-                omega = self.config.get("omega_phases", [0.1, 0.05, 0.01])[level]
-                self.hierarchical.phases[level] = (
-                    omega * self.t + self.hierarchical.phases[level]
-                ) % (2 * 3.14159)
-
-            if self.hierarchical.n_levels > 1:
-                theta_next = modulate_threshold_by_phase(
-                    theta_next,
-                    self.hierarchical.pis[1],
-                    self.hierarchical.phases[1],
-                    self.config.get("kappa_phase", 0.1),
+            # Mode A: Standard allostatic threshold (canonical spec semantics)
+            # 7b) Threshold update: discrete or continuous ODE per APGI spec §4
+            # Canonical semantics: θ(t+1) = θ(t) + η[C(t) - V(t)]
+            # Refractory boost δ·B(t) applied AFTER ignition (step 9) per spec §6
+            if self.config.get("use_continuous_threshold_ode", False):
+                # Continuous ODE form without refractory (applied in step 9)
+                theta_next = allostatic_threshold_ode(
+                    theta=self.theta,
+                    theta_0=self.config["theta_base"],
+                    gamma=1.0 / self.config.get("tau_theta", 1000.0),
+                    B_prev=0,  # Refractory handled in step 9
+                    delta=0.0,  # Refractory handled in step 9
+                    C=C_t,
+                    V=V_t,
+                    eta=self.config["eta"],
+                    dt=dt,
+                    noise_std=self.config.get("noise_std", 0.01),
+                )
+            else:
+                # Discrete form: θ_next = θ + η(C-V) [refractory in step 9]
+                theta_next = update_threshold_discrete(
+                    self.theta,
+                    C_t,
+                    V_t,
+                    self.config["eta"],
+                    delta=0.0,  # Refractory handled in step 9
+                    B_prev=0,  # Refractory handled in step 9
                 )
 
-        # 8) Ignition
-        p_ignite = compute_ignition_probability(
-            self.S, theta_next, self.config["ignite_tau"]
-        )
-        if self.config["stochastic_ignition"]:
-            B_t = sample_ignition_state(p_ignite)
-        else:
-            B_t = int(detect_ignition_event(self.S, theta_next))
+            # 7c) NE threshold modulation (per spec §4.4)
+            if self.config.get("ne_on_threshold", False):
+                theta_next = apply_ne_threshold_modulation(
+                    theta_next, self.config["g_ne"], self.config["gamma_ne"]
+                )
 
-        # 9) Post-ignition threshold decay (exponential relaxation to baseline)
-        # Note: Refractory boost δ_reset·B was already applied in step 7b as part of
-        # the allostatic update per spec Section 13. Only decay is applied here.
+            # 7d) Phase-locked threshold modulation if enabled (§9)
+            if self.hierarchical is not None and self.config.get(
+                "use_phase_modulation", False
+            ):
+                from oscillation.threshold_modulation import modulate_threshold_by_phase
+
+                for level in range(self.hierarchical.n_levels):
+                    omega = self.config.get("omega_phases", [0.1, 0.05, 0.01])[level]
+                    self.hierarchical.phases[level] = (
+                        omega * self.t + self.hierarchical.phases[level]
+                    ) % (2 * 3.14159)
+
+                if self.hierarchical.n_levels > 1:
+                    theta_next = modulate_threshold_by_phase(
+                        theta_next,
+                        self.hierarchical.pis[1],
+                        self.hierarchical.phases[1],
+                        self.config.get("kappa_phase", 0.1),
+                    )
+
+            # 8) Ignition (§5)
+            p_ignite = compute_ignition_probability(
+                self.S, theta_next, self.config["ignite_tau"]
+            )
+            if self.config["stochastic_ignition"]:
+                B_t = sample_ignition_state(p_ignite)
+            else:
+                B_t = int(detect_ignition_event(self.S, theta_next))
+
+        # 8b) Post-ignition signal reset (§6)
+        # Spec: S ← ρ·S on ignition
+        if B_t == 1:
+            reset_factor = self.config.get("reset_factor", 0.5)
+            if not (0 < reset_factor < 1):
+                raise ValueError(f"reset_factor must be in (0, 1), got {reset_factor}")
+            self.S = self.S * reset_factor
+
+        # 9) Post-ignition threshold dynamics (§6)
+        # Canonical spec semantics:
+        #   9a) Refractory boost: θ ← θ + δ·B(t)  [using CURRENT B_t]
+        #   9b) Decay to baseline: θ ← θ_base + (θ - θ_base)·e^{-κ}
+        theta_next = apply_refractory_boost(theta_next, B_t, self.config["delta"])
         theta_next = threshold_decay(
             theta_next, self.config["theta_base"], self.config["kappa"]
         )
@@ -447,9 +532,10 @@ class APGIPipeline:
                 self.config["pi_max"],
             )
 
-        # 11) Reservoir layer update (§10)
+        # 11) Reservoir layer update (§10) - add-on mode only
+        # When reservoir_as_threshold=True, reservoir is handled in step 7b/8
         S_reservoir = 0.0
-        if self.reservoir is not None:
+        if self.reservoir is not None and not use_reservoir_threshold:
             u_res = np.array([z_e_n, z_i_eff])
             self.reservoir.step(
                 u_res,
