@@ -87,6 +87,27 @@ def _validate_signal_accumulation(config: dict) -> None:
         )
 
 
+def validate_reset_factor(reset_factor: float) -> None:
+    """Validate reset factor ρ per APGI spec §6.
+
+    Spec requirement: ρ ∈ (0, 1)
+    - ρ close to 0: Full reset (strong refractory period)
+    - ρ close to 1: Partial reset (mild inhibition)
+
+    Args:
+        reset_factor: Signal reset factor
+
+    Raises:
+        ValidationError: If ρ not in (0, 1)
+    """
+    if not (0.0 < reset_factor < 1.0):
+        raise ValidationError(
+            f"reset_factor must be in (0, 1), got {reset_factor}. "
+            "Spec §6: Signal reset S ← ρ·S requires ρ ∈ (0, 1). "
+            "ρ ≤ 0 causes signal to grow; ρ ≥ 1 prevents reset."
+        )
+
+
 def _validate_threshold_dynamics(config: dict) -> None:
     """Validate threshold dynamics constraints (§4, §6).
 
@@ -102,12 +123,8 @@ def _validate_threshold_dynamics(config: dict) -> None:
         )
 
     # Reset factor ρ (if exposed)
-    rho = config.get("reset_factor", None)
-    if rho is not None and not (0 < rho < 1):
-        raise ValidationError(
-            f"reset_factor must be in (0, 1), got {rho}. "
-            "Spec §6.1: S ← ρ·S after ignition"
-        )
+    if "reset_factor" in config:
+        validate_reset_factor(config["reset_factor"])
 
 
 def _validate_ignition_dynamics(config: dict) -> None:

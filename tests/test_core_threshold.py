@@ -92,6 +92,16 @@ class TestComputeInformationValue:
         result = compute_information_value(1.0, 0.5, v1=0.0, v2=0.0)
         assert result == 0.0
 
+    def test_different_v1_v2(self):
+        """Should use different weights correctly."""
+        result = compute_information_value(
+            z_e=1.0,
+            z_i_eff=0.5,
+            v1=0.3,
+            v2=0.7,
+        )
+        assert result == 0.3 * 1.0 + 0.7 * 0.5  # 0.3 + 0.35 = 0.65
+
 
 class TestApplyNeThresholdModulation:
     """Tests for apply_ne_threshold_modulation function."""

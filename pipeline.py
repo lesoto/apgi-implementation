@@ -77,9 +77,142 @@ class APGIPipeline:
     M: float
     history: dict[str, list[float]]
 
+    def _apply_hierarchical_preset(self, config: dict) -> dict:
+        """Apply hierarchical mode preset to configuration.
+
+        Simplifies hierarchical system configuration by allowing users to set
+        a single 'hierarchical_mode' parameter instead of three separate flags.
+
+        Modes:
+            - 'off': Disable all hierarchical features
+            - 'basic': Enable hierarchical only (use_hierarchical=True)
+            - 'advanced': Enable hierarchical + precision ODE (use_hierarchical=True,
+                         use_hierarchical_precision_ode=True)
+            - 'full': Enable all hierarchical features (use_hierarchical=True,
+                     use_hierarchical_precision_ode=True, use_phase_modulation=True)
+
+        Args:
+            config: Configuration dictionary
+
+        Returns:
+            Updated configuration with hierarchical flags set
+
+        Raises:
+            ValueError: If hierarchical_mode has unknown value
+        """
+        mode = config.get("hierarchical_mode", "off")
+
+        if mode == "off":
+            config.update(
+                {
+                    "use_hierarchical": False,
+                    "use_hierarchical_precision_ode": False,
+                    "use_phase_modulation": False,
+                }
+            )
+        elif mode == "basic":
+            config.update(
+                {
+                    "use_hierarchical": True,
+                    "use_hierarchical_precision_ode": False,
+                    "use_phase_modulation": False,
+                }
+            )
+        elif mode == "advanced":
+            config.update(
+                {
+                    "use_hierarchical": True,
+                    "use_hierarchical_precision_ode": True,
+                    "use_phase_modulation": False,
+                }
+            )
+        elif mode == "full":
+            config.update(
+                {
+                    "use_hierarchical": True,
+                    "use_hierarchical_precision_ode": True,
+                    "use_phase_modulation": True,
+                }
+            )
+        else:
+            raise ValueError(
+                f"Unknown hierarchical_mode: {mode}. Must be one of: 'off', 'basic', 'advanced', 'full'"
+            )
+
+        return config
+
+    def _compute_per_level_errors(
+        self,
+        epsilon_e: float,
+        epsilon_i: float,
+    ) -> tuple[list[float], list[float]]:
+        """Compute per-level z-scores for hierarchical system.
+
+        Spec §7: Each level ℓ processes errors at its own timescale τ_ℓ.
+
+        Args:
+            epsilon_e: Exteroceptive prediction error
+            epsilon_i: Interoceptive prediction error
+
+        Returns:
+            (z_e_levels, z_i_levels) — z-scores at each level
+        """
+        if not self.use_hierarchical:
+            # Single-scale: return single z-score pair
+            z_e = (epsilon_e - self.state.mu_e) / (
+                self.state.sigma2_e**0.5 + self.config["eps"]
+            )
+            z_i = (epsilon_i - self.state.mu_i) / (
+                self.state.sigma2_i**0.5 + self.config["eps"]
+            )
+            return [z_e], [z_i]
+
+        # Multi-scale: compute per-level z-scores
+        z_e_levels = []
+        z_i_levels = []
+
+        for ell in range(self.n_levels):
+            # Update per-level running statistics
+            tau_ell = self.taus[ell]
+            alpha_ell = 1.0 / tau_ell  # Faster adaptation at shorter timescales
+
+            # Update per-level means
+            mu_e_ell = update_mean_ema(self.mu_e_levels[ell], epsilon_e, alpha_ell)
+            mu_i_ell = update_mean_ema(self.mu_i_levels[ell], epsilon_i, alpha_ell)
+
+            # Update per-level variances
+            sigma2_e_ell = update_variance_ema(
+                self.sigma2_e_levels[ell], epsilon_e, mu_e_ell, alpha_ell
+            )
+            sigma2_i_ell = update_variance_ema(
+                self.sigma2_i_levels[ell], epsilon_i, mu_i_ell, alpha_ell
+            )
+
+            # Store updated statistics
+            self.mu_e_levels[ell] = mu_e_ell
+            self.mu_i_levels[ell] = mu_i_ell
+            self.sigma2_e_levels[ell] = sigma2_e_ell
+            self.sigma2_i_levels[ell] = sigma2_i_ell
+
+            # Compute z-scores
+            z_e_ell = (epsilon_e - mu_e_ell) / (
+                np.sqrt(sigma2_e_ell) + self.config["eps"]
+            )
+            z_i_ell = (epsilon_i - mu_i_ell) / (
+                np.sqrt(sigma2_i_ell) + self.config["eps"]
+            )
+
+            z_e_levels.append(z_e_ell)
+            z_i_levels.append(z_i_ell)
+
+        return z_e_levels, z_i_levels
+
     def __init__(self, config: dict):
         # Copy to avoid mutating the caller's dict
         self.config = dict(config)
+
+        # Apply hierarchical mode preset if specified
+        self.config = self._apply_hierarchical_preset(self.config)
 
         # Support spec-preferred parameter names with backward compatibility
         if "beta_da" in self.config and "beta" not in self.config:
@@ -150,9 +283,23 @@ class APGIPipeline:
         # Hierarchical state if enabled
         self.hierarchical = None
         self.hierarchical_network = None
-        if self.config.get("use_hierarchical", False):
+        self.use_hierarchical = self.config.get("use_hierarchical", False)
+        if self.use_hierarchical:
             n_levels = self.config.get("n_levels", 3)
             self.hierarchical = HierarchicalState(n_levels=n_levels)
+
+            # Per-level statistics for true hierarchical error processing
+            from hierarchy.multiscale import build_timescales
+
+            self.n_levels = n_levels
+            self.taus = build_timescales(
+                self.config.get("tau_0", 10.0), self.config.get("k", 1.6), n_levels
+            )
+            self.mu_e_levels = [0.0] * n_levels
+            self.mu_i_levels = [0.0] * n_levels
+            self.sigma2_e_levels = [1.0] * n_levels
+            self.sigma2_i_levels = [1.0] * n_levels
+
             # Initialize HierarchicalPrecisionNetwork for proper per-level error computation
             if self.config.get("use_hierarchical_precision_ode", False):
                 self.hierarchical_network = HierarchicalPrecisionNetwork(
@@ -161,6 +308,14 @@ class APGIPipeline:
                     C_down=self.config.get("C_down", 0.1),
                     C_up=self.config.get("C_up", 0.05),
                 )
+        else:
+            # Single-scale: initialize single z-score pair
+            self.n_levels = 1
+            self.taus = np.array([1.0])
+            self.mu_e_levels = [0.0]
+            self.mu_i_levels = [0.0]
+            self.sigma2_e_levels = [1.0]
+            self.sigma2_i_levels = [1.0]
 
         # Somatic marker state if enabled
         self.M = self.config.get("M_somatic", 0.0)  # Somatic marker ∈ [-2, +2]
@@ -516,7 +671,11 @@ class APGIPipeline:
         )
 
         # 10) Internal Prediction Update per §1.4 Generative Model Dynamics
-        if self.config.get("use_internal_predictions", False):
+        # Support both flag names for backward compatibility
+        use_generative_update = self.config.get(
+            "use_generative_model_update", False
+        ) or self.config.get("use_internal_predictions", False)
+        if use_generative_update:
             self.x_hat_e = update_prediction(
                 self.x_hat_e,
                 z_e,
@@ -559,6 +718,9 @@ class APGIPipeline:
         self.history["theta"].append(self.theta)
         self.history["B"].append(float(B_t))
 
+        # Compute ignition margin: Δ(t) = S(t) - θ(t)
+        ignition_margin = self.S - self.theta
+
         result = {
             "z_e": z_e,
             "z_i": z_i,
@@ -576,6 +738,7 @@ class APGIPipeline:
             "C": C_t,
             "V": V_t,
             "theta": self.theta,
+            "ignition_margin": ignition_margin,
             "p_ignite": p_ignite,
             "B": B_t,
             "theta_dot": self.theta_dot,

@@ -224,13 +224,15 @@ def estimate_1f_exponent(
     log_f = np.log(freqs[mask])
     log_p = np.log(psd[mask])
 
-    # Linear regression
-    slope, intercept = np.polyfit(log_f, log_p, 1)
-
-    # β = -slope for 1/f^β
-    beta = -slope
-
-    return float(beta)
+    try:
+        # Linear regression
+        slope, intercept = np.polyfit(log_f, log_p, 1)
+        # β = -slope for 1/f^β
+        beta = -slope
+        return float(beta)
+    except np.linalg.LinAlgError:
+        # SVD did not converge - return NaN to indicate failure
+        return float("nan")
 
 
 def validate_pink_noise(
@@ -256,6 +258,18 @@ def validate_pink_noise(
 
     beta = estimate_1f_exponent(freqs, psd, fmin, fmax)
 
+    # Check if fitting failed
+    if np.isnan(beta):
+        return {
+            "beta": float("nan"),
+            "hurst_exponent": float("nan"),
+            "is_pink_noise": False,
+            "beta_error": float("nan"),
+            "within_tolerance": False,
+            "frequency_range": (fmin, fmax),
+            "message": "SVD did not converge in Linear Least Squares",
+        }
+
     # Hurst exponent from spectral slope: H = (β + 1) / 2
     H = (beta + 1) / 2
 
@@ -269,6 +283,77 @@ def validate_pink_noise(
         "beta_error": abs(beta - beta_target),
         "within_tolerance": is_pink,
         "frequency_range": (fmin, fmax),
+    }
+
+
+def fit_lorentzian_superposition(
+    freqs: np.ndarray,
+    power: np.ndarray,
+    taus: np.ndarray,
+) -> dict:
+    """Fit Lorentzian superposition to power spectrum.
+
+    Spec §12: Power spectrum of threshold process:
+    S_θ(f) = Σ_ℓ σ²_ℓ · τ²_ℓ / [1 + (2πfτ_ℓ)²]
+
+    Args:
+        freqs: Frequency array (Hz)
+        power: Power spectral density
+        taus: Timescales for each level (seconds)
+
+    Returns:
+        Dictionary with:
+            - 'amplitudes': Fitted amplitude for each level
+            - 'fitted_psd': Fitted power spectral density
+            - 'residuals': Residuals between observed and fitted
+            - 'r_squared': R-squared goodness of fit
+    """
+    from scipy.optimize import curve_fit  # type: ignore[import-untyped]
+
+    freqs = np.asarray(freqs)
+    power = np.asarray(power)
+    taus = np.asarray(taus)
+
+    # Define Lorentzian superposition model
+    def lorentzian_superposition(f, *amplitudes):
+        psd = np.zeros_like(f)
+        for tau, amp in zip(taus, amplitudes):
+            omega_tau = 2 * np.pi * f * tau
+            psd += amp * tau**2 / (1 + omega_tau**2)
+        return psd
+
+    # Initial guess: equal amplitudes
+    initial_amplitudes = np.ones(len(taus)) * np.mean(power)
+
+    # Fit amplitudes
+    try:
+        popt, _ = curve_fit(
+            lorentzian_superposition,
+            freqs,
+            power,
+            p0=initial_amplitudes,
+            bounds=(0, np.inf),
+            maxfev=10000,
+        )
+        amplitudes = popt
+    except RuntimeError:
+        # Fitting failed, return initial guess
+        amplitudes = initial_amplitudes
+
+    # Compute fitted PSD
+    fitted_psd = lorentzian_superposition(freqs, *amplitudes)
+
+    # Compute residuals and R-squared
+    residuals = power - fitted_psd
+    ss_res = np.sum(residuals**2)
+    ss_tot = np.sum((power - np.mean(power)) ** 2)
+    r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+
+    return {
+        "amplitudes": amplitudes.tolist(),
+        "fitted_psd": fitted_psd,
+        "residuals": residuals,
+        "r_squared": float(r_squared),
     }
 
 

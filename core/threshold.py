@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+from .thermodynamics import compute_landauer_cost, K_BOLTZMANN, T_ENV_DEFAULT
 
 
 def compute_metabolic_cost(S: float, c0: float = 0.0, c1: float = 1.0) -> float:
@@ -10,18 +11,96 @@ def compute_metabolic_cost(S: float, c0: float = 0.0, c1: float = 1.0) -> float:
 
 
 def compute_metabolic_cost_realistic(
-    S: float, B_prev: int, c1: float = 1.0, c2: float = 1.0
+    S: float,
+    B_prev: int,
+    c1: float = 1.0,
+    c2: float = 1.0,
+    eps_stab: float = 1e-6,
+    enforce_landauer: bool = False,
+    kappa_meta: float = 1.0,
 ) -> float:
-    """C(t)=c1*S(t)+c2*B(t-1)."""
+    """C(t)=c1*S(t)+c2*B(t-1) with optional Landauer constraint (spec §11).
 
-    return float(c1 * S + c2 * B_prev)
+    When enforce_landauer=True, ensures C(t) ≥ E_min per Landauer's principle:
+        C(t) = max(c1·S + c2·B_prev, κ_meta·N_erase·k_B·T_env·ln(2))
+
+    Args:
+        S: Signal magnitude
+        B_prev: Previous ignition state
+        c1: Signal cost coefficient
+        c2: Ignition cost coefficient
+        eps_stab: Stability threshold for bit estimation
+        enforce_landauer: Whether to enforce thermodynamic constraint
+        kappa_meta: Metabolic efficiency factor (default: 1.0)
+
+    Returns:
+        Metabolic cost C(t)
+    """
+
+    base_cost = c1 * S + c2 * B_prev
+
+    if enforce_landauer and S > eps_stab:
+        # Compute Landauer minimum
+        e_min = compute_landauer_cost(
+            S=S,
+            eps=eps_stab,
+            k_b=K_BOLTZMANN,
+            T_env=T_ENV_DEFAULT,
+            kappa_meta=kappa_meta,
+        )
+        # Ensure cost meets thermodynamic minimum
+        # Scale factor to convert Joules to dimensionless cost units
+        # Using a scaling factor of 1e20 for neural-scale computations
+        scale_factor = 1e20
+        e_min_scaled = e_min * scale_factor
+        base_cost = max(base_cost, e_min_scaled)
+
+    return float(base_cost)
 
 
 def compute_information_value(
     z_e: float, z_i_eff: float, v1: float = 1.0, v2: float = 1.0
 ) -> float:
-    """V(t)≈v1|z_e|+v2|z_i_eff|."""
+    """V(t)≈v1|z_e|+v2|z_i_eff| (spec §4.3).
 
+    Note: z_i_eff should include dopaminergic bias: z_i_eff = z_i + β_DA.
+    This coupling makes ∂θ/∂β_DA = -η·v₂ < 0, implementing the established
+    DA/motivation relationship (Berridge & Kringelbach, 2015).
+
+    Args:
+        z_e: Exteroceptive z-scored error
+        z_i_eff: Interoceptive z-scored error WITH dopamine bias (z_i + β_DA)
+        v1: Value coefficient for exteroceptive errors
+        v2: Value coefficient for interoceptive errors
+
+    Returns:
+        Information value V(t)
+    """
+
+    return float(v1 * abs(z_e) + v2 * abs(z_i_eff))
+
+
+def compute_information_value_with_bias(
+    z_e: float, z_i: float, beta_da: float, v1: float = 1.0, v2: float = 1.0
+) -> float:
+    """V(t) with explicit dopamine bias (spec §4.3).
+
+    V(t) = v₁·|z_e| + v₂·|z_i + β_DA|
+
+    This form makes the dopaminergic coupling explicit.
+
+    Args:
+        z_e: Exteroceptive z-scored error
+        z_i: Interoceptive z-scored error (without bias)
+        beta_da: Dopaminergic additive bias
+        v1: Value coefficient for exteroceptive errors
+        v2: Value coefficient for interoceptive errors
+
+    Returns:
+        Information value V(t)
+    """
+
+    z_i_eff = z_i + beta_da
     return float(v1 * abs(z_e) + v2 * abs(z_i_eff))
 
 

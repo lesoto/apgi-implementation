@@ -127,6 +127,19 @@ class TestHierarchicalPhaseCoupling:
         # Oscillator 1 receives from 0: 0.1 * sin(-pi/2) = -0.1
         assert pytest.approx(result[1], rel=1e-7) == -0.1
 
+    def test_coupling_with_zero_matrix_entries(self):
+        """Should skip zero entries in coupling matrix."""
+        phases = np.array([0.0, np.pi / 2, np.pi])
+        omegas = np.array([1.0, 1.0, 1.0])
+        # Only some entries are non-zero
+        K = np.array([[0.0, 0.1, 0.0], [0.1, 0.0, 0.0], [0.0, 0.0, 0.0]])
+
+        result = hierarchical_phase_coupling(phases, omegas, K)
+
+        assert len(result) == 3
+        # Level 2 has no incoming coupling
+        assert result[2] == 0.0
+
 
 class TestPhaseOscillatorNetwork:
     """Tests for PhaseOscillatorNetwork class."""

@@ -198,3 +198,15 @@ class TestPhaseGatedIgnitionProbability:
         )
         # p = 0.5 * (0.5 + 0.5 * 0.0) = 0.25
         assert result == 0.25
+
+    def test_window_factor_scaling(self):
+        """Should scale probability by window factor."""
+        result = phase_gated_ignition_probability(
+            p_base=0.8,
+            phi=0.0,
+            window_center=0.0,
+            window_width=np.pi / 2,
+        )
+        # window_factor = 1.0 at center
+        # p = 0.8 * (0.5 + 0.5 * 1.0) = 0.8
+        assert result == 0.8

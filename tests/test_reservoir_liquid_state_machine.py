@@ -176,3 +176,43 @@ class TestLiquidStateMachine:
         assert "W_in_mean" in stats
         assert "W_in_std" in stats
         assert "W_out_norm" in stats
+
+    def test_input_scale_attribute(self):
+        """Should have input_scale attribute."""
+        lsm = LiquidStateMachine(N=50, M=2, input_scale=0.5)
+        assert lsm.input_scale == 0.5
+
+    def test_step_with_precision_modulation(self):
+        """Should handle precision-modulated timescale."""
+        lsm = LiquidStateMachine(N=50, M=2)
+        u = np.array([0.5, -0.3])
+
+        # Step with different tau (precision modulation)
+        result1 = lsm.step(u, tau=0.5, dt=0.1)
+        result2 = lsm.step(u, tau=2.0, dt=0.1)
+
+        # Results should differ due to different timescales
+        assert not np.allclose(result1, result2)
+
+    def test_suprathreshold_amplification(self):
+        """Should handle suprathreshold amplification."""
+        lsm = LiquidStateMachine(N=50, M=2)
+
+        # Step with high input to trigger amplification
+        u = np.array([5.0, 5.0])
+        result = lsm.step(u, tau=1.0, dt=0.1)
+
+        # State should be significantly affected
+        assert np.linalg.norm(result) > 0.1
+
+    def test_train_readout_with_regularization(self):
+        """Should train readout with regularization."""
+        lsm = LiquidStateMachine(N=50, M=2)
+
+        X = np.random.randn(100, 50)
+        y = np.random.randn(100)
+
+        result = lsm.train_readout(X, y, alpha=1e-6)
+
+        assert "W_out" in result
+        assert "mse" in result

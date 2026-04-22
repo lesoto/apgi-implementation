@@ -166,31 +166,94 @@ def update_phase_dynamics(
     dt: float,
     coupling_strength: float = 0.0,
     phi_neighbor: float | None = None,
+    noise_std: float = 0.0,
+    rng: np.random.Generator | None = None,
 ) -> float:
-    """Update oscillatory phase with optional coupling.
+    """Update oscillatory phase with Kuramoto coupling and noise (spec §9).
 
-    dϕ/dt = ω + coupling term
+    Full Kuramoto model: dφ_ℓ/dt = ω_ℓ + Σ_j K_{ℓj} sin(φ_j - φ_ℓ) + ξ_ℓ(t)
+
+    where ξ_ℓ(t) ~ N(0, σ²_ξ) is phase noise.
 
     Args:
         phi: Current phase (radians)
         omega: Natural frequency (rad/ms)
         dt: Time step (ms)
-        coupling_strength: Phase coupling to neighbor
-        phi_neighbor: Neighboring phase for coupling
+        coupling_strength: Phase coupling to neighbor (K)
+        phi_neighbor: Neighboring phase for coupling (φ_j)
+        noise_std: Standard deviation of phase noise (σ_ξ)
+        rng: Random number generator for reproducibility
 
     Returns:
         Updated phase (wrapped to [0, 2π])
     """
 
+    generator = rng or np.random.default_rng()
+
+    # Natural frequency term
     dphi = omega * dt
 
+    # Kuramoto-style phase coupling: K * sin(φ_j - φ_ℓ)
     if phi_neighbor is not None and coupling_strength != 0.0:
-        # Kuramoto-style phase coupling
         dphi += coupling_strength * np.sin(phi_neighbor - phi) * dt
+
+    # Stochastic noise term: ξ_ℓ(t) * sqrt(dt)
+    if noise_std > 0:
+        dphi += noise_std * generator.normal(0.0, np.sqrt(dt))
 
     phi_new = (phi + dphi) % (2 * np.pi)
 
     return float(phi_new)
+
+
+def update_phase_kuramoto_full(
+    phi_array: np.ndarray,
+    omega_array: np.ndarray,
+    coupling_matrix: np.ndarray,
+    dt: float,
+    noise_std: float = 0.0,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """Full Kuramoto coupling across all phases (spec §9).
+
+    dφ_ℓ/dt = ω_ℓ + Σ_j K_{ℓj} sin(φ_j - φ_ℓ) + ξ_ℓ(t)
+
+    Args:
+        phi_array: Array of phases (L,) in radians
+        omega_array: Array of natural frequencies (L,) in rad/ms
+        coupling_matrix: Coupling strength matrix K[L×L] where K[i,j] couples j→i
+        dt: Time step (ms)
+        noise_std: Standard deviation of phase noise
+        rng: Random number generator
+
+    Returns:
+        Updated phase array (L,) wrapped to [0, 2π]
+    """
+
+    generator = rng or np.random.default_rng()
+    L = len(phi_array)
+    phi_new = np.zeros_like(phi_array)
+
+    for ell in range(L):
+        # Natural frequency
+        dphi = omega_array[ell] * dt
+
+        # Sum over all coupled neighbors: Σ_j K_{ℓj} sin(φ_j - φ_ℓ)
+        coupling_term = 0.0
+        for j in range(L):
+            if coupling_matrix[ell, j] != 0.0 and ell != j:
+                coupling_term += coupling_matrix[ell, j] * np.sin(
+                    phi_array[j] - phi_array[ell]
+                )
+        dphi += coupling_term * dt
+
+        # Stochastic noise
+        if noise_std > 0:
+            dphi += noise_std * generator.normal(0.0, np.sqrt(dt))
+
+        phi_new[ell] = (phi_array[ell] + dphi) % (2 * np.pi)
+
+    return phi_new
 
 
 class HierarchicalPrecisionNetwork:
