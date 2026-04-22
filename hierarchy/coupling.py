@@ -348,8 +348,9 @@ class HierarchicalPrecisionNetwork:
                 phi_neighbor=phi_neighbor,
             )
 
-        # Ensure non-negative precision
-        self.pi = np.maximum(pi_new, 0.01)
+        # Ensure non-negative precision and clamp to reasonable range (§7.4)
+        # pi > 2.0 can cause threshold runaway in phase-locked modulation
+        self.pi = np.clip(pi_new, 0.01, 2.0)
         self.phi = phi_new
 
         return self.pi.copy(), self.phi.copy()
@@ -360,6 +361,8 @@ class HierarchicalPrecisionNetwork:
         S_levels: np.ndarray | None = None,
         kappa_down: float = 0.1,
         kappa_up: float = 0.0,
+        theta_min: float = 0.1,
+        theta_max: float = 20.0,
     ) -> np.ndarray:
         """Compute modulated thresholds for all levels including PAC and cascade.
 
@@ -368,6 +371,8 @@ class HierarchicalPrecisionNetwork:
             S_levels: Current signal levels (for bottom-up cascade)
             kappa_down: Top-down phase coupling strength
             kappa_up: Bottom-up cascade strength
+            theta_min: Minimum allowed threshold
+            theta_max: Maximum allowed threshold
 
         Returns:
             Phase-modulated and cascade-modulated thresholds
@@ -398,4 +403,4 @@ class HierarchicalPrecisionNetwork:
                     kappa_up=kappa_up,
                 )
 
-        return thetas
+        return np.clip(thetas, theta_min, theta_max)

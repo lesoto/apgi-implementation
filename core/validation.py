@@ -56,6 +56,10 @@ def validate_config(config: dict) -> None:
     _validate_precision_parameters(config)
     _validate_numerical_stability(config)
 
+    # Validate post-ignition reset factor (§6)
+    if "reset_factor" in config:
+        validate_reset_factor(config["reset_factor"])
+
 
 def _validate_neuromodulator_separation(config: dict) -> None:
     """Validate neuromodulator separation constraints (§2.3-2.4).

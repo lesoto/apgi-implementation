@@ -26,6 +26,12 @@ from core.precision import (
     update_variance_ema,
 )
 from hierarchy.coupling import HierarchicalPrecisionNetwork
+from hierarchy.multiscale import (
+    aggregate_multiscale_signal,
+    build_timescales,
+    multiscale_weights,
+    update_multiscale_feature,
+)
 from core.preprocessing import compute_prediction_error, RunningStats
 from core.signal import instantaneous_signal, stabilize_signal_log
 from core.threshold import (
@@ -285,8 +291,6 @@ class APGIPipeline:
             self.hierarchical = HierarchicalState(n_levels=n_levels)
 
             # Per-level statistics for true hierarchical error processing
-            from hierarchy.multiscale import build_timescales
-
             self.n_levels = n_levels
             self.taus = build_timescales(
                 self.config.get("tau_0", 10.0), self.config.get("k", 1.6), n_levels
@@ -296,8 +300,22 @@ class APGIPipeline:
             self.sigma2_e_levels = np.ones(n_levels)
             self.sigma2_i_levels = np.ones(n_levels)
 
+            # Initialize hierarchical feature states for signal aggregation
+            self.phi_e_levels = np.zeros(n_levels)
+            self.phi_i_levels = np.zeros(n_levels)
+            self.weights = multiscale_weights(n_levels, self.config.get("k", 1.6))
+
+            # Initialize oscillatory phases for threshold modulation (basic mode)
+            self.phase_levels = np.zeros(n_levels)
+            self.omega_levels = (
+                2 * np.pi / self.taus
+            )  # Natural frequencies from timescales
+
             # Initialize HierarchicalPrecisionNetwork for proper per-level error computation
-            if self.config.get("use_hierarchical_precision_ode", False):
+            # Enable for advanced mode, and also for basic mode
+            if self.config.get(
+                "use_hierarchical_precision_ode", False
+            ) or self.config.get("use_hierarchical", False):
                 self.hierarchical_network = HierarchicalPrecisionNetwork(
                     n_levels=n_levels,
                     tau_pi=self.config.get("tau_pi", 1000.0),
@@ -482,8 +500,46 @@ class APGIPipeline:
             self.hierarchical.pis = pis_new.tolist()
             self.hierarchical.phases = phi_new.tolist()
 
+        # 5c) Update hierarchical feature states for signal aggregation
+        if self.use_hierarchical:
+            dt = self.config.get("dt", 1.0)
+            for level in range(self.n_levels):
+                # Update exteroceptive and interoceptive features at each timescale
+                self.phi_e_levels[level] = update_multiscale_feature(
+                    self.phi_e_levels[level], z_e_n, self.taus[level]
+                )
+                self.phi_i_levels[level] = update_multiscale_feature(
+                    self.phi_i_levels[level], z_i_eff, self.taus[level]
+                )
+
         # 6) Instantaneous signal (diagnostic) + SDE integration via ODE drift
-        S_inst = instantaneous_signal(z_e_n, z_i_eff, pi_e_eff, pi_i_eff)
+        # Use hierarchical aggregation if enabled, otherwise single-scale
+        if self.use_hierarchical:
+            # Aggregate multi-scale signal: S = Σ_i w_i Π_i |Φ_i|
+            # Combine exteroceptive and interoceptive features
+            phi_combined = np.abs(self.phi_e_levels) + np.abs(self.phi_i_levels)
+
+            # Use hierarchical precision if available, otherwise compute from per-level variance
+            if self.hierarchical_network is not None:
+                pi_levels = self.hierarchical_network.pi
+            else:
+                # Basic hierarchical mode: compute per-level precision from variance estimates
+                # This creates multi-scale precision structure even without precision ODE
+                pi_levels = np.array(
+                    [
+                        compute_precision(
+                            self.sigma2_e_levels[i] + self.sigma2_i_levels[i],
+                            self.config["eps"],
+                            self.config["pi_min"],
+                            self.config["pi_max"],
+                        )
+                        for i in range(self.n_levels)
+                    ]
+                )
+
+            S_inst = aggregate_multiscale_signal(phi_combined, pi_levels, self.weights)
+        else:
+            S_inst = instantaneous_signal(z_e_n, z_i_eff, pi_e_eff, pi_i_eff)
 
         # Wire dynamics.py (update_signal_ode) OR discrete leaky accumulation
         # Spec §7.3: σ_S = 1/sqrt(Π_e^eff + Π_i^eff)
@@ -626,25 +682,66 @@ class APGIPipeline:
                     theta_next, self.config["g_ne"], self.config["gamma_ne"]
                 )
 
-            # 7d) Phase-locked threshold modulation if enabled (§9)
-            if self.hierarchical is not None and self.config.get(
-                "use_phase_modulation", False
-            ):
-                from oscillation.threshold_modulation import modulate_threshold_by_phase
-
-                for level in range(self.hierarchical.n_levels):
-                    omega = self.config.get("omega_phases", [0.1, 0.05, 0.01])[level]
-                    self.hierarchical.phases[level] = (
-                        omega * self.t + self.hierarchical.phases[level]
-                    ) % (2 * 3.14159)
-
-                if self.hierarchical.n_levels > 1:
-                    theta_next = modulate_threshold_by_phase(
-                        theta_next,
-                        self.hierarchical.pis[1],
-                        self.hierarchical.phases[1],
-                        self.config.get("kappa_phase", 0.1),
+            # 7d) Hierarchical threshold modulation (PAC + Cascade) if enabled (§8.4)
+            # Apply to ALL hierarchical modes for consistency
+            if self.use_hierarchical:
+                # Prepare inputs for hierarchical threshold computation
+                theta_0_levels = np.ones(self.n_levels) * theta_next
+                # Level-specific signals for bottom-up cascade (if enabled)
+                S_levels = np.zeros(self.n_levels)
+                S_levels[0] = self.S
+                if self.n_levels > 1:
+                    S_levels[1:] = np.abs(self.phi_e_levels[1:]) + np.abs(
+                        self.phi_i_levels[1:]
                     )
+
+                # Use hierarchical precision if available, otherwise compute from per-level variance
+                if self.hierarchical_network is not None:
+                    _pi_levels = self.hierarchical_network.pi
+                else:
+                    _pi_levels = np.array(
+                        [
+                            compute_precision(
+                                self.sigma2_e_levels[i] + self.sigma2_i_levels[i],
+                                self.config["eps"],
+                                self.config["pi_min"],
+                                self.config["pi_max"],
+                            )
+                            for i in range(self.n_levels)
+                        ]
+                    )
+
+                # Compute full hierarchical threshold set using modular component
+                from oscillation.threshold_modulation import (
+                    hierarchical_threshold_modulation,
+                )
+                from hierarchy.coupling import bottom_up_threshold_cascade
+
+                assert self.hierarchical is not None  # Type guard for mypy
+                thetas_mod = hierarchical_threshold_modulation(
+                    thetas=theta_0_levels,
+                    pis=_pi_levels,
+                    phases=np.array(self.hierarchical.phases),
+                    kappa_down=self.config.get("kappa_phase", 0.1),
+                )
+
+                # Apply bottom-up cascade if enabled
+                if self.config.get("kappa_up", 0.0) > 0:
+                    for level in range(1, self.n_levels):
+                        thetas_mod[level] = bottom_up_threshold_cascade(
+                            theta_ell=thetas_mod[level],
+                            S_ell_minus_1=S_levels[level - 1],
+                            theta_ell_minus_1=thetas_mod[level - 1],
+                            kappa_up=self.config.get("kappa_up", 0.0),
+                        )
+
+                # Use the modulated threshold for the primary ignition level (level 0)
+                theta_next = float(thetas_mod[0])
+                assert self.hierarchical is not None  # Type guard for mypy
+                self.hierarchical.thetas = thetas_mod.tolist()
+
+            # Global threshold clamping for stability (§7.4)
+            theta_next = float(np.clip(theta_next, 0.1, 20.0))
 
             # 8) Ignition (§5)
             p_ignite = compute_ignition_probability(
@@ -655,7 +752,14 @@ class APGIPipeline:
             else:
                 B_t = int(detect_ignition_event(self.S, theta_next))
 
-        # 8b) Post-ignition signal reset (§6)
+        # 8b) Compute ignition margin using pre-reset values (§14)
+        # Must compute BEFORE signal reset and refractory boost
+        # Margin at ignition decision: Δ(t) = S(t) - θ(t) (pre-refractory)
+        S_at_ignition = self.S  # Save pre-reset signal
+        theta_at_ignition = theta_next  # Save pre-refractory threshold
+        ignition_margin = S_at_ignition - theta_at_ignition
+
+        # Post-ignition signal reset (§6)
         # Spec: S ← ρ·S on ignition
         if B_t == 1:
             reset_factor = self.config.get("reset_factor", 0.5)
@@ -720,9 +824,6 @@ class APGIPipeline:
         self.history["theta"].append(self.theta)
         self.history["B"].append(float(B_t))
 
-        # Compute ignition margin: Δ(t) = S(t) - θ(t)
-        ignition_margin = self.S - self.theta
-
         result = {
             "z_e": z_e,
             "z_i": z_i,
@@ -785,14 +886,19 @@ class APGIPipeline:
                     self.kuramoto.apply_ignition_reset(level=0)
 
         # Add observable mapping if enabled (§14)
+        # Use pre-reset values for correct margin computation
         if self.neural_observables is not None:
-            neural_obs = self.neural_observables.step(self.S, self.theta, B_t)
+            neural_obs = self.neural_observables.step(
+                S_at_ignition, theta_at_ignition, B_t
+            )
             result["neural_gamma_power"] = neural_obs["gamma_power"]
             result["neural_erp_amplitude"] = neural_obs["erp_amplitude"]
             result["neural_ignition_rate"] = neural_obs["ignition_rate"]
 
         if self.behavioral_observables is not None:
-            behavioral_obs = self.behavioral_observables.step(self.S, self.theta, B_t)
+            behavioral_obs = self.behavioral_observables.step(
+                S_at_ignition, theta_at_ignition, B_t
+            )
             result["behavioral_rt_variability"] = behavioral_obs["rt_variability"]
             result["behavioral_response_criterion"] = behavioral_obs[
                 "response_criterion"
@@ -800,7 +906,9 @@ class APGIPipeline:
             result["behavioral_decision_rate"] = behavioral_obs["decision_rate"]
 
         if self.prediction_validator is not None:
-            pred_result = self.prediction_validator.step(self.S, self.theta, B_t)
+            pred_result = self.prediction_validator.step(
+                S_at_ignition, theta_at_ignition, B_t
+            )
             result["prediction_margin"] = pred_result["delta"]
             result["prediction_p_ign"] = pred_result["p_ign"]
 

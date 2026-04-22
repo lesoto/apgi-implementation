@@ -208,6 +208,9 @@ def demonstrate_phase_modulation():
     config["use_kuramoto"] = True
     config["use_phase_modulation"] = True
     config["hierarchical_mode"] = "full"
+    config["tau_0"] = 10.0  # Satisfies tau_0 > 1 constraint
+    config["k"] = 1.6
+
     config["n_levels"] = 3
 
     # Phase modulation parameters
