@@ -286,6 +286,14 @@ def validate_parameter(
                 f"{name}={value} not {constraint}. Spec {spec_section}"
             )
 
+    elif constraint.startswith(">="):
+        # Parse ">= a" format (must check before ">")
+        threshold = float(constraint[2:].strip())
+        if value < threshold:
+            raise ValidationError(
+                f"{name}={value} not {constraint}. Spec {spec_section}"
+            )
+
     elif constraint.startswith(">"):
         # Parse "> a" format
         threshold = float(constraint[1:].strip())
@@ -294,10 +302,10 @@ def validate_parameter(
                 f"{name}={value} not {constraint}. Spec {spec_section}"
             )
 
-    elif constraint.startswith(">="):
-        # Parse ">= a" format
+    elif constraint.startswith("<="):
+        # Parse "<= a" format (must check before "<")
         threshold = float(constraint[2:].strip())
-        if value < threshold:
+        if value > threshold:
             raise ValidationError(
                 f"{name}={value} not {constraint}. Spec {spec_section}"
             )
@@ -306,14 +314,6 @@ def validate_parameter(
         # Parse "< a" format
         threshold = float(constraint[1:].strip())
         if value >= threshold:
-            raise ValidationError(
-                f"{name}={value} not {constraint}. Spec {spec_section}"
-            )
-
-    elif constraint.startswith("<="):
-        # Parse "<= a" format
-        threshold = float(constraint[2:].strip())
-        if value > threshold:
             raise ValidationError(
                 f"{name}={value} not {constraint}. Spec {spec_section}"
             )

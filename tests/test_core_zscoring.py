@@ -116,6 +116,66 @@ class TestZScoreWindow:
         assert stats["n"] == 5
         assert stats["mean"] == 7.0
 
+    def test_window_full_removal(self):
+        """Should remove oldest values when window is full."""
+        window = ZScoreWindow(sampling_rate_hz=10.0, window_seconds=0.5)
+        # window_size = 5
+
+        # Fill window beyond capacity
+        for i in range(15):
+            window.update(float(i))
+
+        # Should only have last 5 values
+        stats = window.get_stats()
+        assert stats["n"] == 5
+
+    def test_zscore_with_very_small_std(self):
+        """Should return 0.0 when std < eps."""
+        window = ZScoreWindow(sampling_rate_hz=100.0, window_seconds=0.1, eps=1e-6)
+        # Fill with very similar values (std will be near 0)
+        for _ in range(10):
+            window.update(1.0)
+
+        # std should be 0 or very small, so z-score should be 0
+        result = window.update(1.0)
+        assert result == 0.0
+
+    def test_update_with_large_value(self):
+        """Should handle large values."""
+        window = ZScoreWindow(sampling_rate_hz=10.0, window_seconds=0.5)
+
+        # Fill window
+        for i in range(10):
+            window.update(float(i))
+
+        # Update with large value
+        result = window.update(1000.0)
+        # Should compute z-score without error
+        assert isinstance(result, float)
+
+    def test_update_with_negative_value(self):
+        """Should handle negative values."""
+        window = ZScoreWindow(sampling_rate_hz=10.0, window_seconds=0.5)
+
+        # Fill window with mix of values
+        for i in range(10):
+            window.update(float(i - 5))  # Values from -5 to 4
+
+        result = window.update(-10.0)
+        assert isinstance(result, float)
+
+    def test_buffer_sum_consistency(self):
+        """Test that _sum is correctly maintained."""
+        window = ZScoreWindow(sampling_rate_hz=10.0, window_seconds=0.5)
+
+        total = 0.0
+        for i in range(10):
+            window.update(float(i))
+            total += i
+
+        # _sum should equal sum of buffer
+        assert window._sum == pytest.approx(sum(window.buffer))
+
 
 class TestDualZScoreProcessor:
     """Tests for DualZScoreProcessor class."""
@@ -177,6 +237,60 @@ class TestDualZScoreProcessor:
         stats = processor.get_stats()
         assert stats["exteroceptive"]["n"] == 0
         assert stats["interoceptive"]["n"] == 0
+
+    def test_reset_clears_buffers(self):
+        """Should clear both buffers on reset."""
+        processor = DualZScoreProcessor(
+            sampling_rate_e_hz=10.0,
+            sampling_rate_i_hz=10.0,
+            window_seconds=1.0,
+        )
+
+        # Fill windows
+        for i in range(20):
+            processor.process(float(i), float(i * 2))
+
+        processor.reset()
+
+        # Check internal state is cleared
+        assert len(processor.window_e.buffer) == 0
+        assert len(processor.window_i.buffer) == 0
+        assert processor.window_e._count == 0
+        assert processor.window_i._count == 0
+        assert processor.window_e._sum == 0.0
+        assert processor.window_i._sum == 0.0
+        assert processor.window_e._sum_sq == 0.0
+        assert processor.window_i._sum_sq == 0.0
+
+    def test_process_with_different_modalities(self):
+        """Should handle different exteroceptive and interoceptive values."""
+        processor = DualZScoreProcessor(
+            sampling_rate_e_hz=10.0,
+            sampling_rate_i_hz=10.0,
+            window_seconds=1.0,
+        )
+
+        # Fill windows with different values
+        for i in range(20):
+            z_e, z_i = processor.process(float(i), float(-i))
+
+        stats = processor.get_stats()
+        # Both should have processed values
+        assert stats["exteroceptive"]["n"] > 0
+        assert stats["interoceptive"]["n"] > 0
+
+    def test_process_initial_zero_zscores(self):
+        """Should return 0.0 for initial values."""
+        processor = DualZScoreProcessor(
+            sampling_rate_e_hz=10.0,
+            sampling_rate_i_hz=10.0,
+            window_seconds=1.0,
+        )
+
+        # First value should return 0.0
+        z_e, z_i = processor.process(1.0, 1.0)
+        assert z_e == 0.0
+        assert z_i == 0.0
 
 
 class TestCreateStandardZscorer:

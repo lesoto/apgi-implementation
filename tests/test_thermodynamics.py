@@ -77,6 +77,13 @@ class TestLandauerCost:
         with pytest.raises(ValueError):
             compute_landauer_cost(S=1.0, eps=-0.01)
 
+    def test_invalid_k_b(self):
+        """Should raise ValueError for invalid k_b."""
+        with pytest.raises(ValueError):
+            compute_landauer_cost(S=1.0, eps=0.01, k_b=0.0)
+        with pytest.raises(ValueError):
+            compute_landauer_cost(S=1.0, eps=0.01, k_b=-1e-23)
+
     def test_invalid_temperature(self):
         """Should raise ValueError for invalid temperature."""
         with pytest.raises(ValueError):
@@ -176,6 +183,11 @@ class TestMetabolicEfficiency:
         with pytest.raises(ValueError):
             compute_metabolic_efficiency(C_metabolic=1e-20, S=0.005, eps=0.01)
 
+    def test_zero_denominator_efficiency(self):
+        """Should raise ValueError when denominator is zero."""
+        with pytest.raises(ValueError, match="Denominator is zero"):
+            compute_metabolic_efficiency(C_metabolic=1e-20, S=1.0, eps=0.01, k_b=0.0)
+
 
 class TestTemperatureEstimation:
     """Test temperature estimation from cost."""
@@ -195,6 +207,13 @@ class TestTemperatureEstimation:
         """Should raise ValueError when S ≤ eps."""
         with pytest.raises(ValueError):
             estimate_temperature_from_cost(C_metabolic=1e-20, S=0.005, eps=0.01)
+
+    def test_zero_denominator_estimate_temperature(self):
+        """Should raise ValueError when denominator is zero."""
+        with pytest.raises(ValueError, match="Denominator is zero"):
+            estimate_temperature_from_cost(
+                C_metabolic=1e-20, S=1.0, eps=0.01, kappa_meta=0.0
+            )
 
 
 class TestThermodynamicConstraintValidation:

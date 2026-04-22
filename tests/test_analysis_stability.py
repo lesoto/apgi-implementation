@@ -95,6 +95,40 @@ class TestCheckStability:
         assert result["constraints_satisfied"]["lambda_positive"] is True
         assert result["constraints_satisfied"]["kappa_positive"] is True
 
+    def test_verbose_output(self, capsys):
+        """Should print detailed output when verbose=True."""
+        config = {"lam": 0.2, "kappa": 0.15, "c1": 0.2, "eta": 0.1}
+
+        check_stability(config, verbose=True)  # noqa: F841
+
+        captured = capsys.readouterr()
+        assert "APGI Fixed-Point Stability Analysis" in captured.out
+        assert "Parameters:" in captured.out
+        assert "Jacobian" in captured.out
+        assert "Eigenvalues:" in captured.out
+        assert "Stability:" in captured.out
+
+    def test_verbose_shows_lambda_values(self, capsys):
+        """Verbose output should show lambda values."""
+        config = {"lam": 0.2, "kappa": 0.15, "c1": 0.2, "eta": 0.1}
+
+        check_stability(config, verbose=True)
+
+        captured = capsys.readouterr()
+        assert "λ (integration rate)" in captured.out
+        assert "κ (decay rate)" in captured.out
+
+    def test_verbose_shows_constraint_verification(self, capsys):
+        """Verbose output should show constraint verification."""
+        config = {"lam": 0.2, "kappa": 0.15, "c1": 0.2, "eta": 0.1}
+
+        check_stability(config, verbose=True)
+
+        captured = capsys.readouterr()
+        assert "Constraint Verification" in captured.out
+        assert "λ > 0" in captured.out
+        assert "κ > 0" in captured.out
+
 
 class TestComputeFixedPoint:
     """Tests for compute_fixed_point function."""
@@ -168,6 +202,7 @@ class TestStabilityAnalyzer:
 
         assert analyzer.config == config
         assert len(analyzer.history["S"]) == 0
+        assert len(analyzer.history["theta"]) == 0
 
     def test_step(self):
         """Should record state."""
@@ -178,6 +213,8 @@ class TestStabilityAnalyzer:
 
         assert len(analyzer.history["S"]) == 1
         assert len(analyzer.history["theta"]) == 1
+        assert analyzer.history["S"][0] == 1.0
+        assert analyzer.history["theta"][0] == 1.0
 
     def test_analyze(self):
         """Should perform comprehensive analysis."""
@@ -195,3 +232,132 @@ class TestStabilityAnalyzer:
         assert "stability" in result
         assert "fixed_point" in result
         assert "dynamics_validation" in result
+
+    def test_analyze_with_verbose(self):
+        """Should print verbose output."""
+        config = {"lam": 0.2, "kappa": 0.15, "c1": 0.2, "eta": 0.1}
+        analyzer = StabilityAnalyzer(config)
+
+        for _ in range(100):
+            analyzer.step(
+                S=np.random.normal(1.0, 0.1), theta=np.random.normal(1.0, 0.1)
+            )
+
+        result = analyzer.analyze(verbose=True)
+        assert "stability" in result
+
+    def test_analyze_insufficient_history(self):
+        """Should handle insufficient history gracefully."""
+        config = {"lam": 0.2, "kappa": 0.15, "c1": 0.2, "eta": 0.1}
+        analyzer = StabilityAnalyzer(config)
+
+        # Add only a few steps
+        for _ in range(10):
+            analyzer.step(S=1.0, theta=1.0)
+
+        result = analyzer.analyze()
+
+        assert "stability" in result
+        assert "fixed_point" in result
+        assert "dynamics_validation" in result
+        assert result["dynamics_validation"]["valid"] is False
+        assert "reason" in result["dynamics_validation"]
+
+
+class TestAnalyzeBifurcationExtended:
+    """Extended tests for bifurcation analysis."""
+
+    def test_bifurcation_finds_transition_points(self):
+        """Should find bifurcation points when stability changes."""
+        config = {"lam": 0.2, "kappa": 0.15, "c1": 0.2, "eta": 0.1}
+
+        result = analyze_bifurcation(
+            config,
+            param_name="kappa",
+            param_range=(0.01, 1.0),
+            n_points=50,
+        )
+
+        assert "bifurcation_points" in result
+        assert isinstance(result["bifurcation_points"], list)
+
+    def test_bifurcation_stable_region(self):
+        """Should identify stable region."""
+        config = {"lam": 0.2, "kappa": 0.15, "c1": 0.2, "eta": 0.1}
+
+        result = analyze_bifurcation(
+            config,
+            param_name="lam",
+            param_range=(0.1, 0.9),
+            n_points=20,
+        )
+
+        assert "stable_region" in result
+        assert "min" in result["stable_region"]
+        assert "max" in result["stable_region"]
+
+    def test_bifurcation_parameter_values_length(self):
+        """Should have correct number of parameter values."""
+        config = {"lam": 0.2, "kappa": 0.15, "c1": 0.2, "eta": 0.1}
+        n_points = 30
+
+        result = analyze_bifurcation(
+            config,
+            param_name="eta",
+            param_range=(0.01, 0.5),
+            n_points=n_points,
+        )
+
+        assert len(result["parameter_values"]) == n_points
+        assert len(result["stability"]) == n_points
+        assert len(result["eigenvalue_magnitudes"]) == n_points
+
+
+class TestValidateSystemDynamicsExtended:
+    """Extended tests for system dynamics validation."""
+
+    def test_dynamics_validates_correlations(self):
+        """Should compute and return correlations."""
+        config = {"lam": 0.2, "kappa": 0.15, "c1": 0.2, "eta": 0.1}
+
+        # Generate correlated data
+        S_history = np.linspace(0, 1, 200)
+        theta_history = np.linspace(0, 1, 200)
+
+        result = validate_system_dynamics(config, S_history, theta_history)
+
+        assert result["valid"] is True
+        assert "correlation_S" in result
+        assert "correlation_theta" in result
+        assert "mean_correlation" in result
+        assert "linearization_valid" in result
+
+    def test_dynamics_with_uncorrelated_data(self):
+        """Should handle uncorrelated data."""
+        config = {"lam": 0.2, "kappa": 0.15, "c1": 0.2, "eta": 0.1}
+
+        # Generate uncorrelated random data
+        np.random.seed(42)
+        S_history = np.random.randn(200)
+        theta_history = np.random.randn(200)
+
+        result = validate_system_dynamics(config, S_history, theta_history)
+
+        assert result["valid"] is True
+        assert isinstance(result["prediction_error"], float)
+
+    def test_dynamics_fixed_point_values(self):
+        """Should compute fixed point values."""
+        config = {"lam": 0.2, "kappa": 0.15, "c1": 0.2, "eta": 0.1}
+
+        S_history = np.ones(200) * 2.0
+        theta_history = np.ones(200) * 1.5
+
+        # Suppress numpy divide by zero warnings for constant arrays
+        with np.errstate(divide="ignore", invalid="ignore"):
+            result = validate_system_dynamics(config, S_history, theta_history)
+
+        assert result["valid"] is True
+        assert "fixed_point" in result
+        assert "S_star" in result["fixed_point"]
+        assert "theta_star" in result["fixed_point"]

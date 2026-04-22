@@ -271,7 +271,11 @@ class NeuralValidator:
 
         # Baseline correction
         baseline_mask = (times >= baseline[0]) & (times <= baseline[1])
-        baseline_mean = np.mean(epochs[:, baseline_mask], axis=1, keepdims=True)
+        if np.any(baseline_mask):
+            baseline_mean = np.mean(epochs[:, baseline_mask], axis=1, keepdims=True)
+        else:
+            # No baseline window overlap - use zero baseline
+            baseline_mean = np.zeros((n_epochs, 1))
         epochs_corrected = epochs - baseline_mean
 
         # Compute ERP (average over trials)
@@ -281,8 +285,15 @@ class NeuralValidator:
         p300_window = (times >= 0.25) & (times <= 0.5)
         n200_window = (times >= 0.15) & (times <= 0.25)
 
-        p300_amp = float(np.max(np.abs(erp[p300_window])))
-        n200_amp = float(np.min(erp[n200_window]))  # N200 is negative
+        if np.any(p300_window):
+            p300_amp = float(np.max(np.abs(erp[p300_window])))
+        else:
+            p300_amp = 0.0
+
+        if np.any(n200_window):
+            n200_amp = float(np.min(erp[n200_window]))  # N200 is negative
+        else:
+            n200_amp = 0.0
 
         return {
             "erp": erp,

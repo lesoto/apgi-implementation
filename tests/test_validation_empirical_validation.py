@@ -1,9 +1,11 @@
 """Tests for validation/empirical_validation.py dataset-driven validation."""
 
+import os
 import tempfile
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 
 from validation.empirical_validation import (
     DatasetConfig,
@@ -50,8 +52,6 @@ class TestEmpiricalDataLoader:
 
     def test_load_eeg_dataset_fallback_numpy(self):
         """Test EEG loading with NumPy fallback (no MNE)."""
-        from unittest.mock import patch
-
         config = DatasetConfig(name="test", data_type="eeg", fs=100.0)
         loader = EmpiricalDataLoader(config)
 
@@ -72,10 +72,67 @@ class TestEmpiricalDataLoader:
             assert "channels" in result
             assert result["signals"].shape == (2, 1000)
         finally:
-            import os
-
             if os.path.exists(filepath):
                 os.remove(filepath)
+
+    def test_load_eeg_dataset_npz_file(self):
+        """Test EEG loading with NPZ file format."""
+        config = DatasetConfig(name="test", data_type="eeg", fs=100.0)
+        loader = EmpiricalDataLoader(config)
+
+        # Create a temporary .npz file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".npz") as f:
+            filepath = f.name
+
+        try:
+            # Create test data as npz with named arrays matching the expected keys
+            test_data = np.random.randn(2, 1000)
+            np.savez(filepath, arr_0=test_data)  # Use arr_0 as the default key
+
+            # Mock MNE import to force fallback
+            with patch.dict("sys.modules", {"mne": None}):
+                result = loader.load_eeg_dataset(filepath)
+            assert "signals" in result
+            assert "fs" in result
+            assert "channels" in result
+        finally:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+
+    def test_load_eeg_dataset_with_mock_mne(self):
+        """Test EEG loading with mocked MNE and event markers."""
+        config = DatasetConfig(name="test", data_type="eeg", fs=100.0)
+        loader = EmpiricalDataLoader(config)
+
+        # Create mock MNE module
+        mock_raw = MagicMock()
+        mock_raw.get_data.return_value = np.random.randn(2, 1000)
+        mock_raw.info = {"sfreq": 100.0}
+        mock_raw.ch_names = ["ch1", "ch2"]
+        mock_raw.pick_channels = MagicMock()
+
+        # Mock events_from_annotations
+        mock_events = np.array([[0, 0, 1], [100, 0, 2]])
+        mock_event_dict = {"event1": 1, "event2": 2}
+
+        with patch.dict("sys.modules", {"mne": MagicMock()}):
+            import sys
+
+            mock_mne = sys.modules["mne"]
+            mock_mne.io.read_raw.return_value = mock_raw
+            mock_mne.events_from_annotations.return_value = (
+                mock_events,
+                mock_event_dict,
+            )
+
+            result = loader.load_eeg_dataset(
+                "dummy_file.fif",
+                channel_names=["ch1"],
+                event_markers={"event1": 1},
+            )
+            assert "signals" in result
+            assert "events" in result
+            assert "event_dict" in result
 
     def test_load_behavioral_dataset_csv(self):
         """Test behavioral dataset loading from CSV."""
@@ -98,8 +155,6 @@ class TestEmpiricalDataLoader:
             assert result["n_trials"] == 3
             assert len(result["rt"]) == 3
         finally:
-            import os
-
             if os.path.exists(filepath):
                 os.remove(filepath)
 
@@ -119,8 +174,23 @@ class TestEmpiricalDataLoader:
             assert "accuracy" in result
             assert len(result["rt"]) == 3
         finally:
-            import os
+            if os.path.exists(filepath):
+                os.remove(filepath)
 
+    def test_load_behavioral_dataset_unsupported_format(self):
+        """Test behavioral dataset loading with unsupported format."""
+        config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
+        loader = EmpiricalDataLoader(config)
+
+        # Create a temporary file with unsupported extension
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
+            filepath = f.name
+            f.write("rt,accuracy\n0.5,1.0\n")
+
+        try:
+            with pytest.raises(ValueError, match="Unsupported file format"):
+                loader.load_behavioral_dataset(filepath)
+        finally:
             if os.path.exists(filepath):
                 os.remove(filepath)
 
@@ -146,8 +216,6 @@ class TestEmpiricalDataLoader:
             assert "A" in result["by_condition"]
             assert "B" in result["by_condition"]
         finally:
-            import os
-
             if os.path.exists(filepath):
                 os.remove(filepath)
 
@@ -175,6 +243,20 @@ class TestEmpiricalDataLoader:
 
         segment = loader.get_segment(0.0, 1.0, channel_idx=0)
         assert segment.shape == (100,)  # 1 second at 100 Hz
+
+    def test_get_segment_all_channels(self):
+        """Test get_segment extracts all channels when channel_idx is None."""
+        config = DatasetConfig(name="test", data_type="simulation", fs=100.0)
+        loader = EmpiricalDataLoader(config)
+
+        # Load test data
+        loader.data = {
+            "signals": np.random.randn(2, 1000),
+            "fs": 100.0,
+        }
+
+        segment = loader.get_segment(0.0, 1.0, channel_idx=None)
+        assert segment.shape == (2, 100)  # 2 channels, 1 second at 100 Hz
 
 
 class TestNeuralValidator:
@@ -208,6 +290,15 @@ class TestNeuralValidator:
         power = validator.extract_gamma_power(signal, freq_range=(20, 50))
         assert isinstance(power, float)
 
+    def test_extract_gamma_power_no_mask(self):
+        """Test gamma power when no frequencies match the range."""
+        validator = NeuralValidator(fs=100.0)
+        signal = np.random.randn(500)
+        # Use a frequency range that won't match any frequencies
+        power = validator.extract_gamma_power(signal, freq_range=(1000, 2000))
+        # Should return 0.0 when no frequencies match
+        assert power == 0.0
+
     def test_compute_erp_list_epochs(self):
         """Test ERP computation with list of epochs."""
         validator = NeuralValidator(fs=100.0)
@@ -238,6 +329,45 @@ class TestNeuralValidator:
             time_window=(-0.1, 0.5),
         )
         assert "erp" in result
+
+    def test_compute_erp_no_p300_window(self):
+        """Test ERP when P300 window has no valid samples."""
+        validator = NeuralValidator(fs=100.0)
+        epochs = np.random.randn(10, 100)
+        # Use a time window that won't include the default P300 window
+        result = validator.compute_erp(
+            epochs,
+            time_window=(-0.5, -0.3),  # Window before P300
+        )
+        # P300 amplitude should be 0.0 when window is empty
+        assert result["p300_amplitude"] == 0.0
+
+    def test_compute_erp_no_n200_window(self):
+        """Test ERP when N200 window has no valid samples."""
+        validator = NeuralValidator(fs=100.0)
+        epochs = np.random.randn(10, 100)
+        # Use a time window that won't include the default N200 window
+        result = validator.compute_erp(
+            epochs,
+            time_window=(0.5, 0.7),  # Window after N200
+        )
+        # N200 amplitude should be 0.0 when window is empty
+        assert result["n200_amplitude"] == 0.0
+        assert "erp" in result
+
+    def test_compute_erp_edge_case_windows(self):
+        """Test ERP with edge case windows that may not overlap with data."""
+        validator = NeuralValidator(fs=100.0)
+        epochs = np.random.randn(5, 50)
+        # Use extreme windows that may cause edge cases
+        result = validator.compute_erp(
+            epochs,
+            baseline=(-0.5, -0.4),  # Very early baseline
+            time_window=(-0.2, 0.3),
+        )
+        assert "erp" in result
+        assert "p300_amplitude" in result
+        assert "n200_amplitude" in result
 
     def test_validate_against_apgi(self):
         """Test validation against APGI results."""

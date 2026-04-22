@@ -210,15 +210,16 @@ def estimate_1f_exponent(
     freqs = np.asarray(freqs)
     psd = np.asarray(psd)
 
-    # Select frequency range
-    mask = psd > 0
+    # Select frequency range - filter out zero frequencies and non-positive PSD
+    mask = (psd > 0) & (freqs > 0)
     if fmin is not None:
         mask &= freqs >= fmin
     if fmax is not None:
         mask &= freqs <= fmax
 
     if np.sum(mask) < 2:
-        raise ValueError("Need at least 2 points in selected range")
+        # Not enough points for fitting - return NaN to indicate failure
+        return float("nan")
 
     # Log-log fit
     log_f = np.log(freqs[mask])
@@ -327,14 +328,20 @@ def fit_lorentzian_superposition(
 
     # Fit amplitudes
     try:
-        popt, _ = curve_fit(
-            lorentzian_superposition,
-            freqs,
-            power,
-            p0=initial_amplitudes,
-            bounds=(0, np.inf),
-            maxfev=10000,
-        )
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="Covariance of the parameters could not be estimated"
+            )
+            popt, _ = curve_fit(
+                lorentzian_superposition,
+                freqs,
+                power,
+                p0=initial_amplitudes,
+                bounds=(0, np.inf),
+                maxfev=10000,
+            )
         amplitudes = popt
     except RuntimeError:
         # Fitting failed, return initial guess

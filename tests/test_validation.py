@@ -8,8 +8,10 @@ import pytest
 from core.validation import (
     validate_config,
     validate_parameter,
+    validate_reset_factor,
     ValidationError,
     get_constraint_summary,
+    print_constraint_summary,
 )
 
 
@@ -442,6 +444,187 @@ class TestConstraintSummary:
             assert len(constraints) > 0
             for constraint in constraints:
                 assert isinstance(constraint, str)
+
+
+class TestValidateResetFactor:
+    """Test standalone reset factor validation function."""
+
+    def test_valid_reset_factor(self):
+        """Should pass with valid reset_factor."""
+        validate_reset_factor(0.5)  # Should not raise
+        validate_reset_factor(0.1)  # Should not raise
+        validate_reset_factor(0.9)  # Should not raise
+
+    def test_reset_factor_zero_raises(self):
+        """Should raise when reset_factor = 0."""
+        with pytest.raises(ValidationError, match="reset_factor must be in"):
+            validate_reset_factor(0.0)
+
+    def test_reset_factor_one_raises(self):
+        """Should raise when reset_factor = 1."""
+        with pytest.raises(ValidationError, match="reset_factor must be in"):
+            validate_reset_factor(1.0)
+
+    def test_reset_factor_negative_raises(self):
+        """Should raise when reset_factor < 0."""
+        with pytest.raises(ValidationError, match="reset_factor must be in"):
+            validate_reset_factor(-0.1)
+
+    def test_reset_factor_greater_than_one_raises(self):
+        """Should raise when reset_factor > 1."""
+        with pytest.raises(ValidationError, match="reset_factor must be in"):
+            validate_reset_factor(1.5)
+
+
+class TestValidateParameterExtended:
+    """Extended tests for validate_parameter with all constraint types."""
+
+    def test_validate_greater_equal(self):
+        """Should validate >= constraint."""
+        validate_parameter("noise_std", 0.0, ">= 0", "§7.2")
+        validate_parameter("noise_std", 0.01, ">= 0", "§7.2")
+        with pytest.raises(ValidationError):
+            validate_parameter("noise_std", -0.01, ">= 0", "§7.2")
+
+    def test_validate_less_equal(self):
+        """Should validate <= constraint."""
+        validate_parameter("eta", 0.5, "<= 1", "§4.1")
+        validate_parameter("eta", 1.0, "<= 1", "§4.1")
+        with pytest.raises(ValidationError):
+            validate_parameter("eta", 1.5, "<= 1", "§4.1")
+
+    def test_validate_in_range_open(self):
+        """Should validate in (a, b) with open bounds."""
+        validate_parameter("lam", 0.5, "in (0, 1)", "§3.2")
+        with pytest.raises(ValidationError):
+            validate_parameter("lam", 0.0, "in (0, 1)", "§3.2")
+        with pytest.raises(ValidationError):
+            validate_parameter("lam", 1.0, "in (0, 1)", "§3.2")
+
+
+class TestPrecisionWarning:
+    """Test precision parameter warnings."""
+
+    def test_very_large_precision_range_warns(self):
+        """Should warn when precision range is very large."""
+        config = {
+            "pi_min": 1e-10,
+            "pi_max": 1e10,
+            "kappa": 0.15,
+            "lam": 0.2,
+            "ignite_tau": 0.5,
+            "dt": 0.1,
+            "tau_s": 5.0,
+            "tau_theta": 1000.0,
+            "tau_pi": 1000.0,
+            "eps": 1e-8,
+            "eta": 0.1,
+            "noise_std": 0.01,
+            "ne_on_precision": False,
+            "ne_on_threshold": False,
+        }
+        with pytest.warns(RuntimeWarning, match="Precision range very large"):
+            validate_config(config)
+
+
+class TestTimescaleValidation:
+    """Test hierarchical timescale validation."""
+
+    def test_tau_0_less_than_one_raises_error(self):
+        """Should raise error when tau_0 results in tau_ell <= 1."""
+        config = {
+            "use_hierarchical": True,
+            "timescale_k": 1.6,
+            "tau_0": 0.5,  # Too small - will make tau_ell <= 1
+            "n_levels": 3,
+            "kappa": 0.15,
+            "lam": 0.2,
+            "ignite_tau": 0.5,
+            "dt": 0.1,
+            "tau_s": 5.0,
+            "tau_theta": 1000.0,
+            "tau_pi": 1000.0,
+            "pi_min": 1e-4,
+            "pi_max": 1e4,
+            "eps": 1e-8,
+            "eta": 0.1,
+            "noise_std": 0.01,
+            "ne_on_precision": False,
+            "ne_on_threshold": False,
+        }
+        with pytest.raises(ValidationError, match="τ_.*≤ 1"):
+            validate_config(config)
+
+    def test_valid_hierarchical_config_passes(self):
+        """Should pass with valid hierarchical config."""
+        config = {
+            "use_hierarchical": True,
+            "timescale_k": 1.6,
+            "tau_0": 10.0,
+            "n_levels": 3,
+            "kappa": 0.15,
+            "lam": 0.2,
+            "ignite_tau": 0.5,
+            "dt": 0.1,
+            "tau_s": 5.0,
+            "tau_theta": 1000.0,
+            "tau_pi": 1000.0,
+            "pi_min": 1e-4,
+            "pi_max": 1e4,
+            "eps": 1e-8,
+            "eta": 0.1,
+            "noise_std": 0.01,
+            "ne_on_precision": False,
+            "ne_on_threshold": False,
+        }
+        validate_config(config)  # Should not raise
+
+
+class TestPrintConstraintSummary:
+    """Test print_constraint_summary function."""
+
+    def test_prints_output(self, capsys):
+        """Should print constraint summary to stdout."""
+        print_constraint_summary()
+        captured = capsys.readouterr()
+        assert "APGI PARAMETER CONSTRAINTS" in captured.out
+        assert "Neuromodulator Separation" in captured.out
+        assert "Signal Accumulation" in captured.out
+
+    def test_prints_all_categories(self, capsys):
+        """Should print all constraint categories."""
+        print_constraint_summary()
+        captured = capsys.readouterr()
+        expected_categories = [
+            "Neuromodulator Separation",
+            "Signal Accumulation",
+            "Threshold Dynamics",
+            "Ignition Mechanism",
+            "Continuous-Time SDE",
+            "Hierarchical Architecture",
+            "Precision System",
+            "Numerical Stability",
+        ]
+        for category in expected_categories:
+            assert category in captured.out
+
+
+class TestConstraintSummaryEdgeCases:
+    """Test constraint summary edge cases."""
+
+    def test_summary_returns_dict(self):
+        """get_constraint_summary should return a dictionary."""
+        summary = get_constraint_summary()
+        assert isinstance(summary, dict)
+
+    def test_summary_has_values(self):
+        """Summary should have values for all keys."""
+        summary = get_constraint_summary()
+        for category, constraints in summary.items():
+            assert isinstance(category, str)
+            assert len(category) > 0
+            assert isinstance(constraints, list)
+            assert len(constraints) > 0
 
 
 if __name__ == "__main__":

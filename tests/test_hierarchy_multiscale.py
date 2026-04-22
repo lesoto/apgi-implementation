@@ -54,6 +54,21 @@ class TestBuildTimescales:
         with pytest.raises(ValueError, match="n_levels must be > 0"):
             build_timescales(tau0=10.0, k=2.0, n_levels=0)
 
+    def test_negative_tau0_raises_error(self):
+        """Should raise error for negative tau0."""
+        with pytest.raises(ValueError, match="tau0 must be > 0"):
+            build_timescales(tau0=-5.0, k=2.0, n_levels=3)
+
+    def test_k_less_than_one_raises_error(self):
+        """Should raise error for k < 1."""
+        with pytest.raises(ValueError, match="k must be > 1"):
+            build_timescales(tau0=10.0, k=0.5, n_levels=3)
+
+    def test_negative_n_levels_raises_error(self):
+        """Should raise error for negative n_levels."""
+        with pytest.raises(ValueError, match="n_levels must be > 0"):
+            build_timescales(tau0=10.0, k=2.0, n_levels=-1)
+
 
 class TestUpdateMultiscaleFeature:
     """Tests for update_multiscale_feature function."""
@@ -77,6 +92,26 @@ class TestUpdateMultiscaleFeature:
         with pytest.raises(ValueError, match="tau_i must be > 0"):
             update_multiscale_feature(phi_prev=0.5, z_t=1.0, tau_i=0)
 
+    def test_negative_tau_raises_error(self):
+        """Should raise error for negative tau_i."""
+        with pytest.raises(ValueError, match="tau_i must be > 0"):
+            update_multiscale_feature(phi_prev=0.5, z_t=1.0, tau_i=-5.0)
+
+    def test_zero_tau_raises_error(self):
+        """Should raise error for zero tau_i."""
+        with pytest.raises(ValueError, match="tau_i must be > 0"):
+            update_multiscale_feature(phi_prev=0.5, z_t=1.0, tau_i=0.0)
+
+    def test_small_tau(self):
+        """Should handle very small tau."""
+        result = update_multiscale_feature(phi_prev=0.5, z_t=1.0, tau_i=0.1)
+        assert isinstance(result, float)
+
+    def test_large_tau(self):
+        """Should handle very large tau."""
+        result = update_multiscale_feature(phi_prev=0.5, z_t=1.0, tau_i=10000.0)
+        assert isinstance(result, float)
+
 
 class TestMultiscaleWeights:
     """Tests for multiscale_weights function."""
@@ -93,6 +128,18 @@ class TestMultiscaleWeights:
     def test_weights_sum_to_one(self):
         """Should sum to one."""
         result = multiscale_weights(n_levels=5, k=1.6)
+        assert pytest.approx(np.sum(result), rel=1e-7) == 1.0
+
+    def test_single_level_weights(self):
+        """Should handle single level."""
+        result = multiscale_weights(n_levels=1, k=2.0)
+        assert len(result) == 1
+        assert result[0] == 1.0
+
+    def test_large_k(self):
+        """Should handle large k."""
+        result = multiscale_weights(n_levels=3, k=10.0)
+        assert len(result) == 3
         assert pytest.approx(np.sum(result), rel=1e-7) == 1.0
 
 
@@ -118,6 +165,45 @@ class TestAggregateMultiscaleSignal:
                 pi_values=np.array([1.0]),
                 weights=np.array([0.5, 0.5]),
             )
+
+    def test_mismatched_phi_pi_lengths(self):
+        """Should raise error for phi/pi length mismatch."""
+        with pytest.raises(ValueError, match="must have same length"):
+            aggregate_multiscale_signal(
+                phi_values=np.array([1.0, 2.0, 3.0]),
+                pi_values=np.array([1.0, 1.0]),
+                weights=np.array([0.5, 0.3, 0.2]),
+            )
+
+    def test_mismatched_phi_weights_lengths(self):
+        """Should raise error for phi/weights length mismatch."""
+        with pytest.raises(ValueError, match="must have same length"):
+            aggregate_multiscale_signal(
+                phi_values=np.array([1.0, 2.0]),
+                pi_values=np.array([1.0, 1.0, 1.0]),
+                weights=np.array([0.5, 0.3, 0.2]),
+            )
+
+    def test_with_list_inputs(self):
+        """Should accept list inputs."""
+        phi_values = [1.0, 2.0, 3.0]
+        pi_values = [1.0, 1.0, 1.0]
+        weights = [0.5, 0.3, 0.2]
+
+        result = aggregate_multiscale_signal(phi_values, pi_values, weights)
+        expected = 1.7
+        assert pytest.approx(result, rel=1e-10) == expected
+
+    def test_with_negative_phi(self):
+        """Should handle negative phi values."""
+        phi_values = np.array([-1.0, -2.0, -3.0])
+        pi_values = np.array([1.0, 1.0, 1.0])
+        weights = np.array([0.5, 0.3, 0.2])
+
+        result = aggregate_multiscale_signal(phi_values, pi_values, weights)
+        # abs(phi) makes them positive
+        expected = 1.7
+        assert pytest.approx(result, rel=1e-10) == expected
 
 
 class TestApplyResetRule:
@@ -148,6 +234,26 @@ class TestPhaseSignal:
         """Should include initial phase."""
         result = phase_signal(omega=1.0, t=1.0, phi0=0.5)
         assert result == 1.5
+
+    def test_zero_omega(self):
+        """Should handle zero omega."""
+        result = phase_signal(omega=0.0, t=10.0, phi0=0.5)
+        assert result == 0.5
+
+    def test_zero_time(self):
+        """Should handle zero time."""
+        result = phase_signal(omega=1.0, t=0.0, phi0=0.5)
+        assert result == 0.5
+
+    def test_large_omega(self):
+        """Should handle large omega."""
+        result = phase_signal(omega=100.0, t=1.0, phi0=0.0)
+        assert result == 100.0
+
+    def test_negative_omega(self):
+        """Should handle negative omega."""
+        result = phase_signal(omega=-1.0, t=1.0, phi0=0.0)
+        assert result == -1.0
 
 
 class TestModulateThreshold:

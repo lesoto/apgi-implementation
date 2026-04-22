@@ -19,9 +19,11 @@ from core.threshold import (
     compute_metabolic_cost,
     compute_metabolic_cost_realistic,
     compute_information_value,
+    compute_information_value_with_bias,
     apply_ne_threshold_modulation,
     threshold_decay,
     update_threshold_discrete,
+    update_threshold_ode_deprecated,
     apply_refractory_boost,
 )
 
@@ -235,3 +237,133 @@ class TestApplyRefractoryBoost:
         """Should not change theta when delta=0."""
         result = apply_refractory_boost(theta_next=1.0, B=1, delta=0.0)
         assert result == 1.0
+
+
+class TestComputeMetabolicCostRealisticExtended:
+    """Extended tests for Landauer enforcement."""
+
+    def test_enforce_landauer_threshold_low_signal(self):
+        """Should not apply Landauer constraint when S <= eps_stab."""
+        result = compute_metabolic_cost_realistic(
+            S=0.001,
+            B_prev=0,
+            c1=1.0,
+            c2=1.0,
+            eps_stab=0.01,
+            enforce_landauer=True,
+        )
+        # When S <= eps, no Landauer constraint is applied
+        assert result == 0.001  # Just c1 * S
+
+    def test_enforce_landauer_active(self):
+        """Should enforce Landauer minimum when signal is large enough."""
+        result = compute_metabolic_cost_realistic(
+            S=1.0,
+            B_prev=0,
+            c1=0.01,  # Very small cost coefficient
+            c2=1.0,
+            eps_stab=0.001,
+            enforce_landauer=True,
+            kappa_meta=1.0,
+        )
+        # Landauer cost should dominate the small base cost
+        assert result >= 0.01
+
+    def test_kappa_meta_parameter(self):
+        """Should use kappa_meta parameter."""
+        result1 = compute_metabolic_cost_realistic(
+            S=1.0,
+            B_prev=0,
+            enforce_landauer=True,
+            kappa_meta=1.0,
+        )
+        result2 = compute_metabolic_cost_realistic(
+            S=1.0,
+            B_prev=0,
+            enforce_landauer=True,
+            kappa_meta=2.0,
+        )
+        # Higher kappa_meta should increase Landauer cost
+        assert result2 > result1
+
+
+class TestComputeInformationValueWithBias:
+    """Tests for compute_information_value_with_bias function."""
+
+    def test_basic_value_with_bias(self):
+        """Should compute value with dopamine bias."""
+        result = compute_information_value_with_bias(
+            z_e=1.0,
+            z_i=0.5,
+            beta_da=0.3,  # Dopamine bias
+            v1=0.5,
+            v2=0.5,
+        )
+        # z_i_eff = 0.5 + 0.3 = 0.8
+        # V = 0.5 * 1.0 + 0.5 * 0.8 = 0.5 + 0.4 = 0.9
+        assert result == 0.9
+
+    def test_negative_bias(self):
+        """Should handle negative dopamine bias."""
+        result = compute_information_value_with_bias(
+            z_e=1.0,
+            z_i=0.5,
+            beta_da=-0.2,  # Negative bias
+            v1=0.5,
+            v2=0.5,
+        )
+        # z_i_eff = 0.5 - 0.2 = 0.3
+        # V = 0.5 * 1.0 + 0.5 * 0.3 = 0.5 + 0.15 = 0.65
+        assert result == 0.65
+
+    def test_zero_bias(self):
+        """Should equal regular compute_information_value when bias=0."""
+        z_e = 1.0
+        z_i = 0.5
+        v1 = 0.5
+        v2 = 0.5
+
+        result_with_bias = compute_information_value_with_bias(
+            z_e=z_e, z_i=z_i, beta_da=0.0, v1=v1, v2=v2
+        )
+        result_without_bias = compute_information_value(
+            z_e=z_e, z_i_eff=z_i, v1=v1, v2=v2
+        )
+        assert result_with_bias == result_without_bias
+
+
+class TestUpdateThresholdOdeDeprecated:
+    """Tests for deprecated ODE threshold update function."""
+
+    def test_deprecated_ode_function(self):
+        """Should still work even though deprecated."""
+        result = update_threshold_ode_deprecated(
+            theta=1.0,
+            theta_0=0.8,
+            dS_dt=0.1,
+            B_prev=1,
+            gamma=0.1,
+            delta=0.5,
+            lam=0.2,
+        )
+        # Compute expected: gamma * (theta_0 - theta) + delta * B_prev - lam * abs(dS_dt)
+        # = 0.1 * (0.8 - 1.0) + 0.5 * 1 - 0.2 * 0.1
+        # = 0.1 * (-0.2) + 0.5 - 0.02
+        # = -0.02 + 0.5 - 0.02 = 0.46
+        expected = 0.1 * (0.8 - 1.0) + 0.5 * 1 - 0.2 * 0.1
+        assert pytest.approx(result, rel=1e-6) == expected
+
+    def test_deprecated_ode_no_ignition(self):
+        """Should work without ignition."""
+        result = update_threshold_ode_deprecated(
+            theta=1.0,
+            theta_0=0.8,
+            dS_dt=0.1,
+            B_prev=0,  # No ignition
+            gamma=0.1,
+            delta=0.5,
+            lam=0.2,
+        )
+        # = 0.1 * (0.8 - 1.0) + 0 - 0.02 = -0.04
+        expected = -0.04
+        assert pytest.approx(result, rel=1e-6) == expected

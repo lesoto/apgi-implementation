@@ -100,7 +100,11 @@ class APGIPipeline:
         Raises:
             ValueError: If hierarchical_mode has unknown value
         """
-        mode = config.get("hierarchical_mode", "off")
+        mode = config.get("hierarchical_mode", None)
+
+        # Only apply preset if hierarchical_mode is explicitly set
+        if mode is None:
+            return config
 
         if mode == "off":
             config.update(
@@ -523,9 +527,7 @@ class APGIPipeline:
         # 7) Cost/value and threshold update (canonical spec semantics)
         # Mode A: Standard allostatic threshold (default)
         # Mode B: Reservoir-as-threshold (spec-explicit alternative per §10)
-        use_reservoir_threshold = self.reservoir is not None and self.config.get(
-            "reservoir_as_threshold", False
-        )
+        use_reservoir_threshold = self.config.get("reservoir_as_threshold", False)
 
         if self.config["use_realistic_cost"]:
             C_t = compute_metabolic_cost_realistic(
