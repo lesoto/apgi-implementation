@@ -684,7 +684,7 @@ class APGIPipeline:
 
             # 7d) Hierarchical threshold modulation (PAC + Cascade) if enabled (§8.4)
             # Apply to ALL hierarchical modes for consistency
-            if self.use_hierarchical:
+            if self.hierarchical is not None:
                 # Prepare inputs for hierarchical threshold computation
                 theta_0_levels = np.ones(self.n_levels) * theta_next
                 # Level-specific signals for bottom-up cascade (if enabled)
@@ -717,7 +717,6 @@ class APGIPipeline:
                 )
                 from hierarchy.coupling import bottom_up_threshold_cascade
 
-                assert self.hierarchical is not None  # Type guard for mypy
                 thetas_mod = hierarchical_threshold_modulation(
                     thetas=theta_0_levels,
                     pis=_pi_levels,
@@ -737,7 +736,6 @@ class APGIPipeline:
 
                 # Use the modulated threshold for the primary ignition level (level 0)
                 theta_next = float(thetas_mod[0])
-                assert self.hierarchical is not None  # Type guard for mypy
                 self.hierarchical.thetas = thetas_mod.tolist()
 
             # Global threshold clamping for stability (§7.4)
