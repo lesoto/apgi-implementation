@@ -14,9 +14,9 @@ import pytest
 
 from core.ignition import (
     compute_ignition_probability,
-    sample_ignition_state,
-    detect_ignition_event,
     compute_margin,
+    detect_ignition_event,
+    sample_ignition_state,
 )
 
 

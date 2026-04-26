@@ -20,17 +20,17 @@ sys.path.insert(0, str(project_root))
 import numpy as np
 import numpy.typing as npt
 
-from pipeline import APGIPipeline
 from config import CONFIG
 from hierarchy.multiscale import build_timescales
-from stats.spectral_model import (
-    hierarchical_spectral_superposition,
-    fit_lorentzian_superposition,
-    estimate_1f_exponent,
-    validate_pink_noise,
-    SpectralValidator,
-)
+from pipeline import APGIPipeline
 from stats.hurst import welch_periodogram
+from stats.spectral_model import (
+    SpectralValidator,
+    estimate_1f_exponent,
+    fit_lorentzian_superposition,
+    hierarchical_spectral_superposition,
+    validate_pink_noise,
+)
 
 
 def generate_synthetic_prediction_errors(

@@ -16,8 +16,9 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 import numpy as np
-from pipeline import APGIPipeline
+
 from config import CONFIG
+from pipeline import APGIPipeline
 
 
 def generate_synthetic_data(n_steps: int = 1000, dt: float = 0.5):

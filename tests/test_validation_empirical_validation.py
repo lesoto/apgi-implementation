@@ -8,11 +8,11 @@ import numpy as np
 import pytest
 
 from validation.empirical_validation import (
+    BehavioralValidator,
+    CrossValidationRunner,
     DatasetConfig,
     EmpiricalDataLoader,
     NeuralValidator,
-    BehavioralValidator,
-    CrossValidationRunner,
     create_synthetic_validation_dataset,
 )
 

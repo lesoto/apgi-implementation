@@ -8,9 +8,10 @@ Spec §14: Observable mapping to neural and behavioral data
 
 from __future__ import annotations
 
-import numpy as np
-from typing import Any, Callable
 from dataclasses import dataclass
+from typing import Any, Callable
+
+import numpy as np
 
 
 @dataclass

@@ -1,8 +1,9 @@
 """Tests for post-ignition signal reset behavior."""
 
 import pytest
-from pipeline import APGIPipeline
+
 from config import CONFIG
+from pipeline import APGIPipeline
 
 
 class TestPostIgnitionReset:
@@ -52,7 +53,7 @@ class TestPostIgnitionReset:
         config["reset_factor"] = 1.5  # Invalid: > 1
         config["theta_0"] = 0.1
 
-        from core.validation import validate_config, ValidationError
+        from core.validation import ValidationError, validate_config
 
         with pytest.raises(ValidationError):
             validate_config(config)
@@ -62,7 +63,7 @@ class TestPostIgnitionReset:
         config = dict(CONFIG)
         config["reset_factor"] = 0.0  # Invalid: = 0
 
-        from core.validation import validate_config, ValidationError
+        from core.validation import ValidationError, validate_config
 
         with pytest.raises(ValidationError):
             validate_config(config)
@@ -72,7 +73,7 @@ class TestPostIgnitionReset:
         config = dict(CONFIG)
         config["reset_factor"] = 1.0  # Invalid: = 1
 
-        from core.validation import validate_config, ValidationError
+        from core.validation import ValidationError, validate_config
 
         with pytest.raises(ValidationError):
             validate_config(config)

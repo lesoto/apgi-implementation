@@ -5,14 +5,15 @@ Tests spec §7.5: Fixed-Point Stability Analysis
 
 import numpy as np
 import pytest
+
 from analysis.stability import (
-    compute_jacobian_discrete,
-    compute_eigenvalues,
-    check_stability,
-    compute_fixed_point,
-    analyze_bifurcation,
-    validate_system_dynamics,
     StabilityAnalyzer,
+    analyze_bifurcation,
+    check_stability,
+    compute_eigenvalues,
+    compute_fixed_point,
+    compute_jacobian_discrete,
+    validate_system_dynamics,
 )
 
 

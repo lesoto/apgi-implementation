@@ -4,13 +4,12 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from core.allostatic import allostatic_threshold_ode
 from core.dynamics import (
     compute_precision_coupled_noise_std,
     update_prediction,
     update_signal_ode,
 )
-from core.signal import integrate_signal_leaky
-from core.allostatic import allostatic_threshold_ode
 from core.ignition import (
     compute_ignition_probability,
     detect_ignition_event,
@@ -25,15 +24,13 @@ from core.precision import (
     update_mean_ema,
     update_variance_ema,
 )
-from hierarchy.coupling import HierarchicalPrecisionNetwork
-from hierarchy.multiscale import (
-    aggregate_multiscale_signal,
-    build_timescales,
-    multiscale_weights,
-    update_multiscale_feature,
+from core.preprocessing import RunningStats, compute_prediction_error
+from core.signal import (
+    instantaneous_signal,
+    integrate_signal_leaky,
+    stabilize_signal_log,
 )
-from core.preprocessing import compute_prediction_error, RunningStats
-from core.signal import instantaneous_signal, stabilize_signal_log
+from core.thermodynamics import compute_landauer_cost
 from core.threshold import (
     apply_ne_threshold_modulation,
     apply_refractory_boost,
@@ -43,8 +40,14 @@ from core.threshold import (
     threshold_decay,
     update_threshold_discrete,
 )
-from core.thermodynamics import compute_landauer_cost
-from core.validation import validate_config, ValidationError
+from core.validation import ValidationError, validate_config
+from hierarchy.coupling import HierarchicalPrecisionNetwork
+from hierarchy.multiscale import (
+    aggregate_multiscale_signal,
+    build_timescales,
+    multiscale_weights,
+    update_multiscale_feature,
+)
 from stats.hurst import estimate_hurst_robust
 from stats.spectral_model import validate_pink_noise
 
@@ -364,9 +367,9 @@ class APGIPipeline:
         self.prediction_validator = None
         if self.config.get("use_observable_mapping", False):
             from validation.observable_mapping import (
-                NeuralObservableExtractor,
                 BehavioralObservableExtractor,
                 KeyTestablePredictionValidator,
+                NeuralObservableExtractor,
             )
 
             self.neural_observables = NeuralObservableExtractor()
@@ -712,10 +715,10 @@ class APGIPipeline:
                     )
 
                 # Compute full hierarchical threshold set using modular component
+                from hierarchy.coupling import bottom_up_threshold_cascade
                 from oscillation.threshold_modulation import (
                     hierarchical_threshold_modulation,
                 )
-                from hierarchy.coupling import bottom_up_threshold_cascade
 
                 thetas_mod = hierarchical_threshold_modulation(
                     thetas=theta_0_levels,

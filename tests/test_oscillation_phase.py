@@ -15,12 +15,12 @@ import numpy as np
 import pytest
 
 from oscillation.phase import (
+    PhaseOscillatorNetwork,
     compute_phase,
-    update_phase_euler,
-    phase_coupling_kuramoto,
     hierarchical_phase_coupling,
     nearest_neighbor_coupling_matrix,
-    PhaseOscillatorNetwork,
+    phase_coupling_kuramoto,
+    update_phase_euler,
 )
 
 

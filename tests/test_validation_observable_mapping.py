@@ -3,9 +3,9 @@
 import numpy as np
 
 from validation.observable_mapping import (
-    NeuralObservableExtractor,
     BehavioralObservableExtractor,
     KeyTestablePredictionValidator,
+    NeuralObservableExtractor,
     ParameterIdentifiabilityAnalyzer,
 )
 

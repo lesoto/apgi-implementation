@@ -1,12 +1,13 @@
 """Extended tests for core/validation.py to achieve 100% coverage."""
 
 import pytest
+
 from core.validation import (
-    validate_parameter,
-    validate_config,
     ValidationError,
     get_constraint_summary,
     print_constraint_summary,
+    validate_config,
+    validate_parameter,
 )
 
 

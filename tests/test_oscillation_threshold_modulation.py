@@ -15,9 +15,9 @@ import pytest
 
 from oscillation.threshold_modulation import (
     compute_modulation_factor,
-    modulate_threshold_by_phase,
-    hierarchical_threshold_modulation,
     compute_phase_window,
+    hierarchical_threshold_modulation,
+    modulate_threshold_by_phase,
     phase_gated_ignition_probability,
 )
 

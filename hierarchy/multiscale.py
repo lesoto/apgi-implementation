@@ -15,6 +15,106 @@ def build_timescales(tau0: float, k: float, n_levels: int) -> np.ndarray:
     return np.array([tau0 * (k**i) for i in range(n_levels)], dtype=float)
 
 
+def estimate_optimal_timescale_ratio(
+    signal: np.ndarray,
+    fs: float = 1.0,
+    n_levels: int = 4,
+) -> float:
+    """Estimate optimal timescale ratio k from observed spectral characteristics.
+
+    Uses spectral analysis to determine the best geometric progression ratio
+    for hierarchical decomposition.
+
+    Args:
+        signal: Time series data
+        fs: Sampling frequency (Hz)
+        n_levels: Number of hierarchy levels
+
+    Returns:
+        Optimal timescale ratio k ∈ [1.3, 2.0]
+    """
+
+    from scipy import signal as scipy_signal  # type: ignore
+
+    # Compute power spectrum
+    freqs, psd = scipy_signal.welch(signal, fs=fs)
+
+    # Find peaks in log-log space
+    log_f = np.log(freqs[freqs > 0])
+    log_p = np.log(psd[freqs > 0])
+
+    # Smooth spectrum to find characteristic scales
+    from scipy.ndimage import gaussian_filter1d  # type: ignore
+
+    smoothed = gaussian_filter1d(log_p, sigma=2)
+
+    # Find local maxima (characteristic timescales)
+    peaks = []
+    for i in range(1, len(smoothed) - 1):
+        if smoothed[i] > smoothed[i - 1] and smoothed[i] > smoothed[i + 1]:
+            peaks.append(log_f[i])
+
+    if len(peaks) < 2:
+        # Default to 1.6 if not enough peaks
+        return 1.6
+
+    # Estimate k from peak spacing
+    peak_spacing = np.diff(peaks)
+    k_estimate = np.exp(np.mean(peak_spacing))
+
+    # Clamp to reasonable range
+    k_optimal = float(np.clip(k_estimate, 1.3, 2.0))
+
+    return k_optimal
+
+
+def estimate_hierarchy_levels_from_data(
+    signal: np.ndarray,
+    fs: float = 1.0,
+    tau_min: float = 0.01,
+    tau_max: float = 10.0,
+) -> int:
+    """Estimate optimal number of hierarchy levels from data.
+
+    Uses spectral analysis to determine the number of distinct timescales
+    present in the signal.
+
+    Args:
+        signal: Time series data
+        fs: Sampling frequency (Hz)
+        tau_min: Minimum timescale (seconds)
+        tau_max: Maximum timescale (seconds)
+
+    Returns:
+        Estimated number of hierarchy levels
+    """
+
+    from scipy import signal as scipy_signal  # type: ignore
+
+    # Compute power spectrum
+    freqs, psd = scipy_signal.welch(signal, fs=fs)
+
+    # Find peaks in log-log space
+    log_f = np.log(freqs[freqs > 0])
+    log_p = np.log(psd[freqs > 0])
+
+    # Smooth spectrum
+    from scipy.ndimage import gaussian_filter1d  # type: ignore
+
+    smoothed = gaussian_filter1d(log_p, sigma=2)
+
+    # Find local maxima
+    peaks = []
+    for i in range(1, len(smoothed) - 1):
+        if smoothed[i] > smoothed[i - 1] and smoothed[i] > smoothed[i + 1]:
+            peaks.append(log_f[i])
+
+    # Number of peaks indicates number of timescales
+    n_levels = max(2, min(len(peaks), 8))
+
+    return int(n_levels)
+
+
 def update_multiscale_feature(phi_prev: float, z_t: float, tau_i: float) -> float:
     """Φ_i(t+1) = (1-1/τ_i)Φ_i(t) + (1/τ_i) z(t)."""
 

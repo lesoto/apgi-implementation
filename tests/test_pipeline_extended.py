@@ -1,8 +1,9 @@
 """Extended tests for pipeline.py to achieve 100% coverage."""
 
 import numpy as np
-from pipeline import APGIPipeline
+
 from config import CONFIG
+from pipeline import APGIPipeline
 
 
 class TestAPGIPipelineExtended:

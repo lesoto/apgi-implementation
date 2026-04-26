@@ -7,14 +7,15 @@ This example demonstrates the basic usage of the APGI pipeline.
 Spec Reference: §13 Execution Pipeline
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np  # noqa: E402
-from pipeline import APGIPipeline  # noqa: E402
+
 from config import CONFIG  # noqa: E402
+from pipeline import APGIPipeline  # noqa: E402
 
 
 def main():
@@ -94,12 +95,6 @@ def main():
     print("\n" + "=" * 60)
     print("Example completed successfully!")
     print("=" * 60)
-
-    # Print next steps
-    print("\nNext steps:")
-    print("  1. Try 02_advanced_features.py for more features")
-    print("  2. See docs/API_REFERENCE.md for full API")
-    print("  3. See docs/PARAMETER_CONSTRAINTS.md for parameter tuning")
 
 
 if __name__ == "__main__":

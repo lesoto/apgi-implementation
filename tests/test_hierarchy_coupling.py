@@ -15,13 +15,13 @@ import numpy as np
 import pytest
 
 from hierarchy.coupling import (
-    estimate_hierarchy_levels,
-    precision_coupling_ode,
-    phase_locked_threshold,
+    HierarchicalPrecisionNetwork,
     bottom_up_threshold_cascade,
+    estimate_hierarchy_levels,
+    phase_locked_threshold,
+    precision_coupling_ode,
     update_phase_dynamics,
     update_phase_kuramoto_full,
-    HierarchicalPrecisionNetwork,
 )
 
 

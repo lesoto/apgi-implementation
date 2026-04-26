@@ -1,8 +1,6 @@
 """Extended tests for analysis/stability.py to achieve 100% coverage."""
 
-from analysis.stability import (
-    analyze_bifurcation,
-)
+from analysis.stability import analyze_bifurcation
 
 
 class TestAnalyzeBifurcation:

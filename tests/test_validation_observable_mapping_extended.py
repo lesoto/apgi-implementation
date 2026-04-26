@@ -1,9 +1,8 @@
 """Extended tests for validation/observable_mapping.py to achieve 100% coverage."""
 
 import numpy as np
-from validation.observable_mapping import (
-    ParameterIdentifiabilityAnalyzer,
-)
+
+from validation.observable_mapping import ParameterIdentifiabilityAnalyzer
 
 
 class TestParameterIdentifiabilityAnalyzerExtended:

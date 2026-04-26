@@ -16,15 +16,15 @@ import numpy as np
 import pytest
 
 from core.threshold import (
-    compute_metabolic_cost,
-    compute_metabolic_cost_realistic,
+    apply_ne_threshold_modulation,
+    apply_refractory_boost,
     compute_information_value,
     compute_information_value_with_bias,
-    apply_ne_threshold_modulation,
+    compute_metabolic_cost,
+    compute_metabolic_cost_realistic,
     threshold_decay,
     update_threshold_discrete,
     update_threshold_ode_deprecated,
-    apply_refractory_boost,
 )
 
 

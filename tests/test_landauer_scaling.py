@@ -5,7 +5,8 @@ to dimensionless allostatic units.
 """
 
 import pytest
-from core.thermodynamics import compute_landauer_cost, K_BOLTZMANN, T_ENV_DEFAULT
+
+from core.thermodynamics import K_BOLTZMANN, T_ENV_DEFAULT, compute_landauer_cost
 from core.threshold import compute_metabolic_cost_realistic
 
 

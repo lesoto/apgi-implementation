@@ -6,12 +6,12 @@ Tests APGI Spec §15: Design Constraints
 import pytest
 
 from core.validation import (
-    validate_config,
-    validate_parameter,
-    validate_reset_factor,
     ValidationError,
     get_constraint_summary,
     print_constraint_summary,
+    validate_config,
+    validate_parameter,
+    validate_reset_factor,
 )
 
 

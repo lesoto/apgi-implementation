@@ -8,9 +8,10 @@ This module provides:
 
 from __future__ import annotations
 
+from typing import Any, Generator
+
 import numpy as np
 import pytest
-from typing import Any, Generator
 
 # =============================================================================
 # Random Seed Fixtures

@@ -1,9 +1,8 @@
 """Extended tests for core/preprocessing.py to achieve 100% coverage."""
 
 import pytest
-from core.preprocessing import (
-    update_prediction,
-)
+
+from core.preprocessing import update_prediction
 
 
 class TestUpdatePrediction:

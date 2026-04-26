@@ -8,8 +8,9 @@ Implements:
 
 from __future__ import annotations
 
-import numpy as np
 from typing import Callable
+
+import numpy as np
 
 
 def estimate_hierarchy_levels(
@@ -133,6 +134,117 @@ def phase_locked_threshold(
     return float(theta_0_ell * phase_modulation)
 
 
+def nonlinear_phase_amplitude_coupling(
+    theta_0_ell: float,
+    pi_ell_plus_1: float,
+    phi_ell_plus_1: float,
+    kappa_down: float,
+    nonlinearity: str = "sigmoid",
+    phase_frequency_coupling: float = 0.0,
+) -> float:
+    """Compute nonlinear phase-amplitude coupling (PAC) with frequency modulation.
+
+    Extends basic PAC with nonlinear frequency-amplitude coupling strength.
+
+    Nonlinearity options:
+    - 'sigmoid': Smooth saturation at high precision
+    - 'power': Power-law frequency-amplitude coupling
+    - 'exponential': Exponential frequency-amplitude coupling
+
+    Formula (sigmoid):
+    θ_mod = θ_{0,ℓ} · [1 + κ_down · σ(Π_{ℓ+1}) · cos(ϕ_{ℓ+1})]
+    where σ(x) = 1 / (1 + exp(-x))
+
+    Args:
+        theta_0_ell: Baseline threshold for level ℓ
+        pi_ell_plus_1: Higher level precision
+        phi_ell_plus_1: Phase of higher level oscillation (radians)
+        kappa_down: Phase coupling strength
+        nonlinearity: Type of nonlinearity ('sigmoid', 'power', 'exponential')
+        phase_frequency_coupling: Frequency-dependent coupling strength (0-1)
+
+    Returns:
+        Nonlinearly modulated threshold
+    """
+
+    # Apply nonlinearity to precision
+    if nonlinearity == "sigmoid":
+        # Sigmoid saturation: σ(x) = 1 / (1 + exp(-x))
+        pi_nonlinear = 1.0 / (1.0 + np.exp(-pi_ell_plus_1))
+    elif nonlinearity == "power":
+        # Power-law: x^0.5 (sublinear)
+        pi_nonlinear = np.sqrt(np.abs(pi_ell_plus_1))
+    elif nonlinearity == "exponential":
+        # Exponential: exp(x) - 1 (superlinear)
+        pi_nonlinear = np.exp(np.clip(pi_ell_plus_1, -10, 10)) - 1.0
+    else:
+        pi_nonlinear = pi_ell_plus_1
+
+    # Frequency-amplitude coupling: modulate coupling strength by phase
+    # Higher frequency components get stronger coupling
+    fac_strength = 1.0 + phase_frequency_coupling * np.abs(np.sin(phi_ell_plus_1))
+
+    # Compute modulation
+    phase_modulation = (
+        1.0 + kappa_down * pi_nonlinear * np.cos(phi_ell_plus_1) * fac_strength
+    )
+
+    return float(theta_0_ell * phase_modulation)
+
+
+def bidirectional_phase_coupling(
+    phi_ell: float,
+    phi_ell_plus_1: float | None,
+    phi_ell_minus_1: float | None,
+    omega_ell: float,
+    dt: float,
+    kappa_down: float = 0.1,
+    kappa_up: float = 0.05,
+    noise_std: float = 0.0,
+    rng: np.random.Generator | None = None,
+) -> float:
+    """Update phase with bidirectional Kuramoto coupling (top-down and bottom-up).
+
+    Formula:
+    dφ_ℓ/dt = ω_ℓ + κ_down·sin(φ_{ℓ+1} - φ_ℓ) + κ_up·sin(φ_{ℓ-1} - φ_ℓ) + ξ_ℓ(t)
+
+    Args:
+        phi_ell: Current phase at level ℓ
+        phi_ell_plus_1: Phase at higher level (None for top level)
+        phi_ell_minus_1: Phase at lower level (None for bottom level)
+        omega_ell: Natural frequency at level ℓ
+        dt: Time step
+        kappa_down: Top-down coupling strength
+        kappa_up: Bottom-up coupling strength
+        noise_std: Phase noise standard deviation
+        rng: Random number generator
+
+    Returns:
+        Updated phase (wrapped to [0, 2π])
+    """
+
+    generator = rng or np.random.default_rng()
+
+    # Natural frequency term
+    dphi = omega_ell * dt
+
+    # Top-down coupling from higher level
+    if phi_ell_plus_1 is not None and kappa_down > 0:
+        dphi += kappa_down * np.sin(phi_ell_plus_1 - phi_ell) * dt
+
+    # Bottom-up coupling from lower level
+    if phi_ell_minus_1 is not None and kappa_up > 0:
+        dphi += kappa_up * np.sin(phi_ell_minus_1 - phi_ell) * dt
+
+    # Stochastic noise
+    if noise_std > 0:
+        dphi += noise_std * generator.normal(0.0, np.sqrt(dt))
+
+    phi_new = (phi_ell + dphi) % (2 * np.pi)
+
+    return float(phi_new)
+
+
 def bottom_up_threshold_cascade(
     theta_ell: float,
     S_ell_minus_1: float,
@@ -156,6 +268,57 @@ def bottom_up_threshold_cascade(
 
     is_superthreshold = float(S_ell_minus_1 > theta_ell_minus_1)
     modulation = 1.0 - kappa_up * is_superthreshold
+
+    return float(theta_ell * modulation)
+
+
+def bidirectional_threshold_cascade(
+    theta_ell: float,
+    S_ell_minus_1: float | None,
+    theta_ell_minus_1: float | None,
+    S_ell_plus_1: float | None,
+    theta_ell_plus_1: float | None,
+    kappa_up: float = 0.1,
+    kappa_down: float = 0.05,
+    hysteresis: float = 0.1,
+) -> float:
+    """Compute bidirectional threshold cascade with hysteresis.
+
+    Implements both bottom-up and top-down threshold modulation with
+    hysteresis to prevent oscillations.
+
+    Formula:
+    θ_ℓ ← θ_ℓ · [1 − κ_up·H(S_{ℓ−1} − θ_{ℓ−1})] · [1 + κ_down·H(S_{ℓ+1} − θ_{ℓ+1})]
+
+    Args:
+        theta_ell: Current threshold at level ℓ
+        S_ell_minus_1: Signal at level ℓ-1 (None for bottom level)
+        theta_ell_minus_1: Threshold at level ℓ-1 (None for bottom level)
+        S_ell_plus_1: Signal at level ℓ+1 (None for top level)
+        theta_ell_plus_1: Threshold at level ℓ+1 (None for top level)
+        kappa_up: Bottom-up cascade strength
+        kappa_down: Top-down cascade strength
+        hysteresis: Hysteresis factor to prevent oscillations
+
+    Returns:
+        Bidirectionally modulated threshold
+    """
+
+    modulation = 1.0
+
+    # Bottom-up cascade: lower level ignition suppresses this level
+    if S_ell_minus_1 is not None and theta_ell_minus_1 is not None:
+        is_lower_superthreshold = float(
+            S_ell_minus_1 > theta_ell_minus_1 * (1 - hysteresis)
+        )
+        modulation *= 1.0 - kappa_up * is_lower_superthreshold
+
+    # Top-down cascade: higher level ignition facilitates this level
+    if S_ell_plus_1 is not None and theta_ell_plus_1 is not None:
+        is_upper_superthreshold = float(
+            S_ell_plus_1 > theta_ell_plus_1 * (1 + hysteresis)
+        )
+        modulation *= 1.0 + kappa_down * is_upper_superthreshold
 
     return float(theta_ell * modulation)
 

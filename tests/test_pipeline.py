@@ -20,12 +20,8 @@ import warnings
 import numpy as np
 import pytest
 
-from pipeline import (
-    APGIPipeline,
-    HierarchicalState,
-    PrecisionState,
-)
 from core.validation import ValidationError
+from pipeline import APGIPipeline, HierarchicalState, PrecisionState
 
 
 @pytest.fixture

@@ -2,9 +2,8 @@
 
 import numpy as np
 import pytest
-from stats.hurst import (
-    estimate_beta_welch,
-)
+
+from stats.hurst import estimate_beta_welch
 
 
 class TestEstimateBetaWelchExtended:

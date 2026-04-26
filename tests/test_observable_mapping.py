@@ -5,10 +5,11 @@ Tests spec §14: Observable Mapping
 
 import numpy as np
 import pytest
+
 from validation.observable_mapping import (
-    NeuralObservableExtractor,
     BehavioralObservableExtractor,
     KeyTestablePredictionValidator,
+    NeuralObservableExtractor,
     ParameterIdentifiabilityAnalyzer,
 )
 

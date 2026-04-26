@@ -11,14 +11,15 @@ This example demonstrates advanced features including:
 Spec Reference: §9, §14, §7, §8
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np  # noqa: E402
-from pipeline import APGIPipeline  # noqa: E402
+
 from config import CONFIG  # noqa: E402
+from pipeline import APGIPipeline  # noqa: E402
 
 
 def main():
@@ -160,12 +161,6 @@ def main():
     print("\n" + "=" * 60)
     print("Advanced features example completed successfully!")
     print("=" * 60)
-
-    # Print next steps
-    print("\nNext steps:")
-    print("  1. Try 03_observable_mapping.py for detailed observable analysis")
-    print("  2. Try 04_thermodynamics.py for thermodynamic analysis")
-    print("  3. See docs/DESIGN_CHOICES.md for design rationale")
 
 
 if __name__ == "__main__":

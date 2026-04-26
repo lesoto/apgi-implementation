@@ -24,9 +24,9 @@ sys.path.insert(0, str(project_root))
 import numpy as np
 import numpy.typing as npt
 
-from pipeline import APGIPipeline
 from config import CONFIG
 from oscillation.kuramoto import HierarchicalKuramotoSystem
+from pipeline import APGIPipeline
 
 
 def generate_input_signals(

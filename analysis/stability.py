@@ -13,8 +13,9 @@ Stability requires: |λ₁| < 1 and |λ₂| < 1
 
 from __future__ import annotations
 
-import numpy as np
 from typing import Any
+
+import numpy as np
 
 
 def compute_jacobian_discrete(

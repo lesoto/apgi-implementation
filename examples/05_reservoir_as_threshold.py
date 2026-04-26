@@ -4,14 +4,15 @@ Demonstrates the reservoir serving as an alternative execution path
 replacing steps 7-8 (threshold computation and ignition) per APGI spec §10.
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np  # noqa: E402
-from pipeline import APGIPipeline  # noqa: E402
+
 from config import CONFIG  # noqa: E402
+from pipeline import APGIPipeline  # noqa: E402
 
 # Configuration with reservoir-as-threshold mode
 config = CONFIG.copy()

@@ -8,12 +8,12 @@ from unittest.mock import patch
 import numpy as np
 
 from main import (
-    generate_synthetic_input,
-    run_standard_pipeline,
-    run_multiscale_pipeline,
     analyze_signal_statistics,
-    save_results,
+    generate_synthetic_input,
     main,
+    run_multiscale_pipeline,
+    run_standard_pipeline,
+    save_results,
 )
 
 

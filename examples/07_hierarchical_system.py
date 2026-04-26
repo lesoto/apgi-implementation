@@ -23,8 +23,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+
 from pipeline import APGIPipeline
 from stats.spectral_model import validate_pink_noise
 

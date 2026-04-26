@@ -4,15 +4,15 @@ import numpy as np
 import pytest
 
 from stats.spectral_model import (
-    lorentzian_spectrum,
+    SpectralValidator,
     analytic_multiscale_psd,
     compute_psd_1f_exponent_analytic,
-    hierarchical_spectral_superposition,
     estimate_1f_exponent,
     fit_lorentzian_superposition,
-    validate_pink_noise,
-    SpectralValidator,
     generate_predicted_spectrum_from_hierarchy,
+    hierarchical_spectral_superposition,
+    lorentzian_spectrum,
+    validate_pink_noise,
 )
 
 

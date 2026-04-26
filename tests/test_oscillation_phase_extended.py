@@ -1,10 +1,8 @@
 """Extended tests for oscillation/phase.py to achieve 100% coverage."""
 
 import numpy as np
-from oscillation.phase import (
-    PhaseOscillatorNetwork,
-    hierarchical_phase_coupling,
-)
+
+from oscillation.phase import PhaseOscillatorNetwork, hierarchical_phase_coupling
 
 
 class TestPhaseOscillatorNetworkExtended:

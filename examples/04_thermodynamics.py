@@ -8,18 +8,19 @@ to ground metabolic cost in information theory.
 Spec Reference: §11 Thermodynamic Constraints
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import numpy as np  # noqa: E402
-from pipeline import APGIPipeline  # noqa: E402
-from config import CONFIG  # noqa: E402
-from core.thermodynamics import (  # noqa: E402
-    compute_landauer_cost,
+import numpy as np
+
+from config import CONFIG
+from core.thermodynamics import (
     compute_information_bits,
+    compute_landauer_cost,
 )
+from pipeline import APGIPipeline
 
 
 def main():
@@ -215,12 +216,6 @@ def main():
     print("\n" + "=" * 60)
     print("Thermodynamic analysis example completed successfully!")
     print("=" * 60)
-
-    # Print next steps
-    print("\nNext steps:")
-    print("  1. See docs/API_REFERENCE.md for thermodynamic functions")
-    print("  2. See APGI-Specs.md §11 for thermodynamic theory")
-    print("  3. Adjust kappa_meta to explore efficiency tradeoffs")
 
 
 if __name__ == "__main__":

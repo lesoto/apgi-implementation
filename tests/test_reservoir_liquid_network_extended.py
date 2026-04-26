@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from reservoir.liquid_network import LiquidNetwork
 
 

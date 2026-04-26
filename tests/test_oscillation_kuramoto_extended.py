@@ -1,10 +1,8 @@
 """Extended tests for oscillation/kuramoto.py to achieve 100% coverage."""
 
 import numpy as np
-from oscillation.kuramoto import (
-    KuramotoOscillators,
-    HierarchicalKuramotoSystem,
-)
+
+from oscillation.kuramoto import HierarchicalKuramotoSystem, KuramotoOscillators
 
 
 class TestKuramotoOscillatorsExtended:

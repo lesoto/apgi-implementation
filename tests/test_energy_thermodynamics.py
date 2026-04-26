@@ -17,14 +17,14 @@ import numpy as np
 import pytest
 
 from energy.thermodynamics import (
-    estimate_bits_erased,
-    metabolic_cost_landauer,
-    metabolic_cost,
-    landauer_limit,
-    landauer_cost_in_atp,
-    estimate_information_content,
-    check_thermodynamic_feasibility,
     ThermodynamicTracker,
+    check_thermodynamic_feasibility,
+    estimate_bits_erased,
+    estimate_information_content,
+    landauer_cost_in_atp,
+    landauer_limit,
+    metabolic_cost,
+    metabolic_cost_landauer,
 )
 
 

@@ -1,11 +1,8 @@
 """Extended tests for main.py to achieve 100% coverage."""
 
 import numpy as np
-from main import (
-    analyze_signal_statistics,
-    save_results,
-    generate_synthetic_input,
-)
+
+from main import analyze_signal_statistics, generate_synthetic_input, save_results
 
 
 class TestAnalyzeSignalStatisticsExtended:

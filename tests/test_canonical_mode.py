@@ -1,9 +1,10 @@
 """Tests for canonical discrete mode vs ODE mode signal accumulation."""
 
-import pytest
 import numpy as np
-from pipeline import APGIPipeline
+import pytest
+
 from config import CONFIG
+from pipeline import APGIPipeline
 
 
 class TestCanonicalDiscreteMode:
@@ -76,7 +77,7 @@ class TestCanonicalDiscreteMode:
         config["lam"] = 1.5  # Invalid: > 1
 
         # Validation should catch this
-        from core.validation import validate_config, ValidationError
+        from core.validation import ValidationError, validate_config
 
         with pytest.raises(ValidationError):
             validate_config(config)

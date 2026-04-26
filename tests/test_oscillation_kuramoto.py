@@ -12,9 +12,9 @@ import numpy as np
 import pytest
 
 from oscillation.kuramoto import (
-    OrnsteinUhlenbeckNoise,
-    KuramotoOscillators,
     HierarchicalKuramotoSystem,
+    KuramotoOscillators,
+    OrnsteinUhlenbeckNoise,
 )
 
 

@@ -10,11 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.zscoring import (
-    ZScoreWindow,
-    DualZScoreProcessor,
-    create_standard_zscorer,
-)
+from core.zscoring import DualZScoreProcessor, ZScoreWindow, create_standard_zscorer
 
 
 class TestZScoreWindow:

@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from core.thermodynamics import (
     compute_landauer_cost,
     compute_landauer_cost_batch,

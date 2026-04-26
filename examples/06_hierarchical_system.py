@@ -21,9 +21,9 @@ sys.path.insert(0, str(project_root))
 import numpy as np
 import numpy.typing as npt
 
-from pipeline import APGIPipeline
 from config import CONFIG
 from hierarchy.multiscale import build_timescales, multiscale_weights
+from pipeline import APGIPipeline
 
 
 def generate_input_signals(
@@ -331,12 +331,6 @@ def main():
     print("\n" + "=" * 70)
     print("All Hierarchical Examples Complete")
     print("=" * 70)
-
-    print("\nNext steps:")
-    print("  - Try different 'hierarchical_mode' settings")
-    print("  - Adjust 'n_levels' for more/fewer scales")
-    print("  - Tune 'tau_0' and 'k' for different timescale ranges")
-    print("  - See docs/HIERARCHICAL_GUIDE.md for full documentation")
 
 
 if __name__ == "__main__":

@@ -6,8 +6,9 @@ z = (ϵ - μ) / σ where μ, σ estimated from running 10-second window.
 
 from __future__ import annotations
 
-import numpy as np
 from collections import deque
+
+import numpy as np
 
 
 class ZScoreWindow:

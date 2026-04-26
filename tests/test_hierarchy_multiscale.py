@@ -17,14 +17,14 @@ import numpy as np
 import pytest
 
 from hierarchy.multiscale import (
-    build_timescales,
-    update_multiscale_feature,
-    multiscale_weights,
     aggregate_multiscale_signal,
     apply_reset_rule,
-    phase_signal,
-    modulate_threshold,
     bottom_up_cascade,
+    build_timescales,
+    modulate_threshold,
+    multiscale_weights,
+    phase_signal,
+    update_multiscale_feature,
 )
 
 

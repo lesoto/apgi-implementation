@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import numpy as np
-from .thermodynamics import compute_landauer_cost, K_BOLTZMANN, T_ENV_DEFAULT
+
+from .thermodynamics import K_BOLTZMANN, T_ENV_DEFAULT, compute_landauer_cost
 
 
 def compute_metabolic_cost(S: float, c0: float = 0.0, c1: float = 1.0) -> float:

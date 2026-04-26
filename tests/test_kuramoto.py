@@ -5,10 +5,11 @@ Tests spec §9: Oscillatory Phase Coupling
 
 import numpy as np
 import pytest
+
 from oscillation.kuramoto import (
-    OrnsteinUhlenbeckNoise,
-    KuramotoOscillators,
     HierarchicalKuramotoSystem,
+    KuramotoOscillators,
+    OrnsteinUhlenbeckNoise,
 )
 
 

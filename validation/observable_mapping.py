@@ -12,9 +12,10 @@ Observable Mapping (§14):
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from scipy import signal  # type: ignore
-from typing import Any
 
 
 class NeuralObservableExtractor:
