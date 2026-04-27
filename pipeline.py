@@ -579,8 +579,31 @@ class APGIPipeline:
         use_reservoir_threshold = self.config.get("reservoir_as_threshold", False)
 
         if self.config["use_realistic_cost"]:
+            # Check if BOLD calibration should be used
+            bold_calibration = None
+            if self.config.get("use_bold_calibration", False):
+                bold_calibration = {
+                    "bold_signal_change": 2.0,  # Default 2% BOLD change
+                    "conversion_factor": self.config.get(
+                        "bold_conversion_factor", 1.2e-6
+                    ),
+                    "tissue_volume": self.config.get("bold_tissue_volume", 1.0),
+                    "ignition_spike_factor": self.config.get(
+                        "bold_ignition_spike_factor", 1.075
+                    ),
+                }
+
             C_t = compute_metabolic_cost_realistic(
-                self.S, self.B_prev, self.config["c1"], self.config["c2"]
+                self.S,
+                self.B_prev,
+                self.config["c1"],
+                self.config["c2"],
+                enforce_landauer=self.config.get("use_thermodynamic_cost", False),
+                kappa_meta=self.config.get("kappa_meta", 1.0),
+                kappa_units=self.config.get("kappa_units", "dimensionless"),
+                bold_calibration=(
+                    bold_calibration if bold_calibration is not None else {}
+                ),
             )
         else:
             C_t = compute_metabolic_cost(self.S, self.config["c0"], self.config["c1"])
@@ -597,6 +620,7 @@ class APGIPipeline:
                 k_b=self.config.get("k_boltzmann", 1.38e-23),
                 T_env=self.config.get("T_env", 310.0),
                 kappa_meta=self.config.get("kappa_meta", 1.0),
+                kappa_units=self.config.get("kappa_units", "dimensionless"),
             )
             bits_erased = compute_information_bits(self.S, self.config["eps"])
             self.history["C_landauer"].append(C_landauer)

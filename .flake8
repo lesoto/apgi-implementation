@@ -20,5 +20,7 @@ ignore =
 per-file-ignores =
     __init__.py:F401
     examples/04_thermodynamics.py:E402
+    examples/05_bold_thermodynamics.py:E402
     examples/11_maturity_assessment.py:E402
     examples/12_maturity_demo.py:E402
+    examples/14_bold_calibration.py:E402

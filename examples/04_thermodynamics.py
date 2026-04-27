@@ -16,10 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 
 from config import CONFIG
-from core.thermodynamics import (
-    compute_information_bits,
-    compute_landauer_cost,
-)
+from core.thermodynamics import compute_information_bits, compute_landauer_cost
 from pipeline import APGIPipeline
 
 

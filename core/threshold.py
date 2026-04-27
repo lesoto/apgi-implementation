@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
 from .thermodynamics import K_BOLTZMANN, T_ENV_DEFAULT, compute_landauer_cost
@@ -19,11 +21,16 @@ def compute_metabolic_cost_realistic(
     eps_stab: float = 1e-6,
     enforce_landauer: bool = False,
     kappa_meta: float = 1.0,
+    kappa_units: str = "dimensionless",
+    bold_calibration: dict[str, Any] | None = None,
 ) -> float:
     """C(t)=c1*S(t)+c2*B(t-1) with optional Landauer constraint (spec §11).
 
     When enforce_landauer=True, ensures C(t) ≥ E_min per Landauer's principle:
         C(t) = max(c1·S + c2·B_prev, κ_meta·N_erase·k_B·T_env·ln(2))
+
+    With BOLD calibration: C(t) = max(c1·S + c2·B_prev, E_BOLD)
+    where E_BOLD is energy estimated from BOLD signal.
 
     Args:
         S: Signal magnitude
@@ -32,28 +39,66 @@ def compute_metabolic_cost_realistic(
         c2: Ignition cost coefficient
         eps_stab: Stability threshold for bit estimation
         enforce_landauer: Whether to enforce thermodynamic constraint
-        kappa_meta: Metabolic efficiency factor (default: 1.0)
+        kappa_meta: Metabolic efficiency factor
+            - If kappa_units="dimensionless": dimensionless factor (default: 1.0)
+            - If kappa_units="joules_per_bit": energy per bit in Joules
+        kappa_units: Units of kappa_meta ("dimensionless" or "joules_per_bit")
+        bold_calibration: Optional BOLD calibration parameters dict with keys:
+            - "bold_signal_change": BOLD signal change in percent
+            - "conversion_factor": Joules per 1% BOLD change per cm³ tissue
+            - "tissue_volume": Tissue volume in cm³
+            - "ignition_spike_factor": Energy spike factor (1.05-1.10)
 
     Returns:
-        Metabolic cost C(t)
+        Metabolic cost C(t) in same units as input (AU or Joules if calibrated)
     """
 
     base_cost = c1 * S + c2 * B_prev
 
     if enforce_landauer and S > eps_stab:
-        # Compute Landauer minimum
-        e_min = compute_landauer_cost(
-            S=S,
-            eps=eps_stab,
-            k_b=K_BOLTZMANN,
-            T_env=T_ENV_DEFAULT,
-            kappa_meta=kappa_meta,
-        )
-        # Ensure cost meets thermodynamic minimum
-        # Scale factor to convert Joules to dimensionless cost units
-        # Using a scaling factor of 1e20 for neural-scale computations
-        scale_factor = 1e20
-        e_min_scaled = e_min * scale_factor
+        if bold_calibration is not None:
+            # Use BOLD-calibrated energy estimate
+            from energy.bold_calibration import (
+                bold_signal_to_energy,
+                estimate_ignition_energy_spike,
+            )
+
+            # Get BOLD parameters
+            bold_change = bold_calibration.get("bold_signal_change", 2.0)  # default 2%
+            conversion_factor = bold_calibration.get("conversion_factor", 1.2e-6)
+            tissue_volume = bold_calibration.get("tissue_volume", 1.0)
+            spike_factor = bold_calibration.get("ignition_spike_factor", 1.075)
+
+            # Estimate baseline energy from BOLD
+            baseline_energy = bold_signal_to_energy(
+                bold_change,
+                conversion_factor=conversion_factor,
+                tissue_volume=tissue_volume,
+            )
+
+            # Apply ignition spike factor
+            e_min = estimate_ignition_energy_spike(baseline_energy, spike_factor)
+
+            # Convert to dimensionless cost units if needed
+            # (assuming base_cost is in AU, e_min is in Joules)
+            # Use scaling factor based on typical neural energy scale
+            scale_factor = 1e20  # Convert Joules to neural-scale AU
+            e_min_scaled = e_min * scale_factor
+        else:
+            # Compute Landauer minimum using κ_meta
+            e_min = compute_landauer_cost(
+                S=S,
+                eps=eps_stab,
+                k_b=K_BOLTZMANN,
+                T_env=T_ENV_DEFAULT,
+                kappa_meta=kappa_meta,
+                kappa_units=kappa_units,
+            )
+
+            # compute_landauer_cost always returns Joules, so always apply scaling
+            scale_factor = 1e20  # Convert Joules to neural-scale AU
+            e_min_scaled = e_min * scale_factor
+
         base_cost = max(base_cost, e_min_scaled)
 
     return float(base_cost)

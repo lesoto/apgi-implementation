@@ -12,10 +12,14 @@ Observable Mapping (§14):
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import numpy as np
 from scipy import signal  # type: ignore
+
+# Suppress LAPACK warnings
+warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*")
 
 
 class NeuralObservableExtractor:
@@ -532,9 +536,12 @@ class ParameterIdentifiabilityAnalyzer:
 
         # Compute condition number (identifiability measure)
         try:
-            eigs = np.linalg.eigvals(FIM)
-            condition_number = np.max(np.abs(eigs)) / (np.min(np.abs(eigs)) + 1e-8)
-        except (np.linalg.LinAlgError, ValueError):
+            with np.errstate(all="ignore"):
+                eigs = np.linalg.eigvals(FIM)
+                eig_abs = np.abs(eigs)
+                eig_abs = np.maximum(eig_abs, 1e-12)  # Prevent division by near-zero
+                condition_number = np.max(eig_abs) / np.min(eig_abs)
+        except (np.linalg.LinAlgError, ValueError, FloatingPointError):
             condition_number = np.inf
 
         # Compute Cramér-Rao lower bound

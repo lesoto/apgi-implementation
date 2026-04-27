@@ -16,10 +16,7 @@ from stats.maturity_assessment import (
     get_maturity_rating,
     print_maturity_assessment,
 )
-from stats.spectral_extraction import (
-    extract_1f_signature,
-    print_spectral_signature,
-)
+from stats.spectral_extraction import extract_1f_signature, print_spectral_signature
 
 
 def generate_pink_noise(n_samples=10000, seed=42):

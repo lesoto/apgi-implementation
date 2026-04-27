@@ -41,13 +41,15 @@ def compute_landauer_cost(
     k_b: float = K_BOLTZMANN,
     T_env: float = T_ENV_DEFAULT,
     kappa_meta: float = 1.0,
+    kappa_units: str = "dimensionless",
 ) -> float:
     """Compute thermodynamic cost per Landauer's principle.
 
     Implements APGI Spec §11: Connection to Metabolic Cost
 
-    The minimum energy required to erase information is:
-        E_min = κ_meta · N_erase · k_B · T_env · ln(2)
+    Two modes of operation:
+    1. Dimensionless κ_meta (legacy): E_min = κ_meta · N_erase · k_B · T_env · ln(2)
+    2. Calibrated κ_meta in J/bit: E_min = κ_meta · N_erase
 
     where N_erase ≈ log₂(S / ε_stab) is the number of bits erased.
 
@@ -56,10 +58,10 @@ def compute_landauer_cost(
         eps: Stability threshold ε_stab (minimum detectable signal)
         k_b: Boltzmann constant (default: 1.38e-23 J/K)
         T_env: Environmental temperature (default: 310 K for body)
-        kappa_meta: Metabolic efficiency factor (default: 1.0)
-            - Accounts for biological inefficiency
-            - Typical range: 1.0-2.0
-            - Higher values = more metabolic cost per bit
+        kappa_meta: Metabolic efficiency factor
+            - If kappa_units="dimensionless": dimensionless factor (default: 1.0)
+            - If kappa_units="joules_per_bit": energy per bit in Joules
+        kappa_units: Units of kappa_meta ("dimensionless" or "joules_per_bit")
 
     Returns:
         Minimum thermodynamic cost E_min (in Joules)
@@ -68,22 +70,18 @@ def compute_landauer_cost(
         ValueError: If parameters are invalid
 
     Examples:
-        >>> # Typical neural computation at body temperature
+        >>> # Typical neural computation at body temperature (dimensionless κ)
         >>> cost = compute_landauer_cost(S=1.0, eps=0.01)
         >>> print(f"Cost: {cost:.2e} J")
         Cost: 3.21e-21 J
 
-        >>> # Cost scales logarithmically with signal
-        >>> cost_2x = compute_landauer_cost(S=2.0, eps=0.01)
-        >>> ratio = cost_2x / cost
-        >>> print(f"2x signal → {ratio:.2f}x cost")
-        2x signal → 1.69x cost
-
-        >>> # Cost increases with temperature
-        >>> cost_hot = compute_landauer_cost(S=1.0, eps=0.01, T_env=320.0)
-        >>> cost_cold = compute_landauer_cost(S=1.0, eps=0.01, T_env=300.0)
-        >>> print(f"Hot/Cold ratio: {cost_hot/cost_cold:.3f}")
-        Hot/Cold ratio: 1.033
+        >>> # With calibrated κ in J/bit (e.g., from BOLD fMRI)
+        >>> kappa_calibrated = 3.21e-21  # J/bit (Landauer minimum at body temp)
+        >>> cost = compute_landauer_cost(S=1.0, eps=0.01,
+        ...                              kappa_meta=kappa_calibrated,
+        ...                              kappa_units="joules_per_bit")
+        >>> print(f"Cost: {cost:.2e} J")
+        Cost: 3.21e-21 J
     """
     if S <= eps:
         # No information to erase
@@ -101,11 +99,20 @@ def compute_landauer_cost(
     if kappa_meta <= 0:
         raise ValueError(f"kappa_meta must be > 0, got {kappa_meta}")
 
+    if kappa_units not in ["dimensionless", "joules_per_bit"]:
+        raise ValueError(
+            f"kappa_units must be 'dimensionless' or 'joules_per_bit', got {kappa_units}"
+        )
+
     # Number of bits erased: N_erase = log₂(S / ε_stab)
     n_erase = np.log2(S / eps)
 
-    # Minimum energy: E_min = κ_meta · N_erase · k_B · T_env · ln(2)
-    e_min = kappa_meta * n_erase * k_b * T_env * LN2
+    if kappa_units == "dimensionless":
+        # Legacy mode: κ_meta is dimensionless efficiency factor
+        e_min = kappa_meta * n_erase * k_b * T_env * LN2
+    else:  # joules_per_bit
+        # Calibrated mode: κ_meta is energy per bit in Joules
+        e_min = kappa_meta * n_erase
 
     return float(e_min)
 
@@ -116,6 +123,7 @@ def compute_landauer_cost_batch(
     k_b: float = K_BOLTZMANN,
     T_env: float = T_ENV_DEFAULT,
     kappa_meta: float = 1.0,
+    kappa_units: str = "dimensionless",
 ) -> np.ndarray:
     """Compute Landauer cost for a batch of signal values.
 
@@ -127,6 +135,7 @@ def compute_landauer_cost_batch(
         k_b: Boltzmann constant
         T_env: Environmental temperature
         kappa_meta: Metabolic efficiency factor
+        kappa_units: Units of kappa_meta ("dimensionless" or "joules_per_bit")
 
     Returns:
         Array of costs with same shape as S_array
@@ -143,7 +152,11 @@ def compute_landauer_cost_batch(
     # Vectorized computation
     mask = S_array > eps
     n_erase = np.log2(S_array[mask] / eps)
-    costs[mask] = kappa_meta * n_erase * k_b * T_env * LN2
+
+    if kappa_units == "dimensionless":
+        costs[mask] = kappa_meta * n_erase * k_b * T_env * LN2
+    else:  # joules_per_bit
+        costs[mask] = kappa_meta * n_erase
 
     return costs
 

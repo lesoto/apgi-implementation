@@ -62,6 +62,12 @@ CONFIG = {
     "k_boltzmann": 1.38e-23,  # Boltzmann constant (J/K)
     "T_env": 310.0,  # Environmental temperature (K, body temp)
     "kappa_meta": 1.0,  # Metabolic efficiency factor
+    "kappa_units": "dimensionless",  # "dimensionless" or "joules_per_bit"
+    # BOLD fMRI calibration for energy conversion
+    "use_bold_calibration": False,  # Enable BOLD-to-Joule conversion
+    "bold_conversion_factor": 1.2e-18,  # Joules per 1% BOLD change per cm³ tissue
+    "bold_tissue_volume": 1.0,  # Tissue volume in cm³
+    "bold_ignition_spike_factor": 1.075,  # 7.5% energy spike during ignition (5-10% range)
     # Reservoir layer (§10)
     "use_reservoir": False,  # Enable reservoir computing layer
     "reservoir_size": 100,  # Number of reservoir units

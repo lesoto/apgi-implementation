@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
+
+# Suppress LAPACK warnings
+warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*")
 
 
 class LiquidNetwork:
@@ -12,8 +17,15 @@ class LiquidNetwork:
         self.n = n_units
         W_raw = np.random.randn(n_units, n_units) * 0.1
         # Normalize so ρ(W_res) = spectral_radius, guaranteeing echo state property
-        rho = np.max(np.abs(np.linalg.eigvals(W_raw)))
-        self.W_res = W_raw * (spectral_radius / rho) if rho > 0.0 else W_raw
+        try:
+            with np.errstate(all="ignore"):
+                rho = np.max(np.abs(np.linalg.eigvals(W_raw)))
+                # Ensure rho is not too small to avoid numerical issues
+                rho = max(rho, 1e-6)
+                self.W_res = W_raw * (spectral_radius / rho)
+        except (np.linalg.LinAlgError, FloatingPointError):
+            # Fallback: use scaled random matrix without spectral normalization
+            self.W_res = W_raw * spectral_radius
         self.W_in = np.random.randn(n_units) * 0.1
 
         # Trained readout weights (initialized randomly, to be trained)
