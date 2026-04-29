@@ -249,6 +249,22 @@ class TestKuramotoIntegration:
         # (not always guaranteed, but likely)
         assert R_coupled >= 0 and R_uncoupled >= 0
 
+    def test_get_synchronization_order_single_oscillator(self):
+        """Test synchronization order with single oscillator."""
+        osc = KuramotoOscillators(n_levels=1, frequencies=[1.0])
+        R = osc.get_synchronization_order()
+        # Single oscillator should have R close to 1 (self-synchronization)
+        assert np.isclose(R, 1.0, rtol=1e-5)
+
+    def test_kuramoto_oscillators_zero_coupling(self):
+        """Test oscillators with zero coupling strength."""
+        osc = KuramotoOscillators(n_levels=5, frequencies=[1.0, 1.1, 1.2, 1.3, 1.4])
+        osc.coupling_strength = 0.0
+        # Step with zero coupling
+        osc.step(dt=1.0)
+        # Should still complete without errors
+        assert len(osc.phases) == 5
+
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v"])  # pragma: no cover

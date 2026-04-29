@@ -18,8 +18,12 @@ CONFIG = {
     # Neuromodulation
     "g_ach": 1.0,
     "g_ne": 1.0,
-    "beta": 0.0,  # Spec alias: beta_da
-    "beta_da": 0.0,  # Spec-preferred name (alias for backward compatibility)
+    # Somatic Bias Parameters (Notation Appendix v1.1 compliance)
+    "BETA_DISCRETE": (0.3, 0.8),  # For discrete behavioral modeling/IGT
+    "BETA_CONTINUOUS": (0.5, 2.5),  # For continuous ODE accumulation
+    "BETA_AWAKE_AVG": 1.15,  # Canonical baseline for alert wakefulness
+    "beta": 1.15,  # Alias for BETA_AWAKE_AVG (backward compatibility)
+    "beta_da": 1.15,  # Spec-preferred name (alias for backward compatibility)
     # Prevent NE double-counting (recommended)
     "ne_on_precision": True,
     "ne_on_threshold": False,
@@ -34,8 +38,16 @@ CONFIG = {
     # Threshold update + refractory dynamics
     "eta": 0.1,
     "delta": 0.5,
-    # Post-ignition reset (§6)
-    "reset_factor": 0.5,  # Signal reset factor ρ ∈ (0,1)
+    # 9) Post-ignition signal reset (§6)
+    "RHO_RETAIN": 0.1,  # Matches Spec §6.1; strong reset (retains 10%, clears 90%)
+    "DELTA_RESET": 0.5,  # Baseline threshold boost post-ignition
+    "reset_factor": 0.1,  # Alias for RHO_RETAIN (backward compatibility)
+    # 10) Threshold Adaptation Timescales (Audit HIGH-4)
+    "TAU_THETA_ALLOSTATIC": 20.0,  # 10-30s range; governing θ₀ (metabolic)
+    "TAU_THETA_RECOVERY": 0.45,  # 300-600ms range; perceptual timescale (Level 1)
+    # 11) Hierarchical Cascade Tuning
+    "KAPPA_UP": 0.1,  # Bottom-up cascade strength (suppression)
+    "KAPPA_DOWN": 0.1,  # Top-down coupling strength (PAC)
     # Cost-value model
     "use_realistic_cost": True,
     "c0": 0.0,

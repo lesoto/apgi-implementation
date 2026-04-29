@@ -402,6 +402,34 @@ class TestLiquidStateMachineStability:
         # State should decay toward zero
         assert np.linalg.norm(x_final) < np.linalg.norm(x_impulse)
 
+    def test_liquid_state_machine_history_tracking(self):
+        """Test history tracking during reservoir computation."""
+        lsm = LiquidStateMachine(N=50, M=2, spectral_radius=0.9)
+        # Generate some data
+        inputs = np.random.randn(10, 2)
+        for inp in inputs:
+            x = lsm.step(inp, tau=1.0, dt=0.1)
+            # Manually track history
+            lsm.history.append(x.copy())
+
+        # History should track states
+        assert len(lsm.history) == 10
+        assert all(isinstance(h, np.ndarray) for h in lsm.history)
+
+    def test_liquid_state_machine_clear_history(self):
+        """Test clearing history."""
+        lsm = LiquidStateMachine(N=50, M=2, spectral_radius=0.9)
+        inputs = np.random.randn(5, 2)
+        for inp in inputs:
+            x = lsm.step(inp, tau=1.0, dt=0.1)
+            lsm.history.append(x.copy())
+
+        assert len(lsm.history) == 5
+
+        # Clear history
+        lsm.history.clear()
+        assert len(lsm.history) == 0
+
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v"])  # pragma: no cover

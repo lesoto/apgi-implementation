@@ -329,6 +329,20 @@ class TestObservableMappingIntegration:
         pred_result = prediction.validate()
         assert pred_result["valid"]
 
+    def test_neural_observable_extractor_clear_history(self):
+        """Test clearing the neural observable extractor history."""
+        extractor = NeuralObservableExtractor(fs=100.0)
+        extractor.step(S=1.0, theta=0.5, B=0)
+        assert len(extractor.history["S"]) == 1
+
+        # Clear history manually
+        extractor.history["S"] = []
+        extractor.history["theta"] = []
+        extractor.history["B"] = []
+        assert len(extractor.history["S"]) == 0
+        assert len(extractor.history["theta"]) == 0
+        assert len(extractor.history["B"]) == 0
+
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v"])  # pragma: no cover

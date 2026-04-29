@@ -14,10 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np  # noqa: E402
 
 from config import CONFIG  # noqa: E402
-from core.thermodynamics import (
-    compute_information_bits,  # noqa: E402
-    compute_landauer_cost,
-)
+from core.thermodynamics import compute_information_bits  # noqa: E402
+from core.thermodynamics import compute_landauer_cost
 from energy.bold_calibration import compute_landauer_energy_per_bit  # noqa: E402
 from energy.calibration_utils import calibrate_for_realistic_kappa  # noqa: E402
 from pipeline import APGIPipeline  # noqa: E402

@@ -387,6 +387,28 @@ class TestStabilityIntegration:
         dynamics = validate_system_dynamics(config, S_history, theta_history)
         assert "valid" in dynamics
 
+    def test_validate_system_dynamics_with_bifurcation(self):
+        """Test dynamics validation with bifurcation points."""
+        config = {"lam": 0.2, "eta": 0.1, "delta": 0.5, "ignite_tau": 0.5}
+        np.random.seed(42)
+        S_history = np.random.normal(1.0, 0.5, 200)
+        theta_history = np.random.normal(1.0, 0.2, 200)
+
+        dynamics = validate_system_dynamics(config, S_history, theta_history)
+        assert "valid" in dynamics
+        # Check that bifurcation analysis was performed
+        assert isinstance(dynamics["valid"], bool)
+
+    def test_validate_system_dynamics_short_history(self):
+        """Test dynamics validation with short history."""
+        config = {"lam": 0.2, "eta": 0.1, "delta": 0.5, "ignite_tau": 0.5}
+        np.random.seed(42)
+        S_history = np.random.normal(1.0, 0.5, 50)
+        theta_history = np.random.normal(1.0, 0.2, 50)
+
+        dynamics = validate_system_dynamics(config, S_history, theta_history)
+        assert "valid" in dynamics
+
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v"])  # pragma: no cover

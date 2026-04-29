@@ -31,12 +31,17 @@ def main():
     print("\n1. Creating configuration with thermodynamics...")
     config = CONFIG.copy()
     config["use_thermodynamic_cost"] = True
+    # Use simple cost model for clearer thermodynamic analysis
+    config["use_realistic_cost"] = False
+    config["c1"] = 1.0  # Simple linear cost coefficient
+    config["c2"] = 0.0  # No ignition cost for this example
     print("   ✓ Configuration created")
     print(f"     - Boltzmann constant: {config['k_boltzmann']:.2e} J/K")
     print(
         f"     - Environment temperature: {config['T_env']:.1f} K ({config['T_env'] - 273:.1f}°C)"
     )
     print(f"     - Metabolic efficiency: {config['kappa_meta']:.2f}")
+    print("     - Cost model: C(t) = c1 * S(t) (simple linear)")
 
     # Initialize pipeline
     print("\n2. Initializing APGI pipeline...")
@@ -86,9 +91,13 @@ def main():
         thermodynamic_data["metabolic_cost"].append(result["C"])
 
         # Compute efficiency (C / E_min) - note: C is in arbitrary units, not Joules
-        # This is a dimensionless ratio showing how much metabolic cost exceeds Landauer minimum
+        # To make the ratio meaningful, we need to convert Landauer cost to AU using the same scale factor
+        # The scale factor 1e20 is used in core/threshold.py to convert Joules to neural-scale AU
         if landauer > 0:
-            efficiency = result["C"] / landauer
+            # Convert Joules to neural-scale AU (matches core/threshold.py)
+            scale_factor = 1e20
+            landauer_au = landauer * scale_factor
+            efficiency = result["C"] / landauer_au
             thermodynamic_data["efficiency"].append(efficiency)
         else:
             thermodynamic_data["efficiency"].append(0.0)
@@ -147,9 +156,13 @@ def main():
     print("\n6. Thermodynamic Constraint Validation:")
     print("   Constraint: C(t) ≥ κ_meta · N_erase(t) · k_B · T_env · ln(2)")
 
+    # Convert Landauer cost to AU for comparison with metabolic cost
+    scale_factor = 1e20  # Convert Joules to neural-scale AU (matches core/threshold.py)
+    landauer_array_au = landauer_array * scale_factor
+
     # Check constraint satisfaction
-    constraint_satisfied = np.all(cost_array >= landauer_array)
-    violations = np.sum(cost_array < landauer_array)
+    constraint_satisfied = np.all(cost_array >= landauer_array_au)
+    violations = np.sum(cost_array < landauer_array_au)
 
     print(f"   Constraint satisfied: {constraint_satisfied}")
     print(f"   Violations: {violations} / {n_steps}")
@@ -163,11 +176,11 @@ def main():
 
     # Display energy statistics
     print("\n7. Energy Statistics:")
-    total_landauer = np.sum(landauer_array)
+    total_landauer = np.sum(landauer_array_au)  # Use AU-scaled Landauer for comparison
     total_metabolic = np.sum(cost_array)
 
-    print(f"   Total Landauer cost: {total_landauer:.4e} J")
-    print(f"   Total metabolic cost: {total_metabolic:.4f}")
+    print(f"   Total Landauer cost (AU): {total_landauer:.4e}")
+    print(f"   Total metabolic cost (AU): {total_metabolic:.4e}")
     print(f"   Average efficiency: {total_metabolic / total_landauer:.4f}")
 
     # Display information-theoretic analysis

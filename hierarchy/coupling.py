@@ -108,15 +108,15 @@ def phase_locked_threshold(
 ) -> float:
     """Compute phase-locked threshold facilitation from higher level (§8.4).
 
-    Formula: θ_{t,ℓ} = θ_{0,ℓ} · [1 + κ_down · Π_{ℓ+1} · cos(ϕ_{ℓ+1})]
+    Formula: theta_l[t] = theta_0_l * (1 + kappa_down * precision_l_plus_1 * cos(phi_l_plus_1))
 
     Higher levels modulate lower thresholds via oscillatory phase,
     creating rhythmic windows of opportunity for ignition.
 
     Args:
         theta_0_ell: Baseline threshold for level ℓ
-        pi_ell_plus_1: Higher level precision
-        phi_ell_plus_1: Phase of higher level oscillation (radians)
+        pi_ell_plus_1: Higher level precision (precision_l_plus_1)
+        phi_ell_plus_1: Phase of higher level oscillation (phi_l_plus_1)
         kappa_down: Phase coupling strength
         phase_sensitivity: Additional phase sensitivity scaling
 
@@ -124,6 +124,7 @@ def phase_locked_threshold(
         Phase-modulated threshold
     """
 
+    # theta_l[t] = theta_0_l * (1 + kappa_down * precision_l_plus_1 * cos(phi_l_plus_1))
     phase_modulation = 1.0 + kappa_down * pi_ell_plus_1 * np.cos(phi_ell_plus_1)
 
     # Apply phase sensitivity

@@ -42,7 +42,7 @@ class TestParameterIdentifiabilityAnalyzerExtended:
         # Should return dict with constraint results
         assert isinstance(result, dict)
 
-    def test_compute_fisher_matrix_linalg_error(self):
+    def test_compute_fisher_matrix_linalg_error(self, suppress_lapack):
         """Should handle LinAlgError in Fisher matrix computation."""
         # Create data that will cause LinAlgError
         S_history = np.array([1.0, 1.0, 1.0])  # Constant signal

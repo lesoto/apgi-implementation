@@ -296,6 +296,20 @@ class TestPhysicalConstants:
         """Default temperature should be body temperature."""
         assert T_ENV_DEFAULT == 310.0  # 37°C in Kelvin
 
+    def test_compute_information_bits_edge_case(self):
+        """Test information bits computation with edge case values."""
+        # Test with very small signal value
+        bits = compute_information_bits(1e-10, eps=1e-6)
+        # Should handle small values gracefully
+        assert bits >= 0.0
+
+    def test_compute_landauer_cost_edge_case(self):
+        """Test Landauer cost with edge case values."""
+        # Test with zero signal
+        cost = compute_landauer_cost(S=0.0, eps=0.01)
+        # Should be zero when S <= eps
+        assert cost == 0.0
+
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v"])  # pragma: no cover

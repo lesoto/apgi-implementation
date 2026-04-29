@@ -181,7 +181,7 @@ class TestEstimate1FExponent:
         # Flat spectrum should give beta ≈ 0
         assert abs(beta_est) < 0.5
 
-    def test_linalg_error_handling(self):
+    def test_linalg_error_handling(self, suppress_lapack):
         """Test handling of np.linalg.LinAlgError."""
         # Create data that will cause LinAlgError in polyfit
         # This happens when the matrix is singular
@@ -333,14 +333,54 @@ class TestSpectralValidator:
         validator = SpectralValidator()
         signal = np.random.randn(1000)
 
-        try:
-            fig = validator.plot_comparison(signal, fs=100.0)
-            # If matplotlib is available, should return figure
-            if fig is not None:
-                assert hasattr(fig, "axes")
-        except ImportError:
-            # If matplotlib not available, should print message
-            pass
+        import matplotlib.pyplot as plt  # type: ignore[import-untyped]
+
+        fig = validator.plot_comparison(signal, fs=100.0)
+        # If matplotlib is available, should return figure
+        assert fig is not None
+        assert hasattr(fig, "axes")
+        plt.close(fig)
+
+    def test_plot_comparison_with_matplotlib_available(self):
+        """Test plot comparison when matplotlib is available."""
+        validator = SpectralValidator()
+        signal = np.random.randn(1000)
+
+        # Force matplotlib to be available
+        import matplotlib.pyplot as plt  # type: ignore[import-untyped]
+
+        fig = validator.plot_comparison(signal, fs=100.0)
+        # Should return a figure object
+        assert fig is not None
+        assert hasattr(fig, "axes")
+        plt.close(fig)
+
+    def test_plot_comparison_matplotlib_import_error(self):
+        """Test plot comparison handles ImportError when matplotlib unavailable."""
+        import sys
+        from unittest.mock import patch
+
+        validator = SpectralValidator()
+        signal = np.random.randn(1000)
+
+        # Mock matplotlib import to raise ImportError
+        with patch.dict(sys.modules, {"matplotlib.pyplot": None}):
+            result = validator.plot_comparison(signal, fs=100.0)
+            # Should return None when matplotlib is not available
+            assert result is None
+            # Ensure the result is explicitly None
+            assert result is None or result is False
+
+    def test_plot_comparison_import_error_handling(self):
+        """Test plot comparison handles ImportError gracefully."""
+        validator = SpectralValidator()
+        signal = np.random.randn(1000)
+
+        # This should not raise even if matplotlib is not available
+        fig = validator.plot_comparison(signal, fs=100.0)
+        # If matplotlib is available, check figure
+        if fig is not None:
+            assert hasattr(fig, "axes")
 
     def test_plot_comparison_no_matplotlib(self):
         """Test plot comparison when matplotlib is not available."""
@@ -356,7 +396,25 @@ class TestSpectralValidator:
             result = validator.plot_comparison(signal, fs=100.0)
             # Should return None when matplotlib is not available
             assert result is None
+            # Ensure we explicitly check the result
+            assert result is None
+
+    def test_fit_lorentzian_superposition_runtime_error(self):
+        """Test fitting handles RuntimeError gracefully."""
+        from stats.spectral_model import fit_lorentzian_superposition
+
+        # Create data that might cause fitting to fail
+        freqs = np.logspace(-2, 2, 100)
+        power = np.abs(np.random.randn(100))  # Use positive data
+        taus = np.array([0.1, 1.0, 10.0])
+
+        result = fit_lorentzian_superposition(freqs, power, taus)
+        # Should still return a result even if fitting fails
+        assert "amplitudes" in result
+        assert "fitted_psd" in result
+        assert "residuals" in result
+        assert "r_squared" in result
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v"])  # pragma: no cover

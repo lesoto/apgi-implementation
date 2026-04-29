@@ -155,7 +155,8 @@ def estimate_spectral_exponent_welch(
     from scipy import signal as scipy_signal  # type: ignore
 
     if nperseg is None:
-        nperseg = max(64, min(len(signal) // 4, len(signal)))
+        nperseg = min(64, len(signal))
+        nperseg = max(nperseg, 8)  # Ensure minimum segment length
 
     # Compute Welch PSD
     freqs, psd = scipy_signal.welch(signal, fs=fs, nperseg=nperseg)
@@ -483,7 +484,8 @@ def extract_1f_signature(
     from scipy import signal as scipy_signal  # type: ignore
 
     # Use appropriate nperseg for short signals
-    nperseg_aic = max(64, min(len(signal) // 4, len(signal)))
+    nperseg_aic = min(64, len(signal))
+    nperseg_aic = max(nperseg_aic, 8)  # Ensure minimum segment length
     freqs, psd = scipy_signal.welch(signal, fs=fs, nperseg=nperseg_aic)
     # Filter frequency range (exclude DC component at f=0)
     mask = (psd > 0) & (freqs > 0)

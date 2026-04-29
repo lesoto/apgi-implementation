@@ -626,6 +626,22 @@ class TestConstraintSummaryEdgeCases:
             assert isinstance(constraints, list)
             assert len(constraints) > 0
 
+    def test_constraint_summary_empty_config(self):
+        """Test constraint summary with empty configuration."""
+        summary = get_constraint_summary()
+        # Should still return a valid summary structure
+        assert isinstance(summary, dict)
+        assert len(summary) > 0
+
+    def test_constraint_summary_structure(self):
+        """Test constraint summary returns correct structure."""
+        summary = get_constraint_summary()
+        # Should have categories
+        assert isinstance(summary, dict)
+        # Each category should have constraints
+        for category, constraints in summary.items():
+            assert isinstance(constraints, list)
+
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v"])  # pragma: no cover

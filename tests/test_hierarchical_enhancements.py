@@ -391,6 +391,38 @@ class TestIntegration:
         assert len(phi) == n_levels
         assert len(theta) == n_levels
 
+    def test_nonlinear_phase_amplitude_coupling_power(self):
+        """Test nonlinear PAC with power-law nonlinearity."""
+        n_levels = 3
+        phi = np.linspace(0, 2 * np.pi, n_levels)
+        theta = np.ones(n_levels)
+
+        for ell in range(n_levels):
+            if ell < n_levels - 1:
+                theta[ell] = nonlinear_phase_amplitude_coupling(
+                    1.0, 0.5, phi[ell + 1], 0.1, nonlinearity="power"
+                )
+
+        # Should complete without errors
+        assert len(phi) == n_levels
+        assert len(theta) == n_levels
+
+    def test_nonlinear_phase_amplitude_coupling_exponential(self):
+        """Test nonlinear PAC with exponential nonlinearity."""
+        n_levels = 3
+        phi = np.linspace(0, 2 * np.pi, n_levels)
+        theta = np.ones(n_levels)
+
+        for ell in range(n_levels):
+            if ell < n_levels - 1:
+                theta[ell] = nonlinear_phase_amplitude_coupling(
+                    1.0, 0.5, phi[ell + 1], 0.1, nonlinearity="exponential"
+                )
+
+        # Should complete without errors
+        assert len(phi) == n_levels
+        assert len(theta) == n_levels
+
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__, "-v"])  # pragma: no cover

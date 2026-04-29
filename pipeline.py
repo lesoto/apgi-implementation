@@ -391,6 +391,10 @@ class APGIPipeline:
             "B": [],
         }
 
+        # Multiscale signal tracking for spectral validation
+        self.multiscale_signal_history: list[float] = []
+        self.per_level_history: list[list[float]] = []
+
         # Thermodynamic cost history if enabled (§11)
         if self.config.get("use_thermodynamic_cost", False):
             self.history["C_landauer"] = []
@@ -713,7 +717,9 @@ class APGIPipeline:
             # Apply to ALL hierarchical modes for consistency
             if self.hierarchical is not None:
                 # Prepare inputs for hierarchical threshold computation
-                theta_0_levels = np.ones(self.n_levels) * theta_next
+                # Use baseline theta, not the allostatically-grown theta_next
+                # This prevents runaway feedback where thetas grow unboundedly
+                theta_0_levels = np.ones(self.n_levels) * self.config["theta_base"]
                 # Level-specific signals for bottom-up cascade (if enabled)
                 S_levels = np.zeros(self.n_levels)
                 S_levels[0] = self.S
