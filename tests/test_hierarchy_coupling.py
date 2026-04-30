@@ -28,7 +28,7 @@ from hierarchy.coupling import (
 class TestEstimateHierarchyLevels:
     """Tests for estimate_hierarchy_levels function."""
 
-    def test_basic_estimation(self):
+    def test_basic_estimation(self) -> None:
         """Should estimate correct number of levels."""
         result = estimate_hierarchy_levels(
             tau_min=10.0,
@@ -38,7 +38,7 @@ class TestEstimateHierarchyLevels:
         expected = int(np.floor(np.log(100) / np.log(1.6))) + 1
         assert result == expected
 
-    def test_invalid_parameters(self):
+    def test_invalid_parameters(self) -> None:
         """Should raise ValueError for invalid parameters."""
         with pytest.raises(ValueError):
             estimate_hierarchy_levels(tau_min=0, tau_max=100, k=1.6)
@@ -49,7 +49,7 @@ class TestEstimateHierarchyLevels:
         with pytest.raises(ValueError):
             estimate_hierarchy_levels(tau_min=10, tau_max=100, k=1.0)
 
-    def test_single_level(self):
+    def test_single_level(self) -> None:
         """Should return 1 when tau_min close to tau_max."""
         result = estimate_hierarchy_levels(tau_min=100, tau_max=101, k=1.6)
         assert result == 1
@@ -58,7 +58,7 @@ class TestEstimateHierarchyLevels:
 class TestPrecisionCouplingODE:
     """Tests for precision_coupling_ode function."""
 
-    def test_basic_coupling(self):
+    def test_basic_coupling(self) -> None:
         """Should compute precision coupling correctly."""
         result = precision_coupling_ode(
             pi_ell=1.0,
@@ -73,7 +73,7 @@ class TestPrecisionCouplingODE:
         expected = -0.001 + 0.05 + 0.05 + 0.015
         assert pytest.approx(result, rel=1e-6) == expected
 
-    def test_top_level(self):
+    def test_top_level(self) -> None:
         """Should handle top level (no higher level)."""
         result = precision_coupling_ode(
             pi_ell=1.0,
@@ -88,11 +88,11 @@ class TestPrecisionCouplingODE:
         expected = -0.001 + 0.05 + 0 + 0.015
         assert pytest.approx(result, rel=1e-6) == expected
 
-    def test_with_psi_function(self):
+    def test_with_psi_function(self) -> None:
         """Should apply psi function to lower level error when provided."""
 
         # Define a simple psi function
-        def psi_func(x):
+        def psi_func(x: float) -> float:
             return x * 2.0
 
         result = precision_coupling_ode(
@@ -114,7 +114,7 @@ class TestPrecisionCouplingODE:
 class TestPhaseLockedThreshold:
     """Tests for phase_locked_threshold function."""
 
-    def test_phase_modulation(self):
+    def test_phase_modulation(self) -> None:
         """Should modulate threshold based on phase."""
         result = phase_locked_threshold(
             theta_0_ell=1.0,
@@ -125,7 +125,7 @@ class TestPhaseLockedThreshold:
         expected = 1.1
         assert pytest.approx(result, rel=1e-6) == expected
 
-    def test_opposite_phase(self):
+    def test_opposite_phase(self) -> None:
         """Should decrease threshold at opposite phase."""
         result = phase_locked_threshold(
             theta_0_ell=1.0,
@@ -140,7 +140,7 @@ class TestPhaseLockedThreshold:
 class TestBottomUpThresholdCascade:
     """Tests for bottom_up_threshold_cascade function."""
 
-    def test_superthreshold_boost(self):
+    def test_superthreshold_boost(self) -> None:
         """Should reduce threshold when lower level is superthreshold."""
         result = bottom_up_threshold_cascade(
             theta_ell=1.0,
@@ -151,7 +151,7 @@ class TestBottomUpThresholdCascade:
         expected = 0.8
         assert pytest.approx(result, rel=1e-6) == expected
 
-    def test_subthreshold_no_boost(self):
+    def test_subthreshold_no_boost(self) -> None:
         """Should not change threshold when lower level is subthreshold."""
         result = bottom_up_threshold_cascade(
             theta_ell=1.0,
@@ -165,7 +165,7 @@ class TestBottomUpThresholdCascade:
 class TestUpdatePhaseDynamics:
     """Tests for update_phase_dynamics function."""
 
-    def test_free_rotation(self):
+    def test_free_rotation(self) -> None:
         """Should rotate phase based on natural frequency."""
         result = update_phase_dynamics(
             phi=0.0,
@@ -174,7 +174,7 @@ class TestUpdatePhaseDynamics:
         )
         assert pytest.approx(result, rel=1e-6) == 1.0
 
-    def test_wraparound(self):
+    def test_wraparound(self) -> None:
         """Should wrap phase to [0, 2*pi]."""
         result = update_phase_dynamics(
             phi=2 * np.pi - 0.1,
@@ -188,7 +188,7 @@ class TestUpdatePhaseDynamics:
 class TestHierarchicalPrecisionNetwork:
     """Tests for HierarchicalPrecisionNetwork class."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Should initialize with correct parameters."""
         network = HierarchicalPrecisionNetwork(
             n_levels=3,
@@ -199,7 +199,7 @@ class TestHierarchicalPrecisionNetwork:
         assert network.n_levels == 3
         assert len(network.pi) == 3
 
-    def test_initialization_with_custom_taus(self):
+    def test_initialization_with_custom_taus(self) -> None:
         """Should initialize with custom taus array."""
         custom_taus = np.array([10.0, 100.0, 1000.0])
         network = HierarchicalPrecisionNetwork(
@@ -212,7 +212,7 @@ class TestHierarchicalPrecisionNetwork:
         assert network.n_levels == 3
         assert np.array_equal(network.taus, custom_taus)
 
-    def test_step(self):
+    def test_step(self) -> None:
         """Should update precision and phase."""
         network = HierarchicalPrecisionNetwork(n_levels=3)
         epsilon_new = np.array([0.1, 0.2, 0.3])
@@ -220,7 +220,7 @@ class TestHierarchicalPrecisionNetwork:
         assert len(pi_new) == 3
         assert all(p > 0 for p in pi_new)
 
-    def test_precision_non_negative(self):
+    def test_precision_non_negative(self) -> None:
         """Should keep precision non-negative."""
         network = HierarchicalPrecisionNetwork(n_levels=3)
         for _ in range(10):
@@ -228,7 +228,7 @@ class TestHierarchicalPrecisionNetwork:
             pi_new, _ = network.step(epsilon, dt=1.0)
         assert all(p >= 0.01 for p in pi_new)
 
-    def test_compute_thresholds_with_bottom_up_cascade(self):
+    def test_compute_thresholds_with_bottom_up_cascade(self) -> None:
         """Should compute thresholds with bottom-up cascade."""
         network = HierarchicalPrecisionNetwork(n_levels=3)
         theta_0 = np.array([1.0, 1.0, 1.0])
@@ -247,7 +247,7 @@ class TestHierarchicalPrecisionNetwork:
 class TestPhaseLockedThresholdExtended:
     """Extended tests for phase_locked_threshold with phase_sensitivity."""
 
-    def test_phase_sensitivity_scaling(self):
+    def test_phase_sensitivity_scaling(self) -> None:
         """Should apply phase sensitivity scaling when != 1.0."""
         result_default = phase_locked_threshold(
             theta_0_ell=1.0,
@@ -266,7 +266,7 @@ class TestPhaseLockedThresholdExtended:
         # With phase_sensitivity=2.0, modulation should be amplified
         assert result_scaled != result_default
 
-    def test_phase_sensitivity_less_than_one(self):
+    def test_phase_sensitivity_less_than_one(self) -> None:
         """Should apply phase sensitivity scaling < 1.0."""
         result = phase_locked_threshold(
             theta_0_ell=1.0,
@@ -281,7 +281,7 @@ class TestPhaseLockedThresholdExtended:
 class TestUpdatePhaseKuramotoFull:
     """Tests for update_phase_kuramoto_full function."""
 
-    def test_full_kuramoto_update(self):
+    def test_full_kuramoto_update(self) -> None:
         """Should update all phases with full coupling matrix."""
         phi_array = np.array([0.0, np.pi / 2, np.pi])
         omega_array = np.array([1.0, 1.1, 0.9])
@@ -292,13 +292,11 @@ class TestUpdatePhaseKuramotoFull:
                 [0.0, 0.1, 0.0],
             ]
         )
-        phi_new = update_phase_kuramoto_full(
-            phi_array, omega_array, coupling_matrix, dt=0.1
-        )
+        phi_new = update_phase_kuramoto_full(phi_array, omega_array, coupling_matrix, dt=0.1)
         assert len(phi_new) == 3
         assert np.all(phi_new >= 0) and np.all(phi_new < 2 * np.pi)
 
-    def test_full_kuramoto_with_noise(self):
+    def test_full_kuramoto_with_noise(self) -> None:
         """Should update phases with noise term."""
         phi_array = np.array([0.0, np.pi / 2])
         omega_array = np.array([1.0, 1.1])
@@ -314,7 +312,7 @@ class TestUpdatePhaseKuramotoFull:
         )
         assert len(phi_new) == 2
 
-    def test_full_kuramoto_with_zero_noise(self):
+    def test_full_kuramoto_with_zero_noise(self) -> None:
         """Should update phases without noise when noise_std=0."""
         phi_array = np.array([0.0, np.pi / 2])
         omega_array = np.array([1.0, 1.1])
@@ -329,14 +327,12 @@ class TestUpdatePhaseKuramotoFull:
         )
         assert len(phi_new) == 2
 
-    def test_no_coupling(self):
+    def test_no_coupling(self) -> None:
         """Should work with zero coupling matrix."""
         phi_array = np.array([0.0, np.pi / 2])
         omega_array = np.array([1.0, 1.0])
         coupling_matrix = np.zeros((2, 2))
-        phi_new = update_phase_kuramoto_full(
-            phi_array, omega_array, coupling_matrix, dt=1.0
-        )
+        phi_new = update_phase_kuramoto_full(phi_array, omega_array, coupling_matrix, dt=1.0)
         assert len(phi_new) == 2
         # Without coupling, each phase should advance by omega * dt
         expected_0 = (0.0 + 1.0 * 1.0) % (2 * np.pi)

@@ -74,17 +74,13 @@ class TestPhaseCouplingKuramoto:
 
     def test_phase_difference(self):
         """Should compute coupling based on phase difference."""
-        result = phase_coupling_kuramoto(
-            phi_i=0.0, phi_j=np.pi / 2, K_ij=0.5, omega_i=1.0
-        )
+        result = phase_coupling_kuramoto(phi_i=0.0, phi_j=np.pi / 2, K_ij=0.5, omega_i=1.0)
         # K * sin(pi/2) = 0.5
         assert pytest.approx(result, rel=1e-7) == 0.5
 
     def test_negative_coupling(self):
         """Should return negative for opposite phase."""
-        result = phase_coupling_kuramoto(
-            phi_i=0.0, phi_j=-np.pi / 2, K_ij=0.5, omega_i=1.0
-        )
+        result = phase_coupling_kuramoto(phi_i=0.0, phi_j=-np.pi / 2, K_ij=0.5, omega_i=1.0)
         # K * sin(-pi/2) = -0.5
         assert pytest.approx(result, rel=1e-7) == -0.5
 

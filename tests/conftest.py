@@ -16,9 +16,7 @@ import pytest
 
 # Suppress LAPACK/BLAS warnings during tests (DLASCL parameter warnings)
 warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*")
-warnings.filterwarnings(
-    "ignore", message=".*On entry to DLASCL.*", category=RuntimeWarning
-)
+warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*", category=RuntimeWarning)
 
 
 # =============================================================================
@@ -68,11 +66,16 @@ def suppress_lapack_stderr_session() -> Generator[None, None, None]:
         lines = captured.split("\n")
         skip_next = False
         for line in lines:
+            # Match "** On entry to DLASCL" or "** On entry to DLASCL parameter number"
             if "** On entry to DLASCL" in line:
                 skip_next = True
                 continue
-            if skip_next and "had an illegal value" in line:
+            # Skip lines with "parameter number X had an illegal value"
+            if skip_next and ("had an illegal value" in line or "parameter number" in line):
                 skip_next = False
+                continue
+            # Also filter standalone DLASCL-related messages
+            if "DLASCL" in line or "Dlascl" in line:
                 continue
             if line:
                 sys.stderr.write(line + "\n")
@@ -156,9 +159,7 @@ def sample_time_series() -> np.ndarray:
     """Provide a longer sample time series for spectral analysis."""
     t = np.linspace(0, 10, 1000)
     return (
-        np.sin(2 * np.pi * 5 * t)
-        + 0.5 * np.sin(2 * np.pi * 20 * t)
-        + 0.1 * np.random.randn(1000)
+        np.sin(2 * np.pi * 5 * t) + 0.5 * np.sin(2 * np.pi * 20 * t) + 0.1 * np.random.randn(1000)
     )
 
 

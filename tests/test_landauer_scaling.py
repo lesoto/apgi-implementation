@@ -41,9 +41,7 @@ def test_metabolic_cost_landauer_enforcement():
     c2 = 1.0
 
     # Base cost = c1*S = 0.5
-    cost_no_landauer = compute_metabolic_cost_realistic(
-        S, B_prev, c1, c2, enforce_landauer=False
-    )
+    cost_no_landauer = compute_metabolic_cost_realistic(S, B_prev, c1, c2, enforce_landauer=False)
     assert cost_no_landauer == pytest.approx(0.5)
 
     # With landauer enforcement

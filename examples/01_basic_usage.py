@@ -18,7 +18,7 @@ from config import CONFIG  # noqa: E402
 from pipeline import APGIPipeline  # noqa: E402
 
 
-def main():
+def main() -> None:
     """Run basic APGI example."""
 
     print("=" * 60)
@@ -52,7 +52,14 @@ def main():
     # Run simulation with varying inputs
     print("\n4. Running simulation with varying inputs...")
     n_steps = 100
-    history = {"S": [], "theta": [], "B": [], "C": [], "V": [], "p_ignite": []}
+    history: dict[str, list[float]] = {
+        "S": [],
+        "theta": [],
+        "B": [],
+        "C": [],
+        "V": [],
+        "p_ignite": [],
+    }
 
     for t in range(n_steps):
         # Create sinusoidal input signals

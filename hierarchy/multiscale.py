@@ -128,11 +128,15 @@ def multiscale_weights(n_levels: int, k: float) -> np.ndarray:
     """w_i ∝ k^{-i}, normalized by Z."""
 
     raw = np.array([k ** (-i) for i in range(n_levels)], dtype=float)
-    Z = np.sum(raw)
+    Z = float(np.sum(raw))
     return raw / Z
 
 
-def aggregate_multiscale_signal(phi_values, pi_values, weights) -> float:
+def aggregate_multiscale_signal(
+    phi_values: np.ndarray | list[float],
+    pi_values: np.ndarray | list[float],
+    weights: np.ndarray | list[float],
+) -> float:
     """S = Σ_i w_i Π_i |Φ_i|."""
 
     phi = np.asarray(phi_values, dtype=float)
@@ -143,7 +147,9 @@ def aggregate_multiscale_signal(phi_values, pi_values, weights) -> float:
     return float(np.sum(w * pi * np.abs(phi)))
 
 
-def apply_reset_rule(S: float, theta: float, rho: float = 0.1, delta: float = 2.0):
+def apply_reset_rule(
+    S: float, theta: float, rho: float = 0.1, delta: float = 2.0
+) -> tuple[float, float]:
     return float(S * rho), float(theta + delta)
 
 
@@ -153,9 +159,7 @@ def phase_signal(omega: float, t: float, phi0: float = 0.0) -> float:
     return float(omega * t + phi0)
 
 
-def modulate_threshold(
-    theta_0: float, pi_above: float, phi_above: float, k_down: float
-) -> float:
+def modulate_threshold(theta_0: float, pi_above: float, phi_above: float, k_down: float) -> float:
     """Phase-coupled top-down threshold modulation:
     θ_mod = θ_0 · (1 + k_down · Π_above · cos(ϕ_above)).
     """
@@ -163,9 +167,7 @@ def modulate_threshold(
     return float(theta_0 * (1.0 + k_down * pi_above * np.cos(phi_above)))
 
 
-def bottom_up_cascade(
-    theta: float, S_lower: float, theta_lower: float, k_up: float
-) -> float:
+def bottom_up_cascade(theta: float, S_lower: float, theta_lower: float, k_up: float) -> float:
     """Hierarchical ignition suppression: θ' = θ·(1 - k_up) if S_lower > θ_lower."""
 
     if S_lower > theta_lower:

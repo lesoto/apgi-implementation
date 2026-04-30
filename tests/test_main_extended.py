@@ -1,5 +1,7 @@
 """Extended tests for main.py to achieve 100% coverage."""
 
+from typing import Any
+
 import numpy as np
 
 from main import analyze_signal_statistics, generate_synthetic_input, save_results
@@ -8,7 +10,7 @@ from main import analyze_signal_statistics, generate_synthetic_input, save_resul
 class TestAnalyzeSignalStatisticsExtended:
     """Extended tests for analyze_signal_statistics."""
 
-    def test_insufficient_data_for_hurst(self):
+    def test_insufficient_data_for_hurst(self) -> None:
         """Should handle insufficient data gracefully."""
         # Signal with less than 256 points
         signal_history = [0.1, 0.2, 0.3] * 50  # 150 points
@@ -18,7 +20,7 @@ class TestAnalyzeSignalStatisticsExtended:
         # Hurst should not be computed with insufficient data
         assert "hurst_exponent" not in result
 
-    def test_hurst_exception_handling(self):
+    def test_hurst_exception_handling(self) -> None:
         """Should handle exceptions in Hurst estimation."""
         # Create a signal that might cause Hurst estimation to fail
         signal_history = [1e10] * 300 + [-1e10] * 300  # Extreme values
@@ -27,7 +29,7 @@ class TestAnalyzeSignalStatisticsExtended:
         assert "mean" in result
         assert "std" in result
 
-    def test_hurst_persistent_process(self):
+    def test_hurst_persistent_process(self) -> None:
         """Should identify persistent process when H > 0.5."""
         # Create a signal with persistent characteristics
         signal_history = np.cumsum(np.random.randn(300)).tolist()
@@ -37,7 +39,7 @@ class TestAnalyzeSignalStatisticsExtended:
         # With sufficient data, hurst_exponent should be computed
         assert "hurst_exponent" in result
 
-    def test_hurst_anti_persistent_process(self):
+    def test_hurst_anti_persistent_process(self) -> None:
         """Should identify anti-persistent process when H < 0.5."""
         # Create a signal with anti-persistent characteristics (mean-reverting)
         signal_history = []
@@ -46,16 +48,14 @@ class TestAnalyzeSignalStatisticsExtended:
                 signal_history.append(0.0)
             else:
                 # Mean-reverting: tends to return to 0
-                signal_history.append(
-                    0.5 * signal_history[-1] + 0.1 * np.random.randn()
-                )
+                signal_history.append(0.5 * signal_history[-1] + 0.1 * np.random.randn())
         result = analyze_signal_statistics(signal_history, "Test Signal")
         assert "mean" in result
         assert "std" in result
         # With sufficient data, hurst_exponent should be computed
         assert "hurst_exponent" in result
 
-    def test_hurst_random_walk(self):
+    def test_hurst_random_walk(self) -> None:
         """Should identify random walk when H ≈ 0.5."""
         # Create a random walk
         signal_history = np.cumsum(np.random.randn(300)).tolist()
@@ -69,7 +69,7 @@ class TestAnalyzeSignalStatisticsExtended:
 class TestSaveResults:
     """Tests for save_results function."""
 
-    def test_save_and_load_json(self, tmp_path):
+    def test_save_and_load_json(self, tmp_path: Any) -> None:
         """Should save results that can be loaded."""
         import json
 
@@ -96,7 +96,7 @@ class TestSaveResults:
 class TestGenerateSyntheticInput:
     """Tests for generate_synthetic_input."""
 
-    def test_generates_values(self):
+    def test_generates_values(self) -> None:
         """Should generate four values."""
         x_e, x_hat_e, x_i, x_hat_i = generate_synthetic_input(t=0, noise_std=0.0)
         assert isinstance(x_e, float)
@@ -104,7 +104,7 @@ class TestGenerateSyntheticInput:
         assert isinstance(x_i, float)
         assert isinstance(x_hat_i, float)
 
-    def test_noise_affects_output(self):
+    def test_noise_affects_output(self) -> None:
         """Should add noise when noise_std > 0."""
         # Run multiple times and check variance
         results = [generate_synthetic_input(t=0, noise_std=0.1) for _ in range(10)]

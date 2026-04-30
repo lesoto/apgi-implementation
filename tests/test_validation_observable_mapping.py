@@ -363,9 +363,7 @@ class TestParameterIdentifiabilityAnalyzer:
             "delta": 0.5,  # Different from eta
             "ignite_tau": 0.5,
         }
-        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(
-            config
-        )
+        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(config)
         assert result["constraint1_lam_tau_s_distinct"] is True
         assert result["constraint2_eta_delta_distinct"] is True
         assert result["constraint3_tau_sigma_positive"] is True
@@ -400,9 +398,7 @@ class TestParameterIdentifiabilityAnalyzer:
     def test_check_identifiability_constraint2_violated(self):
         """Test constraint 2 violation (eta and delta not distinct)."""
         config = {"lam": 0.2, "tau_s": 5.0, "eta": 0.5, "delta": 0.5, "ignite_tau": 0.5}
-        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(
-            config
-        )
+        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(config)
         assert result["constraint2_eta_delta_distinct"] is False
         assert result["all_satisfied"] is False
 
@@ -415,18 +411,14 @@ class TestParameterIdentifiabilityAnalyzer:
             "delta": 0.5,
             "ignite_tau": -0.5,
         }
-        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(
-            config
-        )
+        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(config)
         assert result["constraint3_tau_sigma_positive"] is False
         assert result["all_satisfied"] is False
 
     def test_check_identifiability_missing_params(self):
         """Test with missing parameters (uses defaults)."""
         config = {}  # Empty config
-        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(
-            config
-        )
+        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(config)
         # Should use defaults and check constraints
         assert "constraint1_lam_tau_s_distinct" in result
         assert "constraint2_eta_delta_distinct" in result

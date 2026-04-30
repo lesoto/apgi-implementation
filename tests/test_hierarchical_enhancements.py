@@ -26,7 +26,7 @@ from hierarchy.multiscale import (
 class TestNonlinearPAC:
     """Test nonlinear phase-amplitude coupling."""
 
-    def test_nonlinear_pac_sigmoid(self):
+    def test_nonlinear_pac_sigmoid(self) -> None:
         """Test sigmoid nonlinearity in PAC."""
         theta_0 = 1.0
         pi = 0.5
@@ -40,7 +40,7 @@ class TestNonlinearPAC:
         # Should be > theta_0 due to positive modulation
         assert theta_mod > theta_0
 
-    def test_nonlinear_pac_power(self):
+    def test_nonlinear_pac_power(self) -> None:
         """Test power-law nonlinearity in PAC."""
         theta_0 = 1.0
         pi = 0.5
@@ -54,7 +54,7 @@ class TestNonlinearPAC:
         assert theta_mod > 0
         assert isinstance(theta_mod, float)
 
-    def test_nonlinear_pac_exponential(self):
+    def test_nonlinear_pac_exponential(self) -> None:
         """Test exponential nonlinearity in PAC."""
         theta_0 = 1.0
         pi = 0.5
@@ -68,7 +68,7 @@ class TestNonlinearPAC:
         assert theta_mod > 0
         assert isinstance(theta_mod, float)
 
-    def test_nonlinear_pac_frequency_coupling(self):
+    def test_nonlinear_pac_frequency_coupling(self) -> None:
         """Test frequency-amplitude coupling strength modulation."""
         theta_0 = 1.0
         pi = 0.5
@@ -88,7 +88,7 @@ class TestNonlinearPAC:
         # With FAC should have different modulation
         assert theta_with_fac != theta_no_fac
 
-    def test_nonlinear_pac_phase_dependence(self):
+    def test_nonlinear_pac_phase_dependence(self) -> None:
         """Test that PAC depends on phase."""
         theta_0 = 1.0
         pi = 0.5
@@ -108,7 +108,7 @@ class TestNonlinearPAC:
 class TestBidirectionalPhaseCoupling:
     """Test bidirectional Kuramoto phase coupling."""
 
-    def test_bidirectional_phase_coupling_top_down(self):
+    def test_bidirectional_phase_coupling_top_down(self) -> None:
         """Test top-down phase coupling."""
         phi_ell = 0.0
         phi_ell_plus_1 = np.pi / 2
@@ -218,7 +218,7 @@ class TestBidirectionalThresholdCascade:
         # Upper level superthreshold should facilitate this level
         assert theta_mod > theta
 
-    def test_bidirectional_cascade_both_directions(self):
+    def test_bidirectional_cascade_both_directions(self) -> None:
         """Test simultaneous top-down and bottom-up cascade."""
         theta = 1.0
         S_lower = 2.0
@@ -239,7 +239,7 @@ class TestBidirectionalThresholdCascade:
         # Effects should partially cancel
         assert 0.8 < theta_mod < 1.2
 
-    def test_bidirectional_cascade_hysteresis(self):
+    def test_bidirectional_cascade_hysteresis(self) -> None:
         """Test hysteresis prevents oscillations."""
         theta = 1.0
         S_lower = 1.05  # Just above threshold

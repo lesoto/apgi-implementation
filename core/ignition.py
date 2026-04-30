@@ -14,9 +14,7 @@ def compute_ignition_probability(S: float, theta: float, tau: float = 1.0) -> fl
     return float(1.0 / (1.0 + np.exp(-x)))
 
 
-def sample_ignition_state(
-    p_ignite: float, rng: np.random.Generator | None = None
-) -> int:
+def sample_ignition_state(p_ignite: float, rng: np.random.Generator | None = None) -> int:
     """B ~ Bernoulli(P_ignite)."""
 
     if not (0.0 <= p_ignite <= 1.0):

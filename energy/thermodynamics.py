@@ -258,9 +258,7 @@ class ThermodynamicTracker:
             "kappa": self.kappa,
             "efficiency": self.efficiency,
             "temperature": self.temperature,
-            "landauer_minimum_total": landauer_cost_in_atp(
-                self.total_bits, self.temperature
-            ),
+            "landauer_minimum_total": landauer_cost_in_atp(self.total_bits, self.temperature),
         }
 
     def validate_total(self) -> dict:
@@ -274,9 +272,7 @@ class ThermodynamicTracker:
             "is_physically_possible": summary["total_atp_cost"] >= min_atp,
             "is_biologically_plausible": summary["total_atp_cost"] >= practical_min,
             "efficiency_ratio": (
-                min_atp / summary["total_atp_cost"]
-                if summary["total_atp_cost"] > 0
-                else 0
+                min_atp / summary["total_atp_cost"] if summary["total_atp_cost"] > 0 else 0
             ),
             **summary,
         }

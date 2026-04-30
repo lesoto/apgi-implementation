@@ -186,9 +186,7 @@ def nonlinear_phase_amplitude_coupling(
     fac_strength = 1.0 + phase_frequency_coupling * np.abs(np.sin(phi_ell_plus_1))
 
     # Compute modulation
-    phase_modulation = (
-        1.0 + kappa_down * pi_nonlinear * np.cos(phi_ell_plus_1) * fac_strength
-    )
+    phase_modulation = 1.0 + kappa_down * pi_nonlinear * np.cos(phi_ell_plus_1) * fac_strength
 
     return float(theta_0_ell * phase_modulation)
 
@@ -309,16 +307,12 @@ def bidirectional_threshold_cascade(
 
     # Bottom-up cascade: lower level ignition suppresses this level
     if S_ell_minus_1 is not None and theta_ell_minus_1 is not None:
-        is_lower_superthreshold = float(
-            S_ell_minus_1 > theta_ell_minus_1 * (1 - hysteresis)
-        )
+        is_lower_superthreshold = float(S_ell_minus_1 > theta_ell_minus_1 * (1 - hysteresis))
         modulation *= 1.0 - kappa_up * is_lower_superthreshold
 
     # Top-down cascade: higher level ignition facilitates this level
     if S_ell_plus_1 is not None and theta_ell_plus_1 is not None:
-        is_upper_superthreshold = float(
-            S_ell_plus_1 > theta_ell_plus_1 * (1 + hysteresis)
-        )
+        is_upper_superthreshold = float(S_ell_plus_1 > theta_ell_plus_1 * (1 + hysteresis))
         modulation *= 1.0 + kappa_down * is_upper_superthreshold
 
     return float(theta_ell * modulation)
@@ -406,9 +400,7 @@ def update_phase_kuramoto_full(
         coupling_term = 0.0
         for j in range(L):
             if coupling_matrix[ell, j] != 0.0 and ell != j:
-                coupling_term += coupling_matrix[ell, j] * np.sin(
-                    phi_array[j] - phi_array[ell]
-                )
+                coupling_term += coupling_matrix[ell, j] * np.sin(phi_array[j] - phi_array[ell])
         dphi += coupling_term * dt
 
         # Stochastic noise

@@ -19,7 +19,7 @@ from config import CONFIG  # noqa: E402
 from pipeline import APGIPipeline  # noqa: E402
 
 
-def main():
+def main() -> None:
     """Run observable mapping example."""
 
     print("=" * 60)
@@ -42,15 +42,19 @@ def main():
     n_steps = 500
 
     # Storage for observables
-    neural_observables = {"gamma_power": [], "erp_amplitude": [], "ignition_rate": []}
+    neural_observables: dict[str, list[float]] = {
+        "gamma_power": [],
+        "erp_amplitude": [],
+        "ignition_rate": [],
+    }
 
-    behavioral_observables = {
+    behavioral_observables: dict[str, list[float]] = {
         "rt_variability": [],
         "response_criterion": [],
         "decision_rate": [],
     }
 
-    internal_variables = {"S": [], "theta": [], "B": [], "delta": []}
+    internal_variables: dict[str, list[float]] = {"S": [], "theta": [], "B": [], "delta": []}
 
     for t in range(n_steps):
         # Create input signals
@@ -80,17 +84,13 @@ def main():
 
         # Record behavioral observables
         if "behavioral_rt_variability" in result:
-            behavioral_observables["rt_variability"].append(
-                result["behavioral_rt_variability"]
-            )
+            behavioral_observables["rt_variability"].append(result["behavioral_rt_variability"])
         if "behavioral_response_criterion" in result:
             behavioral_observables["response_criterion"].append(
                 result["behavioral_response_criterion"]
             )
         if "behavioral_decision_rate" in result:
-            behavioral_observables["decision_rate"].append(
-                result["behavioral_decision_rate"]
-            )
+            behavioral_observables["decision_rate"].append(result["behavioral_decision_rate"])
 
     print(f"   ✓ Simulation completed ({n_steps} steps)")
 

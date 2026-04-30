@@ -5,7 +5,9 @@ from typing import Literal
 import numpy as np
 
 
-def estimate_spectral_beta(freqs, power) -> float:
+def estimate_spectral_beta(
+    freqs: np.ndarray | list[float], power: np.ndarray | list[float]
+) -> float:
     """Estimate β from P(f) ∝ 1/f^β using log-log linear fit."""
 
     f = np.asarray(freqs, dtype=float)

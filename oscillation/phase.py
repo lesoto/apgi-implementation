@@ -200,6 +200,6 @@ class PhaseOscillatorNetwork:
         """Get current phases."""
         return self.phases.copy()
 
-    def set_phases(self, phases: np.ndarray):
+    def set_phases(self, phases: np.ndarray) -> None:
         """Set phases manually."""
         self.phases = np.array(phases) % (2 * np.pi)

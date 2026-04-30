@@ -299,9 +299,7 @@ def plot_results(results: dict, title: str = "") -> None:
     ax.set_ylabel("Power")
     ax.legend(loc="upper right")
     ax.grid(True, alpha=0.3, which="both")
-    ax.set_title(
-        f"Power Spectrum (H={results['spectral_result']['hurst_exponent']:.2f})"
-    )
+    ax.set_title(f"Power Spectrum (H={results['spectral_result']['hurst_exponent']:.2f})")
 
     plt.tight_layout()
     plt.show()
@@ -358,9 +356,7 @@ def compare_modes() -> None:
 
         ax.plot(results["S"][:2000], label="Signal", linewidth=1, alpha=0.8)
         ax.plot(results["theta"][:2000], label="Threshold", linewidth=1, alpha=0.8)
-        ax.set_title(
-            f"Mode: {mode.upper()} (β={results['spectral_result']['beta']:.2f})"
-        )
+        ax.set_title(f"Mode: {mode.upper()} (β={results['spectral_result']['beta']:.2f})")
         ax.set_ylabel("Signal / Threshold")
         ax.legend(loc="upper right")
         ax.grid(True, alpha=0.3)

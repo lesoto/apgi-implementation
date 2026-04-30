@@ -8,6 +8,8 @@ This predicts "pink noise" (1/f-like) dynamics in threshold fluctuations.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
 
@@ -316,7 +318,7 @@ def fit_lorentzian_superposition(
     taus = np.asarray(taus)
 
     # Define Lorentzian superposition model
-    def lorentzian_superposition(f, *amplitudes):
+    def lorentzian_superposition(f: np.ndarray, *amplitudes: float) -> np.ndarray:
         psd = np.zeros_like(f)
         for tau, amp in zip(taus, amplitudes):
             omega_tau = 2 * np.pi * f * tau
@@ -419,13 +421,11 @@ class SpectralValidator:
 
         # Generate predicted spectrum
         self.freqs = np.logspace(-2, 2, 1000)  # 0.01 Hz to 100 Hz
-        self.predicted_psd, self.taus, self.sigma2s = (
-            generate_predicted_spectrum_from_hierarchy(
-                self.freqs,
-                n_levels=n_levels,
-                tau_min=tau_min,
-                tau_max=tau_max,
-            )
+        self.predicted_psd, self.taus, self.sigma2s = generate_predicted_spectrum_from_hierarchy(
+            self.freqs,
+            n_levels=n_levels,
+            tau_min=tau_min,
+            tau_max=tau_max,
         )
 
         self.predicted_beta = estimate_1f_exponent(self.freqs, self.predicted_psd)
@@ -476,7 +476,7 @@ class SpectralValidator:
             "psd_observed": psd_obs,
         }
 
-    def plot_comparison(self, signal: np.ndarray, fs: float = 1.0):
+    def plot_comparison(self, signal: np.ndarray, fs: float = 1.0) -> Any:
         """Generate comparison plot (requires matplotlib)."""
 
         try:
@@ -488,9 +488,7 @@ class SpectralValidator:
 
             # Plot 1: Spectra
             ax = axes[0]
-            ax.loglog(
-                self.freqs, self.predicted_psd, "b-", label="Predicted (hierarchy)"
-            )
+            ax.loglog(self.freqs, self.predicted_psd, "b-", label="Predicted (hierarchy)")
             ax.loglog(
                 results["frequencies"],
                 results["psd_observed"],

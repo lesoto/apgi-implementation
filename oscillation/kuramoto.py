@@ -26,7 +26,7 @@ class OrnsteinUhlenbeckNoise:
     tau_xi: float = 1.0  # Correlation timescale (ms)
     sigma_xi: float = 0.1  # Noise amplitude (rad/ms)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.xi = 0.0  # Current noise state
 
     def step(self, dt: float) -> float:
@@ -45,7 +45,7 @@ class OrnsteinUhlenbeckNoise:
         self.xi = decay * self.xi + diffusion * np.random.normal()
         return float(self.xi)
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset noise to zero."""
         self.xi = 0.0
 
@@ -103,8 +103,7 @@ class KuramotoOscillators:
 
         # Phase noise processes (one per oscillator)
         self.noise_processes = [
-            OrnsteinUhlenbeckNoise(tau_xi=tau_xi, sigma_xi=sigma_xi)
-            for _ in range(n_levels)
+            OrnsteinUhlenbeckNoise(tau_xi=tau_xi, sigma_xi=sigma_xi) for _ in range(n_levels)
         ]
 
         self.t = 0.0
@@ -155,9 +154,7 @@ class KuramotoOscillators:
             for j in range(self.n_levels):
                 if self.K[i, j] != 0.0:
                     # Kuramoto coupling: K_ij sin(φ_j - φ_i)
-                    coupling_sums[i] += self.K[i, j] * np.sin(
-                        self.phases[j] - self.phases[i]
-                    )
+                    coupling_sums[i] += self.K[i, j] * np.sin(self.phases[j] - self.phases[i])
 
         # Update each phase with noise
         for i in range(self.n_levels):

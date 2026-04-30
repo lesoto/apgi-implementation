@@ -223,9 +223,7 @@ class TestStabilityAnalyzer:
 
         # Add some history
         for _ in range(100):
-            analyzer.step(
-                S=np.random.normal(1.0, 0.1), theta=np.random.normal(1.0, 0.1)
-            )
+            analyzer.step(S=np.random.normal(1.0, 0.1), theta=np.random.normal(1.0, 0.1))
 
         result = analyzer.analyze()
 
@@ -239,9 +237,7 @@ class TestStabilityAnalyzer:
         analyzer = StabilityAnalyzer(config)
 
         for _ in range(100):
-            analyzer.step(
-                S=np.random.normal(1.0, 0.1), theta=np.random.normal(1.0, 0.1)
-            )
+            analyzer.step(S=np.random.normal(1.0, 0.1), theta=np.random.normal(1.0, 0.1))
 
         result = analyzer.analyze(verbose=True)
         assert "stability" in result

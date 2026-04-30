@@ -16,20 +16,16 @@ from typing import Any
 import numpy as np
 
 from config import CONFIG
-from core.precision import compute_precision
-from hierarchy.multiscale import (
-    aggregate_multiscale_signal,
-    build_timescales,
-    multiscale_weights,
-    update_multiscale_feature,
-)
+from core.logging_config import configure_logging, get_logger
+from hierarchy.multiscale import build_timescales, multiscale_weights
 from pipeline import APGIPipeline
 from stats.hurst import estimate_hurst_robust
 
+# Initialize logger at module level
+logger = get_logger("apgi.main")
 
-def generate_synthetic_input(
-    t: int, noise_std: float = 0.1
-) -> tuple[float, float, float, float]:
+
+def generate_synthetic_input(t: int, noise_std: float = 0.1) -> tuple[float, float, float, float]:
     """Generate synthetic exteroceptive and interoceptive signals.
 
     Returns:
@@ -51,6 +47,7 @@ def run_standard_pipeline(
     n_steps: int = 1000,
     config: dict[str, Any] | None = None,
     progress_interval: int = 100,
+    max_history: int | None = None,
 ) -> dict[str, Any]:
     """Run standard single-scale APGI pipeline.
 
@@ -58,6 +55,7 @@ def run_standard_pipeline(
         n_steps: Number of simulation steps
         config: Optional custom configuration (uses default CONFIG if None)
         progress_interval: Print progress every N steps
+        max_history: Maximum history size to prevent unbounded memory growth (None = unlimited)
 
     Returns:
         Dictionary with simulation results and statistics
@@ -66,19 +64,42 @@ def run_standard_pipeline(
     cfg = config or CONFIG.copy()
     pipeline = APGIPipeline(cfg)
 
-    history: dict[str, list[float]] = {
-        "S": [],
-        "theta": [],
-        "B": [],
-        "z_e": [],
-        "z_i": [],
-        "p_ignite": [],
-        "C": [],
-        "V": [],
-    }
+    # Pre-allocate history with optional bounded memory
+    history: dict[str, list[float] | deque[float]]
+    if max_history is None or n_steps <= max_history:
+        history = {
+            "S": [],
+            "theta": [],
+            "B": [],
+            "z_e": [],
+            "z_i": [],
+            "p_ignite": [],
+            "C": [],
+            "V": [],
+        }
+        use_ring_buffer = False
+    else:
+        from collections import deque
 
-    print(f"Running standard APGI pipeline for {n_steps} steps...")
-    print(f"Initial threshold: {pipeline.theta:.4f}, Initial signal: {pipeline.S:.4f}")
+        history = {
+            "S": deque(maxlen=max_history),
+            "theta": deque(maxlen=max_history),
+            "B": deque(maxlen=max_history),
+            "z_e": deque(maxlen=max_history),
+            "z_i": deque(maxlen=max_history),
+            "p_ignite": deque(maxlen=max_history),
+            "C": deque(maxlen=max_history),
+            "V": deque(maxlen=max_history),
+        }
+        use_ring_buffer = True
+
+    logger.info(
+        "starting_standard_pipeline",
+        n_steps=n_steps,
+        max_history=max_history,
+        initial_threshold=pipeline.theta,
+        initial_signal=pipeline.S,
+    )
 
     ignition_count = 0
 
@@ -93,15 +114,27 @@ def run_standard_pipeline(
             ignition_count += 1
 
         if (t + 1) % progress_interval == 0:
-            print(
-                f"  Step {t + 1}/{n_steps}: S={result['S']:.4f}, θ={result['theta']:.4f}, "
-                f"P(ignite)={result['p_ignite']:.4f}, B={result['B']}"
+            logger.debug(
+                "step_progress",
+                step=t + 1,
+                total_steps=n_steps,
+                signal=result["S"],
+                threshold=result["theta"],
+                ignite_probability=result["p_ignite"],
+                ignition=result["B"],
             )
 
-    print(
-        f"\nCompleted: {ignition_count} ignition events ({100 * ignition_count / n_steps:.1f}%)"
+    logger.info(
+        "pipeline_completed",
+        ignition_count=ignition_count,
+        ignition_rate=ignition_count / n_steps,
+        final_signal=pipeline.S,
+        final_threshold=pipeline.theta,
     )
-    print(f"Final signal: {pipeline.S:.4f}, Final threshold: {pipeline.theta:.4f}")
+
+    # Convert deque to list if using ring buffer
+    if use_ring_buffer:
+        history = {k: list(v) for k, v in history.items()}
 
     return {
         "config": cfg,
@@ -123,6 +156,7 @@ def run_multiscale_pipeline(
     n_levels: int = 5,
     timescale_k: float = 1.6,
     config: dict[str, Any] | None = None,
+    max_history: int | None = None,
 ) -> dict[str, Any]:
     """Run multi-scale APGI pipeline (hierarchical timescales).
 
@@ -131,6 +165,7 @@ def run_multiscale_pipeline(
         n_levels: Number of timescale hierarchy levels
         timescale_k: Timescale expansion factor (recommended: 1.3-2.0)
         config: Optional custom configuration
+        max_history: Maximum history size to prevent unbounded memory growth (None = unlimited)
 
     Returns:
         Dictionary with simulation results
@@ -143,54 +178,78 @@ def run_multiscale_pipeline(
     taus = build_timescales(tau0, timescale_k, n_levels)
     weights = multiscale_weights(n_levels, timescale_k)
 
-    print(f"Running multi-scale APGI pipeline ({n_levels} levels, k={timescale_k})...")
-    print(f"Timescales: {taus}")
-    print(f"Weights: {weights}")
+    logger.info(
+        "starting_multiscale_pipeline",
+        n_steps=n_steps,
+        n_levels=n_levels,
+        timescale_k=timescale_k,
+        timescales=taus.tolist(),
+        weights=weights.tolist(),
+        max_history=max_history,
+    )
 
     # Initialize multi-scale feature buffers and per-level EMA variances
     phi_e = np.zeros(n_levels)
     phi_i = np.zeros(n_levels)
-    sigma2_levels = np.ones(n_levels)  # per-level combined variance estimate
+    sigma2_levels = np.ones(n_levels)
+
+    # Pre-compute EMA rates for vectorized updates
+    alphas = np.minimum(1.0, 1.0 / taus)
 
     pipeline = APGIPipeline(cfg)
-    history: dict[str, list[float]] = {
-        "S_multiscale": [],
-        "S_standard": [],
-        "B": [],
-        "theta": [],
-    }
+
+    # Pre-allocate history arrays for better memory efficiency
+    history: dict[str, list[float] | deque[float]]
+    if max_history is None or n_steps <= max_history:
+        history = {
+            "S_multiscale": [],
+            "S_standard": [],
+            "B": [],
+            "theta": [],
+        }
+        use_ring_buffer = False
+    else:
+        # Use ring buffer for bounded memory
+        from collections import deque
+
+        history = {
+            "S_multiscale": deque(maxlen=max_history),
+            "S_standard": deque(maxlen=max_history),
+            "B": deque(maxlen=max_history),
+            "theta": deque(maxlen=max_history),
+        }
+        use_ring_buffer = True
+
     ignition_count = 0
+
+    # Pre-extract config values for performance
+    eps = float(cfg.get("eps", 1e-8))  # type: ignore[arg-type]
+    pi_min = float(cfg.get("pi_min", 1e-4))  # type: ignore[arg-type]
+    pi_max = float(cfg.get("pi_max", 1e4))  # type: ignore[arg-type]
 
     for t in range(n_steps):
         x_e, x_hat_e, x_i, x_hat_i = generate_synthetic_input(t)
         z_e = x_e - x_hat_e
         z_i = x_i - x_hat_i
 
-        # Update multi-scale features and per-level variance estimates
-        for i in range(n_levels):
-            phi_e[i] = update_multiscale_feature(phi_e[i], z_e, taus[i])
-            phi_i[i] = update_multiscale_feature(phi_i[i], z_i, taus[i])
-            # EMA rate proportional to 1/τ_i; min to keep it in (0,1]
-            alpha_l = min(1.0, 1.0 / taus[i])
-            sigma2_levels[i] = (1.0 - alpha_l) * sigma2_levels[i] + alpha_l * (
-                phi_e[i] ** 2 + phi_i[i] ** 2
-            )
+        # Vectorized multi-scale feature updates (much faster than loop)
+        # phi_e[i] = (1 - alphas[i]) * phi_e[i] + alphas[i] * z_e
+        phi_e = (1.0 - alphas) * phi_e + alphas * z_e
+        phi_i = (1.0 - alphas) * phi_i + alphas * z_i
 
-        # Per-level precision from actual variance estimates
-        pi_levels = [
-            compute_precision(  # type: ignore[arg-type]
-                sigma2_levels[i],
-                cfg["eps"],  # type: ignore[arg-type]
-                cfg["pi_min"],  # type: ignore[arg-type]
-                cfg["pi_max"],  # type: ignore[arg-type]
-            )
-            for i in range(n_levels)
-        ]
-        S_multiscale = aggregate_multiscale_signal(phi_e + phi_i, pi_levels, weights)
+        # Vectorized variance updates
+        sigma2_levels = (1.0 - alphas) * sigma2_levels + alphas * (phi_e**2 + phi_i**2)
+
+        # Vectorized precision computation
+        pi_levels = np.clip(1.0 / (sigma2_levels + eps), pi_min, pi_max)
+
+        # Aggregate signal
+        S_multiscale = float(np.sum(weights * pi_levels * np.abs(phi_e + phi_i)))
 
         # Run standard pipeline for comparison
         result = pipeline.step(x_e, x_hat_e, x_i, x_hat_i)
 
+        # Store results
         history["S_multiscale"].append(S_multiscale)
         history["S_standard"].append(result["S"])
         history["B"].append(result["B"])
@@ -199,12 +258,21 @@ def run_multiscale_pipeline(
         if result["B"] == 1:
             ignition_count += 1
 
-    print(f"\nCompleted: {ignition_count} ignition events")
-    print(
-        f"Multi-scale S range: [{min(history['S_multiscale']):.4f}, {max(history['S_multiscale']):.4f}]"
-    )
-    print(
-        f"Standard S range: [{min(history['S_standard']):.4f}, {max(history['S_standard']):.4f}]"
+        # Periodic progress logging for long runs
+        if (t + 1) % 1000 == 0:
+            logger.debug("multiscale_progress", step=t + 1, total=n_steps)
+
+    # Convert deque to list for output if using ring buffer
+    if use_ring_buffer:
+        history = {k: list(v) for k, v in history.items()}
+
+    logger.info(
+        "multiscale_pipeline_completed",
+        n_steps=n_steps,
+        ignition_count=ignition_count,
+        ignition_rate=ignition_count / n_steps,
+        multiscale_s_range=[min(history["S_multiscale"]), max(history["S_multiscale"])],
+        standard_s_range=[min(history["S_standard"]), max(history["S_standard"])],
     )
 
     return {
@@ -246,22 +314,28 @@ def analyze_signal_statistics(
         try:
             H = estimate_hurst_robust(signal, fs=1.0, method="welch")
             stats["hurst_exponent"] = H
-            print("\n" + label + " Statistics:")
-            print("  Mean: %.4f, Std: %.4f" % (stats["mean"], stats["std"]))
-            print("  Range: [%.4f, %.4f]" % (stats["min"], stats["max"]))
-            print("  Hurst Exponent (H): %.4f" % H)
-            if H > 0.5:
-                print("  → Persistent/long-memory process (H > 0.5)")
-            elif H < 0.5:
-                print("  → Anti-persistent process (H < 0.5)")
-            else:
-                print("  → Random walk (H ≈ 0.5)")
+            logger.info(
+                "signal_statistics",
+                label=label,
+                mean=stats["mean"],
+                std=stats["std"],
+                range_min=stats["min"],
+                range_max=stats["max"],
+                hurst_exponent=H,
+                process_type=(
+                    "persistent" if H > 0.5 else "anti_persistent" if H < 0.5 else "random_walk"
+                ),
+            )
         except Exception as e:
-            print("  Hurst estimation failed: " + str(e))
+            logger.warning("hurst_estimation_failed", label=label, error=str(e))
     else:
-        print("\n" + label + " Statistics (insufficient data for Hurst):")
-        for key, value in stats.items():
-            print("  " + key + ": %.4f" % value)
+        logger.info(
+            "signal_statistics_insufficient_data",
+            label=label,
+            data_points=len(signal),
+            required_points=256,
+            **stats,
+        )
 
     return stats
 
@@ -289,7 +363,7 @@ def save_results(results: dict[str, Any], filepath: str) -> None:
     with open(filepath, "w") as f:
         json.dump(serializable, f, indent=2)
 
-    print(f"\nResults saved to: {filepath}")
+    logger.info("results_saved", filepath=filepath)
 
 
 def main() -> int:
@@ -308,36 +382,59 @@ Examples:
     )
 
     parser.add_argument("--demo", action="store_true", help="Run quick demonstration")
-    parser.add_argument(
-        "--steps", type=int, default=1000, help="Number of simulation steps"
-    )
+    parser.add_argument("--steps", type=int, default=1000, help="Number of simulation steps")
     parser.add_argument("--output", type=str, help="Save results to JSON file")
-    parser.add_argument(
-        "--multiscale", action="store_true", help="Enable multi-scale hierarchy"
-    )
+    parser.add_argument("--multiscale", action="store_true", help="Enable multi-scale hierarchy")
     parser.add_argument(
         "--levels",
         type=int,
         default=5,
         help="Number of hierarchy levels (with --multiscale)",
     )
-    parser.add_argument(
-        "--k", type=float, default=1.6, help="Timescale expansion factor (1.3-2.0)"
-    )
+    parser.add_argument("--k", type=float, default=1.6, help="Timescale expansion factor (1.3-2.0)")
     parser.add_argument(
         "--ne-on-threshold",
         action="store_true",
         help="Apply NE to threshold instead of precision",
     )
     parser.add_argument(
-        "--beta", type=float, default=0.0, help="Dopaminergic bias value"
+        "--gamma-ne",
+        type=float,
+        default=None,
+        help="NE modulation strength (default: 0.1, use <=0.01 with --ne-on-threshold)",
+    )
+    parser.add_argument("--beta", type=float, default=0.0, help="Dopaminergic bias value")
+    parser.add_argument("--stochastic", action="store_true", help="Enable stochastic ignition")
+    parser.add_argument("--seed", type=int, help="Random seed for reproducibility")
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Logging level (default: INFO)",
     )
     parser.add_argument(
-        "--stochastic", action="store_true", help="Enable stochastic ignition"
+        "--json-logs",
+        action="store_true",
+        help="Output logs in JSON format for production",
     )
-    parser.add_argument("--seed", type=int, help="Random seed for reproducibility")
+    parser.add_argument(
+        "--max-history",
+        type=int,
+        default=None,
+        help="Maximum history size to prevent unbounded memory growth",
+    )
+    parser.add_argument(
+        "--strict-mode",
+        action="store_true",
+        default=True,
+        help="Enable strict validation (no auto-adjustments)",
+    )
 
     args = parser.parse_args()
+
+    # Configure logging
+    configure_logging(level=args.log_level, json_output=args.json_logs)
 
     # Set random seed if provided
     if args.seed is not None:
@@ -347,15 +444,32 @@ Examples:
     config = CONFIG.copy()
     config["beta"] = args.beta
     config["stochastic_ignition"] = args.stochastic
+    config["strict_mode"] = args.strict_mode
 
     if args.ne_on_threshold:
         config["ne_on_precision"] = False
         config["ne_on_threshold"] = True
-        print("Configuration: NE modulates threshold (not precision)")
+        # Auto-adjust gamma_ne to safe value for threshold mode if not explicitly set
+        if args.gamma_ne is None:
+            config["gamma_ne"] = 0.01
+            logger.info(
+                "configuration",
+                ne_modulation="threshold",
+                gamma_ne_adjusted=0.01,
+                reason="threshold_mode_requires_gamma_ne<=0.01",
+            )
+        else:
+            logger.info("configuration", ne_modulation="threshold", gamma_ne=args.gamma_ne)
 
-    print("\n" + "=" * 60)
-    print("APGI - Adaptive Precision Gated Ignition")
-    print("=" * 60)
+    if args.gamma_ne is not None:
+        config["gamma_ne"] = args.gamma_ne
+
+    logger.info(
+        "apgi_startup",
+        version="1.0.0",
+        strict_mode=args.strict_mode,
+        max_history=args.max_history,
+    )
 
     try:
         if args.multiscale:
@@ -364,28 +478,28 @@ Examples:
                 n_levels=args.levels,
                 timescale_k=args.k,
                 config=config,
+                max_history=args.max_history,
             )
-            analyze_signal_statistics(
-                results["history"]["S_multiscale"], "Multi-scale Signal"
-            )
+            analyze_signal_statistics(results["history"]["S_multiscale"], "Multi-scale Signal")
         else:
-            results = run_standard_pipeline(n_steps=args.steps, config=config)
+            results = run_standard_pipeline(
+                n_steps=args.steps,
+                config=config,
+                max_history=args.max_history,
+            )
             analyze_signal_statistics(results["history"]["S"], "Standard Signal")
 
         if args.output:
             save_results(results, args.output)
 
-        print("\n" + "=" * 60)
-        print("Simulation complete.")
-        print("=" * 60)
-
+        logger.info("simulation_complete", status="success")
         return 0
 
     except KeyboardInterrupt:
-        print("\n\nInterrupted by user.")
+        logger.warning("simulation_interrupted", reason="user_interrupt")
         return 130
     except Exception as e:
-        print(f"\nError: {e}")
+        logger.error("simulation_failed", error=str(e), exc_info=True)
         return 1
 
 

@@ -20,7 +20,7 @@ from validation.empirical_validation import (
 class TestDatasetConfig:
     """Test DatasetConfig dataclass."""
 
-    def test_dataset_config_creation(self):
+    def test_dataset_config_creation(self) -> None:
         """Test DatasetConfig creation."""
         config = DatasetConfig(
             name="test_dataset",
@@ -41,7 +41,7 @@ class TestDatasetConfig:
 class TestEmpiricalDataLoader:
     """Test empirical data loading."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test EmpiricalDataLoader initialization."""
         config = DatasetConfig(name="test", data_type="simulation", fs=100.0)
         loader = EmpiricalDataLoader(config)
@@ -50,7 +50,7 @@ class TestEmpiricalDataLoader:
         assert loader.metadata == {}
         assert loader._behavioral_data == {}
 
-    def test_load_eeg_dataset_fallback_numpy(self):
+    def test_load_eeg_dataset_fallback_numpy(self) -> None:
         """Test EEG loading with NumPy fallback (no MNE)."""
         config = DatasetConfig(name="test", data_type="eeg", fs=100.0)
         loader = EmpiricalDataLoader(config)
@@ -75,7 +75,7 @@ class TestEmpiricalDataLoader:
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-    def test_load_eeg_dataset_npz_file(self):
+    def test_load_eeg_dataset_npz_file(self) -> None:
         """Test EEG loading with NPZ file format."""
         config = DatasetConfig(name="test", data_type="eeg", fs=100.0)
         loader = EmpiricalDataLoader(config)
@@ -99,7 +99,7 @@ class TestEmpiricalDataLoader:
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-    def test_load_eeg_dataset_with_mock_mne(self):
+    def test_load_eeg_dataset_with_mock_mne(self) -> None:
         """Test EEG loading with mocked MNE and event markers."""
         config = DatasetConfig(name="test", data_type="eeg", fs=100.0)
         loader = EmpiricalDataLoader(config)
@@ -134,7 +134,7 @@ class TestEmpiricalDataLoader:
             assert "events" in result
             assert "event_dict" in result
 
-    def test_load_behavioral_dataset_csv(self):
+    def test_load_behavioral_dataset_csv(self) -> None:
         """Test behavioral dataset loading from CSV."""
         config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
         loader = EmpiricalDataLoader(config)
@@ -158,7 +158,7 @@ class TestEmpiricalDataLoader:
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-    def test_load_behavioral_dataset_json(self):
+    def test_load_behavioral_dataset_json(self) -> None:
         """Test behavioral dataset loading from JSON."""
         config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
         loader = EmpiricalDataLoader(config)
@@ -177,7 +177,7 @@ class TestEmpiricalDataLoader:
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-    def test_load_behavioral_dataset_unsupported_format(self):
+    def test_load_behavioral_dataset_unsupported_format(self) -> None:
         """Test behavioral dataset loading with unsupported format."""
         config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
         loader = EmpiricalDataLoader(config)
@@ -194,7 +194,7 @@ class TestEmpiricalDataLoader:
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-    def test_load_behavioral_dataset_with_conditions(self):
+    def test_load_behavioral_dataset_with_conditions(self) -> None:
         """Test behavioral dataset loading with conditions."""
         config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
         loader = EmpiricalDataLoader(config)
@@ -208,9 +208,7 @@ class TestEmpiricalDataLoader:
             f.write("0.4,1.0,A\n")
 
         try:
-            result = loader.load_behavioral_dataset(
-                filepath, condition_column="condition"
-            )
+            result = loader.load_behavioral_dataset(filepath, condition_column="condition")
             assert "conditions" in result
             assert "by_condition" in result
             assert "A" in result["by_condition"]
@@ -219,7 +217,7 @@ class TestEmpiricalDataLoader:
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-    def test_get_segment_no_data_loaded(self):
+    def test_get_segment_no_data_loaded(self) -> None:
         """Test get_segment raises error when no data loaded."""
         config = DatasetConfig(name="test", data_type="simulation", fs=100.0)
         loader = EmpiricalDataLoader(config)
@@ -227,7 +225,7 @@ class TestEmpiricalDataLoader:
         with pytest.raises(ValueError, match="No data loaded"):
             loader.get_segment(0.0, 1.0)
 
-    def test_load_behavioral_dataset_hdf5(self):
+    def test_load_behavioral_dataset_hdf5(self) -> None:
         """Test behavioral dataset loading from HDF5 format."""
         config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
         loader = EmpiricalDataLoader(config)
@@ -253,7 +251,7 @@ class TestEmpiricalDataLoader:
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-    def test_load_behavioral_dataset_series_to_frame(self):
+    def test_load_behavioral_dataset_series_to_frame(self) -> None:
         """Test behavioral dataset loading when HDF5 returns Series."""
         config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
         loader = EmpiricalDataLoader(config)
@@ -283,7 +281,7 @@ class TestEmpiricalDataLoader:
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-    def test_get_segment_with_data(self):
+    def test_get_segment_with_data(self) -> None:
         """Test get_segment extracts correct segment."""
         config = DatasetConfig(name="test", data_type="simulation", fs=100.0)
         loader = EmpiricalDataLoader(config)
@@ -297,7 +295,7 @@ class TestEmpiricalDataLoader:
         segment = loader.get_segment(0.0, 1.0, channel_idx=0)
         assert segment.shape == (100,)  # 1 second at 100 Hz
 
-    def test_get_segment_all_channels(self):
+    def test_get_segment_all_channels(self) -> None:
         """Test get_segment extracts all channels when channel_idx is None."""
         config = DatasetConfig(name="test", data_type="simulation", fs=100.0)
         loader = EmpiricalDataLoader(config)
@@ -315,12 +313,12 @@ class TestEmpiricalDataLoader:
 class TestNeuralValidator:
     """Test neural data validation."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test NeuralValidator initialization."""
         validator = NeuralValidator(fs=100.0)
         assert validator.fs == 100.0
 
-    def test_extract_gamma_power_welch(self):
+    def test_extract_gamma_power_welch(self) -> None:
         """Test gamma power extraction with Welch method."""
         validator = NeuralValidator(fs=100.0)
         signal = np.random.randn(500)
@@ -328,7 +326,7 @@ class TestNeuralValidator:
         assert isinstance(power, float)
         assert power >= 0.0
 
-    def test_extract_gamma_power_fft(self):
+    def test_extract_gamma_power_fft(self) -> None:
         """Test gamma power extraction with FFT method."""
         validator = NeuralValidator(fs=100.0)
         signal = np.random.randn(500)
@@ -336,14 +334,14 @@ class TestNeuralValidator:
         assert isinstance(power, float)
         assert power >= 0.0
 
-    def test_extract_gamma_power_custom_freq_range(self):
+    def test_extract_gamma_power_custom_freq_range(self) -> None:
         """Test gamma power with custom frequency range."""
         validator = NeuralValidator(fs=100.0)
         signal = np.random.randn(500)
         power = validator.extract_gamma_power(signal, freq_range=(20, 50))
         assert isinstance(power, float)
 
-    def test_extract_gamma_power_no_mask(self):
+    def test_extract_gamma_power_no_mask(self) -> None:
         """Test gamma power when no frequencies match the range."""
         validator = NeuralValidator(fs=100.0)
         signal = np.random.randn(500)
@@ -352,7 +350,7 @@ class TestNeuralValidator:
         # Should return 0.0 when no frequencies match
         assert power == 0.0
 
-    def test_compute_erp_list_epochs(self):
+    def test_compute_erp_list_epochs(self) -> None:
         """Test ERP computation with list of epochs."""
         validator = NeuralValidator(fs=100.0)
         epochs = [np.random.randn(100) for _ in range(10)]
@@ -364,7 +362,7 @@ class TestNeuralValidator:
         assert "n200_amplitude" in result
         assert result["n_epochs"] == 10
 
-    def test_compute_erp_array_epochs(self):
+    def test_compute_erp_array_epochs(self) -> None:
         """Test ERP computation with array of epochs."""
         validator = NeuralValidator(fs=100.0)
         epochs = np.random.randn(10, 100)
@@ -372,7 +370,7 @@ class TestNeuralValidator:
         assert "erp" in result
         assert result["n_epochs"] == 10
 
-    def test_compute_erp_custom_windows(self):
+    def test_compute_erp_custom_windows(self) -> None:
         """Test ERP with custom time windows."""
         validator = NeuralValidator(fs=100.0)
         epochs = np.random.randn(10, 100)
@@ -383,7 +381,7 @@ class TestNeuralValidator:
         )
         assert "erp" in result
 
-    def test_compute_erp_no_p300_window(self):
+    def test_compute_erp_no_p300_window(self) -> None:
         """Test ERP when P300 window has no valid samples."""
         validator = NeuralValidator(fs=100.0)
         epochs = np.random.randn(10, 100)
@@ -395,7 +393,7 @@ class TestNeuralValidator:
         # P300 amplitude should be 0.0 when window is empty
         assert result["p300_amplitude"] == 0.0
 
-    def test_compute_erp_no_n200_window(self):
+    def test_compute_erp_no_n200_window(self) -> None:
         """Test ERP when N200 window has no valid samples."""
         validator = NeuralValidator(fs=100.0)
         epochs = np.random.randn(10, 100)
@@ -408,7 +406,7 @@ class TestNeuralValidator:
         assert result["n200_amplitude"] == 0.0
         assert "erp" in result
 
-    def test_compute_erp_edge_case_windows(self):
+    def test_compute_erp_edge_case_windows(self) -> None:
         """Test ERP with edge case windows that may not overlap with data."""
         validator = NeuralValidator(fs=100.0)
         epochs = np.random.randn(5, 50)
@@ -422,7 +420,7 @@ class TestNeuralValidator:
         assert "p300_amplitude" in result
         assert "n200_amplitude" in result
 
-    def test_validate_against_apgi(self):
+    def test_validate_against_apgi(self) -> None:
         """Test validation against APGI results."""
         validator = NeuralValidator(fs=100.0)
         neural_data = np.random.randn(500)
@@ -439,12 +437,12 @@ class TestNeuralValidator:
 class TestBehavioralValidator:
     """Test behavioral data validation."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test BehavioralValidator initialization."""
         validator = BehavioralValidator()
         assert validator.data == {}
 
-    def test_compute_signal_detection_metrics(self):
+    def test_compute_signal_detection_metrics(self) -> None:
         """Test signal detection theory metrics."""
         validator = BehavioralValidator()
         result = validator.compute_signal_detection_metrics(
@@ -460,7 +458,7 @@ class TestBehavioralValidator:
         assert "fa_rate" in result
         assert isinstance(result["d_prime"], float)
 
-    def test_compute_signal_detection_metrics_edge_cases(self):
+    def test_compute_signal_detection_metrics_edge_cases(self) -> None:
         """Test SDT with edge cases (all hits, no FAs)."""
         validator = BehavioralValidator()
         result = validator.compute_signal_detection_metrics(
@@ -472,7 +470,7 @@ class TestBehavioralValidator:
         # Should handle edge cases with correction
         assert "d_prime" in result
 
-    def test_analyze_rt_distribution(self):
+    def test_analyze_rt_distribution(self) -> None:
         """Test RT distribution analysis."""
         validator = BehavioralValidator()
         rts = np.array([0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
@@ -486,26 +484,24 @@ class TestBehavioralValidator:
         assert "n" in result
         assert result["n"] == 6
 
-    def test_analyze_rt_distribution_outlier_removal(self):
+    def test_analyze_rt_distribution_outlier_removal(self) -> None:
         """Test RT distribution with outlier removal."""
         validator = BehavioralValidator()
         rts = np.array([0.3, 0.4, 0.5, 0.6, 0.7, 10.0])  # 10.0 is a clear outlier
-        result = validator.analyze_rt_distribution(
-            rts, remove_outliers=True, outlier_sd=2.0
-        )
+        result = validator.analyze_rt_distribution(rts, remove_outliers=True, outlier_sd=2.0)
         assert result["n"] < 6  # Should have removed outlier
 
-    def test_compute_skewness(self):
+    def test_compute_skewness(self) -> None:
         """Test skewness computation."""
         skewness = BehavioralValidator._compute_skewness(np.array([1, 2, 3, 4, 5]))
         assert isinstance(skewness, float)
 
-    def test_compute_kurtosis(self):
+    def test_compute_kurtosis(self) -> None:
         """Test kurtosis computation."""
         kurtosis = BehavioralValidator._compute_kurtosis(np.array([1, 2, 3, 4, 5]))
         assert isinstance(kurtosis, float)
 
-    def test_validate_against_apgi(self):
+    def test_validate_against_apgi(self) -> None:
         """Test validation against APGI results."""
         validator = BehavioralValidator()
         apgi_result = {"theta": 0.7}
@@ -523,13 +519,13 @@ class TestBehavioralValidator:
 class TestCrossValidationRunner:
     """Test cross-validation runner."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test CrossValidationRunner initialization."""
         runner = CrossValidationRunner(n_folds=5)
         assert runner.n_folds == 5
         assert runner.results == []
 
-    def test_split_data_basic(self):
+    def test_split_data_basic(self) -> None:
         """Test basic data splitting."""
         runner = CrossValidationRunner(n_folds=5)
         data = np.random.randn(100)
@@ -538,7 +534,7 @@ class TestCrossValidationRunner:
         for train_idx, test_idx in splits:
             assert len(train_idx) + len(test_idx) == 100
 
-    def test_split_data_with_labels(self):
+    def test_split_data_with_labels(self) -> None:
         """Test data splitting with labels (placeholder)."""
         runner = CrossValidationRunner(n_folds=3)
         data = np.random.randn(30)
@@ -546,7 +542,7 @@ class TestCrossValidationRunner:
         splits = runner.split_data(data, labels)
         assert len(splits) == 3
 
-    def test_run_validation(self):
+    def test_run_validation(self) -> None:
         """Test cross-validation execution."""
         runner = CrossValidationRunner(n_folds=3)
         data = np.random.randn(30)
@@ -554,8 +550,8 @@ class TestCrossValidationRunner:
         # Mock APGI pipeline
         mock_pipeline = MagicMock()
 
-        def metric_fn(test_data, pipeline):
-            return np.mean(test_data)
+        def metric_fn(test_data: np.ndarray, pipeline: MagicMock) -> float:
+            return float(np.mean(test_data))
 
         result = runner.run_validation(data, mock_pipeline, metric_fn)
         assert "fold_scores" in result
@@ -568,7 +564,7 @@ class TestCrossValidationRunner:
 class TestCreateSyntheticValidationDataset:
     """Test synthetic validation dataset creation."""
 
-    def test_create_dataset_basic(self):
+    def test_create_dataset_basic(self) -> None:
         """Test basic synthetic dataset creation."""
         dataset = create_synthetic_validation_dataset(
             n_samples=10,
@@ -581,7 +577,7 @@ class TestCreateSyntheticValidationDataset:
         assert "duration" in dataset
         assert dataset["data"].shape == (10, 500)  # 10 samples, 5s at 100Hz
 
-    def test_create_dataset_with_ground_truth(self):
+    def test_create_dataset_with_ground_truth(self) -> None:
         """Test dataset creation with ground truth."""
         dataset = create_synthetic_validation_dataset(
             n_samples=5,
@@ -594,7 +590,7 @@ class TestCreateSyntheticValidationDataset:
         assert "sigma2s" in dataset["ground_truth"]
         assert "beta" in dataset["ground_truth"]
 
-    def test_create_dataset_without_ground_truth(self):
+    def test_create_dataset_without_ground_truth(self) -> None:
         """Test dataset creation without ground truth."""
         dataset = create_synthetic_validation_dataset(
             n_samples=5,
@@ -604,7 +600,7 @@ class TestCreateSyntheticValidationDataset:
         )
         assert "ground_truth" not in dataset
 
-    def test_create_dataset_custom_parameters(self):
+    def test_create_dataset_custom_parameters(self) -> None:
         """Test dataset with custom parameters."""
         dataset = create_synthetic_validation_dataset(
             n_samples=20,

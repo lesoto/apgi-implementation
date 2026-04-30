@@ -326,9 +326,7 @@ class TestComputeInformationValueWithBias:
         result_with_bias = compute_information_value_with_bias(
             z_e=z_e, z_i=z_i, beta_da=0.0, v1=v1, v2=v2
         )
-        result_without_bias = compute_information_value(
-            z_e=z_e, z_i_eff=z_i, v1=v1, v2=v2
-        )
+        result_without_bias = compute_information_value(z_e=z_e, z_i_eff=z_i, v1=v1, v2=v2)
         assert result_with_bias == result_without_bias
 
 

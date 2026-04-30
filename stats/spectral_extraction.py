@@ -110,9 +110,7 @@ def robust_log_regression(
                 weights = np.where(outlier_mask, 0.1, 1.0)  # Downweight outliers
 
                 # Weighted fit on scaled data
-                slope_scaled, intercept_scaled = np.polyfit(
-                    x_scaled, y_scaled, 1, w=weights
-                )
+                slope_scaled, intercept_scaled = np.polyfit(x_scaled, y_scaled, 1, w=weights)
 
                 # Transform back to original scale
                 slope = slope_scaled * (y_std / x_std)
@@ -460,7 +458,7 @@ def extract_1f_signature(
     method_name, beta_best, r2_best, h_best = best_method
 
     # Compute confidence intervals via bootstrap
-    def beta_estimator(sig):
+    def beta_estimator(sig: np.ndarray) -> float:
         try:
             b, _, _ = estimate_spectral_exponent_welch(sig, fs=fs, fmin=fmin, fmax=fmax)
             if not np.isnan(b) and not np.isinf(b):
@@ -559,9 +557,7 @@ def validate_hierarchical_spectral_signature(
             try:
                 from scipy import signal as scipy_signal  # type: ignore
 
-                f, coh = scipy_signal.coherence(
-                    signal_levels[i], signal_levels[j], fs=fs
-                )
+                f, coh = scipy_signal.coherence(signal_levels[i], signal_levels[j], fs=fs)
                 # Average coherence in frequency range
                 if fmin is not None and fmax is not None:
                     mask = (f >= fmin) & (f <= fmax)
@@ -585,9 +581,7 @@ def print_spectral_signature(sig: SpectralSignature) -> None:
     print("=" * 70)
     print(f"Method: {sig.method}")
     print(f"Samples: {sig.n_samples}")
-    print(
-        f"Frequency Range: {sig.frequency_range[0]:.4f} - {sig.frequency_range[1]:.4f} Hz"
-    )
+    print(f"Frequency Range: {sig.frequency_range[0]:.4f} - {sig.frequency_range[1]:.4f} Hz")
     print()
     print(f"Spectral Exponent (β): {sig.beta:.3f}")
     print(f"  95% CI: [{sig.beta_ci_lower:.3f}, {sig.beta_ci_upper:.3f}]")

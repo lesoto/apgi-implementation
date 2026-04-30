@@ -47,12 +47,8 @@ class TestLiquidNetwork:
         """Should clamp to min and max."""
         network = LiquidNetwork(n_units=100)
 
-        tau_low = network.compute_adaptive_tau(
-            precision=1e6, tau_min=10.0, tau_max=500.0
-        )
-        tau_high = network.compute_adaptive_tau(
-            precision=1e-6, tau_min=10.0, tau_max=500.0
-        )
+        tau_low = network.compute_adaptive_tau(precision=1e6, tau_min=10.0, tau_max=500.0)
+        tau_high = network.compute_adaptive_tau(precision=1e-6, tau_min=10.0, tau_max=500.0)
 
         assert tau_low >= 10.0
         assert tau_high <= 500.0

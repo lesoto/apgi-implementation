@@ -414,16 +414,12 @@ def _process_files(
         if is_protected_path and not is_cache_file:
             continue
 
-        if matches_any(f, default_file_patterns) or matches_any(
-            f, include_file_patterns
-        ):
+        if matches_any(f, default_file_patterns) or matches_any(f, include_file_patterns):
             full_f = os.path.join(dirpath, f)
             _remove_file(full_f, dry_run, verbose, stats)
 
 
-def _should_skip_directory(
-    dirpath: str, root_dir: str, max_depth: Optional[int]
-) -> bool:
+def _should_skip_directory(dirpath: str, root_dir: str, max_depth: Optional[int]) -> bool:
     """Check if directory should be skipped based on depth."""
     if max_depth is None:
         return False
@@ -461,13 +457,9 @@ def preview_deletions(
 
     default_dir_names = set(DEFAULT_DIR_NAMES) | set(DEFAULT_EXTRA_DIR_NAMES)
     default_dir_patterns = list(DEFAULT_DIR_PATTERNS)
-    default_file_patterns = list(DEFAULT_FILE_PATTERNS) + list(
-        DEFAULT_EXTRA_FILE_PATTERNS
-    )
+    default_file_patterns = list(DEFAULT_FILE_PATTERNS) + list(DEFAULT_EXTRA_FILE_PATTERNS)
 
-    for dirpath, dirnames, filenames in os.walk(
-        root_dir, topdown=True, followlinks=follow_links
-    ):
+    for dirpath, dirnames, filenames in os.walk(root_dir, topdown=True, followlinks=follow_links):
         if _should_skip_directory(dirpath, root_dir, max_depth):
             dirnames[:] = []
             continue
@@ -519,9 +511,7 @@ def preview_deletions(
             if matches_any(f, exclude_file_patterns):
                 continue
 
-            if matches_any(f, default_file_patterns) or matches_any(
-                f, include_file_patterns
-            ):
+            if matches_any(f, default_file_patterns) or matches_any(f, include_file_patterns):
                 full_f = os.path.join(dirpath, f)
                 try:
                     file_size = os.path.getsize(full_f)
@@ -563,9 +553,7 @@ def format_preview(stats: dict, verbose: bool = True) -> None:
             print(f"\nDIRECTORIES TO DELETE ({len(stats['dirs_to_remove'])}):")
             for i, dir_info in enumerate(stats["dirs_to_remove"][:10]):  # Show first 10
                 print(f"  {i + 1}. {dir_info['path']}")
-                print(
-                    f"     Files: {dir_info['file_count']}, Size: {dir_info['size_mb']} MB"
-                )
+                print(f"     Files: {dir_info['file_count']}, Size: {dir_info['size_mb']} MB")
 
             if len(stats["dirs_to_remove"]) > 10:
                 print(f"  ... and {len(stats['dirs_to_remove']) - 10} more directories")
@@ -577,9 +565,7 @@ def format_preview(stats: dict, verbose: bool = True) -> None:
                 stats["files_to_remove"], key=lambda x: x["size_bytes"], reverse=True
             )
 
-            print(
-                f"\nLARGEST FILES TO DELETE (showing top 10 of {len(stats['files_to_remove'])}):"
-            )
+            print(f"\nLARGEST FILES TO DELETE (showing top 10 of {len(stats['files_to_remove'])}):")
             for i, file_info in enumerate(sorted_files[:10]):
                 print(f"  {i + 1}. {file_info['path']}")
                 print(f"     Size: {file_info['size_kb']} KB")
@@ -617,14 +603,10 @@ def delete_temporary_items(
     stats: dict[str, Any] = {"dirs_removed": 0, "files_removed": 0, "errors": 0}
     default_dir_names = set(DEFAULT_DIR_NAMES) | set(DEFAULT_EXTRA_DIR_NAMES)
     default_dir_patterns = list(DEFAULT_DIR_PATTERNS)
-    default_file_patterns = list(DEFAULT_FILE_PATTERNS) + list(
-        DEFAULT_EXTRA_FILE_PATTERNS
-    )
+    default_file_patterns = list(DEFAULT_FILE_PATTERNS) + list(DEFAULT_EXTRA_FILE_PATTERNS)
     protected_dir_names = DEFAULT_PROTECTED_DIR_NAMES
 
-    for dirpath, dirnames, filenames in os.walk(
-        root_dir, topdown=True, followlinks=follow_links
-    ):
+    for dirpath, dirnames, filenames in os.walk(root_dir, topdown=True, followlinks=follow_links):
         if _should_skip_directory(dirpath, root_dir, max_depth):
             dirnames[:] = []
             continue
@@ -660,9 +642,7 @@ def delete_temporary_items(
     return stats
 
 
-def prune_empty_dirs(
-    root_dir: str, dry_run: bool = False, verbose: bool = True
-) -> None:
+def prune_empty_dirs(root_dir: str, dry_run: bool = False, verbose: bool = True) -> None:
     for dirpath, dirnames, filenames in os.walk(root_dir, topdown=False):
         # don't prune the root itself
         if dirpath == root_dir:
@@ -868,9 +848,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             remove_node_modules=args.remove_node_modules,
             remove_venvs=args.remove_venvs,
             venv_names=(
-                args.venv_names
-                if args.venv_names is not None
-                else (".venv", "venv", ".env", "env")
+                args.venv_names if args.venv_names is not None else (".venv", "venv", ".env", "env")
             ),
             follow_links=args.follow_links,
             max_depth=args.max_depth,
@@ -1173,9 +1151,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("Starting cleanup process...")
 
     venv_names = (
-        args.venv_names
-        if args.venv_names is not None
-        else (".venv", "venv", ".env", "env")
+        args.venv_names if args.venv_names is not None else (".venv", "venv", ".env", "env")
     )
     stats = delete_temporary_items(
         root_directory,

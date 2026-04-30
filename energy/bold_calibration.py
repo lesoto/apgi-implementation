@@ -34,19 +34,13 @@ LN2 = np.log(2.0)  # Natural log of 2
 
 # Default calibration values (can be adjusted based on specific fMRI data)
 # Calibrated to produce κ_meta ~ 1000× Landauer minimum (typical neural efficiency)
-DEFAULT_BOLD_TO_ENERGY_FACTOR = (
-    1.2e-18  # Joules per 1% BOLD signal change per cm³ tissue
-)
+DEFAULT_BOLD_TO_ENERGY_FACTOR = 1.2e-18  # Joules per 1% BOLD signal change per cm³ tissue
 DEFAULT_TISSUE_VOLUME = 1.0  # cm³ (typical voxel volume)
-DEFAULT_IGNITION_SPIKE_FACTOR = (
-    1.075  # 7.5% energy spike during ignition (midpoint of 5-10%)
-)
+DEFAULT_IGNITION_SPIKE_FACTOR = 1.075  # 7.5% energy spike during ignition (midpoint of 5-10%)
 
 # ATP conversion
 ATP_ENERGY = 5.2e-21  # Energy per ATP molecule at ~300K (~50 kJ/mol)
-TYPICAL_ATP_PER_BIT = (
-    100.0  # Typical biological cost: ~100 ATP molecules per bit processed
-)
+TYPICAL_ATP_PER_BIT = 100.0  # Typical biological cost: ~100 ATP molecules per bit processed
 
 
 def compute_landauer_energy_per_bit(T: float = T_BODY) -> float:
@@ -60,7 +54,7 @@ def compute_landauer_energy_per_bit(T: float = T_BODY) -> float:
     Returns:
         Minimum energy in Joules per bit
     """
-    return K_BOLTZMANN * T * LN2
+    return float(K_BOLTZMANN * T * LN2)
 
 
 def bold_signal_to_energy(
@@ -399,7 +393,7 @@ class BOLDCalibrator:
                 self.calibrated_kappa * len(self.calibration_data) + kappa_calibrated
             ) / (len(self.calibration_data) + 1)
 
-        return kappa_calibrated
+        return float(kappa_calibrated)
 
     def get_calibration_summary(self) -> dict:
         """Get summary of calibration results."""
@@ -424,9 +418,7 @@ class BOLDCalibrator:
             "landauer_energy_per_bit_j": compute_landauer_energy_per_bit(self.T),
         }
 
-    def validate_against_landauer(
-        self, measured_energy: float, bits_erased: float
-    ) -> dict:
+    def validate_against_landauer(self, measured_energy: float, bits_erased: float) -> dict:
         """Validate measured energy against Landauer's principle using calibrated parameters."""
         return validate_energy_against_landauer(
             measured_energy,

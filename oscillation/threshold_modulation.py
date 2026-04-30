@@ -73,9 +73,7 @@ def modulate_threshold_by_phase(
         Phase-modulated threshold
     """
 
-    modulation = compute_modulation_factor(
-        pi_higher, phi_higher, kappa, modulation_type
-    )
+    modulation = compute_modulation_factor(pi_higher, phi_higher, kappa, modulation_type)
     theta_modulated = theta_baseline * modulation
 
     return float(np.clip(theta_modulated, theta_min, theta_max))

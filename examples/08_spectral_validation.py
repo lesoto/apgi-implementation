@@ -76,9 +76,7 @@ def run_hierarchical_simulation(
     Returns:
         Tuple of (pipeline, epsilon_e, epsilon_i)
     """
-    print(
-        f"Running hierarchical simulation with {n_levels} levels for {n_steps} steps..."
-    )
+    print(f"Running hierarchical simulation with {n_levels} levels for {n_steps} steps...")
 
     # Configure for hierarchical mode
     config = dict(CONFIG)
@@ -118,9 +116,7 @@ def run_hierarchical_simulation(
 
     # Track multiscale signal during simulation
     multiscale_signal_history: list[float] = []
-    per_level_history: list[list[float]] = [
-        [] for _ in range(n_levels)
-    ]  # Track per-level Φ values
+    per_level_history: list[list[float]] = [[] for _ in range(n_levels)]  # Track per-level Φ values
 
     # Run simulation
     for i in range(n_steps):
@@ -150,9 +146,7 @@ def run_hierarchical_simulation(
             for level in range(n_levels):
                 per_level_history[level].append(phi_combined[level])
 
-    print(
-        f"Simulation complete. Collected {len(pipeline.history['theta'])} threshold values."
-    )
+    print(f"Simulation complete. Collected {len(pipeline.history['theta'])} threshold values.")
     print(f"Tracked {len(multiscale_signal_history)} multiscale signal values.")
 
     # Store multiscale signal in pipeline for validation
@@ -190,9 +184,7 @@ def validate_lorentzian_superposition(
         print(f"Using tracked multiscale signal (n={len(signal_arr)})")
     else:
         # Fallback to threshold if multiscale features not available
-        print(
-            "Warning: Multiscale signal history not available, using threshold as fallback"
-        )
+        print("Warning: Multiscale signal history not available, using threshold as fallback")
         signal_arr = np.array(pipeline.history["theta"])
 
     fs = 1.0 / pipeline.config.get("dt", 1.0)
@@ -210,9 +202,7 @@ def validate_lorentzian_superposition(
     # Estimate variances from simulation using per-level statistics
     # This provides a more accurate match between model and simulation
     if hasattr(pipeline, "per_level_history") and len(pipeline.per_level_history) > 0:
-        sigma2s = np.array(
-            [np.var(pipeline.per_level_history[i]) for i in range(n_levels)]
-        )
+        sigma2s = np.array([np.var(pipeline.per_level_history[i]) for i in range(n_levels)])
         print(f"Per-level variances: {sigma2s}")
     else:
         # Fallback: use decreasing variances with timescale
@@ -220,9 +210,7 @@ def validate_lorentzian_superposition(
         print(f"Using estimated variances: {sigma2s}")
 
     # Generate predicted spectrum from theory
-    psd_predicted = hierarchical_spectral_superposition(
-        freqs_obs, taus / 1000.0, sigma2s
-    )
+    psd_predicted = hierarchical_spectral_superposition(freqs_obs, taus / 1000.0, sigma2s)
 
     # Fit Lorentzian superposition to observed data
     print("\nFitting Lorentzian superposition model...")
@@ -235,12 +223,8 @@ def validate_lorentzian_superposition(
     # Use frequency range appropriate for the sampling rate
     fmin_fit = max(0.01, freqs_obs[1])  # Avoid DC component
     fmax_fit = min(20.0, freqs_obs[-1] * 0.9)  # Avoid Nyquist
-    beta_observed = estimate_1f_exponent(
-        freqs_obs, psd_obs, fmin=fmin_fit, fmax=fmax_fit
-    )
-    beta_predicted = estimate_1f_exponent(
-        freqs_obs, psd_predicted, fmin=fmin_fit, fmax=fmax_fit
-    )
+    beta_observed = estimate_1f_exponent(freqs_obs, psd_obs, fmin=fmin_fit, fmax=fmax_fit)
+    beta_predicted = estimate_1f_exponent(freqs_obs, psd_predicted, fmin=fmin_fit, fmax=fmax_fit)
 
     print(f"\nSpectral exponent β (observed): {beta_observed:.4f}")
     print(f"Spectral exponent β (predicted): {beta_predicted:.4f}")
@@ -328,7 +312,7 @@ def demonstrate_analytic_formula(n_levels: int = 5) -> None:
         print(f"  Level {i}: τ={tau:.4f}s, σ²={sigma2:.2f}, f_c={corner_freq:.4f} Hz")
 
 
-def main():
+def main() -> None:
     """Run complete spectral validation demonstration."""
     print("=" * 70)
     print("APGI Spectral Validation Example")
@@ -380,9 +364,7 @@ def main():
 
         # Plot 1: Spectra comparison
         ax = axes[0]
-        ax.loglog(
-            results["freqs"], results["psd_observed"], "r-", alpha=0.7, label="Observed"
-        )
+        ax.loglog(results["freqs"], results["psd_observed"], "r-", alpha=0.7, label="Observed")
         ax.loglog(
             results["freqs"],
             results["psd_predicted"],
@@ -421,9 +403,7 @@ def main():
         print(f"Plot saved to: {plot_path}")
 
     except ImportError:
-        print(
-            "\nmatplotlib not available for plotting. Install with: pip install matplotlib"
-        )
+        print("\nmatplotlib not available for plotting. Install with: pip install matplotlib")
 
     print("\n" + "=" * 70)
     print("Spectral Validation Complete")

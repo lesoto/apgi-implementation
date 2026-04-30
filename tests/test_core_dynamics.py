@@ -258,14 +258,10 @@ class TestUpdateThresholdODE:
     def test_invalid_tau_theta(self):
         """Should raise ValueError for non-positive tau_theta."""
         with pytest.raises(ValueError, match="tau_theta must be > 0"):
-            update_threshold_ode(
-                theta=1.0, theta_base=1.0, C=1.5, V=1.0, tau_theta=0.0, eta=0.1
-            )
+            update_threshold_ode(theta=1.0, theta_base=1.0, C=1.5, V=1.0, tau_theta=0.0, eta=0.1)
 
         with pytest.raises(ValueError, match="tau_theta must be > 0"):
-            update_threshold_ode(
-                theta=1.0, theta_base=1.0, C=1.5, V=1.0, tau_theta=-1.0, eta=0.1
-            )
+            update_threshold_ode(theta=1.0, theta_base=1.0, C=1.5, V=1.0, tau_theta=-1.0, eta=0.1)
 
     def test_mean_reversion(self):
         """Should revert to baseline over time."""

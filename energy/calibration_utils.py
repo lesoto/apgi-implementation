@@ -6,6 +6,8 @@ This module helps set calibration parameters to produce realistic
 
 from __future__ import annotations
 
+from typing import Any
+
 from .bold_calibration import DEFAULT_TISSUE_VOLUME, compute_landauer_energy_per_bit
 
 
@@ -58,8 +60,8 @@ def calibrate_for_realistic_kappa(
 
 def create_realistic_calibrator(
     target_efficiency: float = 1000.0,
-    **kwargs,
-):
+    **kwargs: Any,
+) -> tuple[Any, dict[str, Any]]:
     """Create a BOLDCalibrator with realistic parameters.
 
     Args:
@@ -88,7 +90,7 @@ def create_realistic_calibrator(
     return calibrator, calibration
 
 
-def demonstrate_calibration_range():
+def demonstrate_calibration_range() -> None:
     """Demonstrate calibration across different efficiency ranges."""
 
     print("BOLD Calibration for Different Biological Efficiency Levels")
@@ -110,12 +112,8 @@ def demonstrate_calibration_range():
 
         print(f"\n{name} (κ = {efficiency:.0f}× Landauer):")
         print(f"  κ_meta: {calibration['target_kappa_j_per_bit']:.2e} J/bit")
-        print(
-            f"  Conversion factor: {calibration['calibrated_conversion_factor']:.2e} J/%/cm³"
-        )
-        print(
-            f"  For 2% BOLD, 6.6 bits: {calibration['target_kappa_j_per_bit'] * 6.6:.2e} J"
-        )
+        print(f"  Conversion factor: {calibration['calibrated_conversion_factor']:.2e} J/%/cm³")
+        print(f"  For 2% BOLD, 6.6 bits: {calibration['target_kappa_j_per_bit'] * 6.6:.2e} J")
 
     print("\n" + "=" * 60)
     print("Note: Default parameters produce κ ~ 1000× Landauer minimum")

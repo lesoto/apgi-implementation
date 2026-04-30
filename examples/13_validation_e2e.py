@@ -21,7 +21,7 @@ from config import CONFIG
 from pipeline import APGIPipeline
 
 
-def generate_synthetic_data(n_steps: int = 1000, dt: float = 0.5):
+def generate_synthetic_data(n_steps: int = 1000, dt: float = 0.5) -> tuple[np.ndarray, np.ndarray]:
     """Generate synthetic exteroceptive and interoceptive input signals.
 
     Args:
@@ -50,11 +50,13 @@ def generate_synthetic_data(n_steps: int = 1000, dt: float = 0.5):
     return x_e, x_i
 
 
-def validate_spectral_characteristics(pipeline: APGIPipeline):
+def validate_spectral_characteristics(
+    pipeline: APGIPipeline,
+) -> tuple[float, dict] | tuple[float, None]:
     """Validate pink noise (1/f) characteristics in threshold dynamics."""
     if len(pipeline.history["theta"]) < 64:
         print("Warning: Insufficient data for spectral validation")
-        return
+        return 0.0, None
 
     theta_arr = np.array(pipeline.history["theta"])
     fs = 1.0 / pipeline.config.get("dt", 1.0)
@@ -74,9 +76,7 @@ def validate_spectral_characteristics(pipeline: APGIPipeline):
     try:
         freqs, psd = welch_periodogram(theta_arr, fs=fs)
         pink_stats = validate_pink_noise(freqs, psd)
-        print(
-            f"Pink noise validation: {'PASS' if pink_stats['is_pink_noise'] else 'FAIL'}"
-        )
+        print(f"Pink noise validation: {'PASS' if pink_stats['is_pink_noise'] else 'FAIL'}")
         print(f"  Beta (1/f slope): {pink_stats['beta']:.4f}")
         print("  Expected beta: ~1.0")
         return hurst, pink_stats
@@ -86,7 +86,7 @@ def validate_spectral_characteristics(pipeline: APGIPipeline):
         return hurst, None
 
 
-def validate_observable_predictions(pipeline: APGIPipeline):
+def validate_observable_predictions(pipeline: APGIPipeline) -> None:
     """Validate neural and behavioral observable predictions."""
     # Enable observable mapping
     if pipeline.neural_observables is None or pipeline.behavioral_observables is None:
@@ -112,7 +112,7 @@ def validate_observable_predictions(pipeline: APGIPipeline):
         print(f"Mean response criterion: {np.mean(response_criterion):.4f}")
 
 
-def main():
+def main() -> None:
     """Run end-to-end validation."""
     print("=" * 70)
     print("APGI End-to-End Validation")
@@ -165,12 +165,8 @@ def main():
         print("-" * 70)
         stability_result = pipeline.stability_analyzer.analyze(verbose=False)
         print(f"Fixed point S*: {stability_result['fixed_point']['S_star']:.4f}")
-        print(
-            f"Stability: {'STABLE' if stability_result['stability']['stable'] else 'UNSTABLE'}"
-        )
-        print(
-            f"Max eigenvalue magnitude: {stability_result['stability']['max_eigenvalue']:.4f}"
-        )
+        print(f"Stability: {'STABLE' if stability_result['stability']['stable'] else 'UNSTABLE'}")
+        print(f"Max eigenvalue magnitude: {stability_result['stability']['max_eigenvalue']:.4f}")
 
     print("\n" + "=" * 70)
     print("Validation Complete")

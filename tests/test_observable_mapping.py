@@ -268,9 +268,7 @@ class TestParameterIdentifiabilityAnalyzer:
             "ignite_tau": 0.5,
         }
 
-        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(
-            config
-        )
+        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(config)
 
         assert "constraint1_lam_tau_s_distinct" in result
         assert "constraint2_eta_delta_distinct" in result
@@ -288,9 +286,7 @@ class TestParameterIdentifiabilityAnalyzer:
             "ignite_tau": -0.5,  # Negative!
         }
 
-        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(
-            config
-        )
+        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(config)
 
         assert not result["constraint3_tau_sigma_positive"]
         assert not result["all_satisfied"]

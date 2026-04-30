@@ -36,9 +36,7 @@ class TestParameterIdentifiabilityAnalyzerExtended:
             "delta": 0.5,
             "ignite_tau": 0.5,
         }
-        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(
-            config
-        )
+        result = ParameterIdentifiabilityAnalyzer.check_identifiability_constraints(config)
         # Should return dict with constraint results
         assert isinstance(result, dict)
 

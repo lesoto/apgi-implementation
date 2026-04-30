@@ -229,19 +229,13 @@ class TestUpdateSomaticMarkerEuler:
     def test_no_change_at_target(self):
         """Should not change when already at target."""
         M_target = somatic_marker_arousal(0.5)  # Should be 0.0
-        result = update_somatic_marker_euler(
-            M_target, arousal_target=0.5, tau_M=500.0, dt=1.0
-        )
+        result = update_somatic_marker_euler(M_target, arousal_target=0.5, tau_M=500.0, dt=1.0)
         assert result == M_target
 
     def test_time_constant_effect(self):
         """Should change faster with smaller tau_M."""
-        M_slow = update_somatic_marker_euler(
-            0.0, arousal_target=1.0, tau_M=1000.0, dt=100.0
-        )
-        M_fast = update_somatic_marker_euler(
-            0.0, arousal_target=1.0, tau_M=100.0, dt=100.0
-        )
+        M_slow = update_somatic_marker_euler(0.0, arousal_target=1.0, tau_M=1000.0, dt=100.0)
+        M_fast = update_somatic_marker_euler(0.0, arousal_target=1.0, tau_M=100.0, dt=100.0)
 
         # Faster time constant should move further
         assert abs(M_fast) > abs(M_slow)

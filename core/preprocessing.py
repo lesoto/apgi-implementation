@@ -49,9 +49,7 @@ class EMAStats:
     σ²(t+1) = (1-α)σ²(t) + α·(z-μ)²
     """
 
-    def __init__(
-        self, alpha: float, initial_mean: float = 0.0, initial_var: float = 1.0
-    ):
+    def __init__(self, alpha: float, initial_mean: float = 0.0, initial_var: float = 1.0):
         if not (0.0 < alpha <= 1.0):
             raise ValueError("alpha must be in (0,1]")
         self.alpha = alpha
@@ -62,9 +60,7 @@ class EMAStats:
         # Update mean first
         self._mean = (1.0 - self.alpha) * self._mean + self.alpha * value
         # Update variance using centered deviation
-        self._var = (1.0 - self.alpha) * self._var + self.alpha * (
-            value - self._mean
-        ) ** 2
+        self._var = (1.0 - self.alpha) * self._var + self.alpha * (value - self._mean) ** 2
 
     def mean(self) -> float:
         return float(self._mean)

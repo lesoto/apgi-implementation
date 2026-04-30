@@ -193,9 +193,9 @@ class BehavioralObservableExtractor:
     - B(t) → Overt decision/button press
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize behavioral observable extractor."""
-        self.history = {
+        self.history: dict[str, list[float]] = {
             "S": [],
             "theta": [],
             "B": [],
@@ -315,9 +315,7 @@ class BehavioralObservableExtractor:
 
         # Extract observables
         rt_variability = self.extract_rt_variability(np.array(self.history["theta"]))
-        response_criterion = self.extract_response_criterion(
-            np.array(self.history["theta"])
-        )
+        response_criterion = self.extract_response_criterion(np.array(self.history["theta"]))
         decision_rate = self.extract_decision_rate(np.array(self.history["B"]))
 
         self.history["rt_variability"].append(rt_variability)
@@ -431,9 +429,7 @@ class KeyTestablePredictionValidator:
             delta_no_ignition = delta[B == 0]
 
             mean_diff = np.mean(delta_ignition) - np.mean(delta_no_ignition)
-            pooled_std = np.sqrt(
-                (np.std(delta_ignition) ** 2 + np.std(delta_no_ignition) ** 2) / 2
-            )
+            pooled_std = np.sqrt((np.std(delta_ignition) ** 2 + np.std(delta_no_ignition) ** 2) / 2)
             cohens_d = mean_diff / (pooled_std + 1e-8)
         else:
             cohens_d = 0.0

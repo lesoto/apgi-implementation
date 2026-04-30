@@ -191,10 +191,12 @@ class EmpiricalDataLoader:
         start_sample = int(start_time * fs)
         end_sample = int(end_time * fs)
 
-        signals = self.data["signals"]
+        signals: np.ndarray = self.data["signals"]
         if channel_idx is not None:
-            return signals[channel_idx, start_sample:end_sample]
-        return signals[:, start_sample:end_sample]
+            result: np.ndarray = signals[channel_idx, start_sample:end_sample]
+            return result
+        result_all: np.ndarray = signals[:, start_sample:end_sample]
+        return result_all
 
 
 class NeuralValidator:
@@ -233,9 +235,7 @@ class NeuralValidator:
         from scipy import signal as scipy_signal  # type: ignore[import-untyped]
 
         if method == "welch":
-            freqs, psd = scipy_signal.welch(
-                signal, fs=self.fs, nperseg=min(256, len(signal) // 4)
-            )
+            freqs, psd = scipy_signal.welch(signal, fs=self.fs, nperseg=min(256, len(signal) // 4))
         else:
             # FFT-based periodogram
             freqs = np.fft.rfftfreq(len(signal), 1 / self.fs)
@@ -437,18 +437,18 @@ class BehavioralValidator:
     @staticmethod
     def _compute_skewness(x: np.ndarray) -> float:
         """Compute skewness."""
-        x = np.asarray(x)
-        m3 = np.mean((x - np.mean(x)) ** 3)
-        m2 = np.mean((x - np.mean(x)) ** 2)
-        return m3 / (m2**1.5 + 1e-10)
+        x_arr: np.ndarray = np.asarray(x)
+        m3: float = float(np.mean((x_arr - np.mean(x_arr)) ** 3))
+        m2: float = float(np.mean((x_arr - np.mean(x_arr)) ** 2))
+        return float(m3 / (m2**1.5 + 1e-10))
 
     @staticmethod
     def _compute_kurtosis(x: np.ndarray) -> float:
         """Compute excess kurtosis."""
-        x = np.asarray(x)
-        m4 = np.mean((x - np.mean(x)) ** 4)
-        m2 = np.mean((x - np.mean(x)) ** 2)
-        return m4 / (m2**2 + 1e-10) - 3.0
+        x_arr: np.ndarray = np.asarray(x)
+        m4: float = float(np.mean((x_arr - np.mean(x_arr)) ** 4))
+        m2: float = float(np.mean((x_arr - np.mean(x_arr)) ** 2))
+        return float(m4 / (m2**2 + 1e-10) - 3.0)
 
     def validate_against_apgi(
         self,

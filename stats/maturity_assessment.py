@@ -16,7 +16,10 @@ from typing import Optional
 
 import numpy as np
 
+from core.logging_config import get_logger
 from stats.spectral_extraction import SpectralSignature, extract_1f_signature
+
+logger = get_logger("apgi.maturity")
 
 
 @dataclass
@@ -85,9 +88,9 @@ def assess_hierarchical_architecture(
             if len(phi_levels[ell + 1]) > 0 and len(theta_levels[ell]) > 0:
                 min_len = min(len(phi_levels[ell + 1]), len(theta_levels[ell]))
                 if min_len > 1:
-                    corr = np.corrcoef(
-                        phi_levels[ell + 1][:min_len], theta_levels[ell][:min_len]
-                    )[0, 1]
+                    corr = np.corrcoef(phi_levels[ell + 1][:min_len], theta_levels[ell][:min_len])[
+                        0, 1
+                    ]
                     if not np.isnan(corr):
                         pac_correlations.append(abs(corr))
 
@@ -286,14 +289,10 @@ def assess_overall_maturity(
 
     # Assess hierarchical architecture
     pac_score, cascade_score, coherence_score, hier_issues, hier_recs = (
-        assess_hierarchical_architecture(
-            signal_levels, theta_levels, phi_levels, pi_levels, fs=fs
-        )
+        assess_hierarchical_architecture(signal_levels, theta_levels, phi_levels, pi_levels, fs=fs)
     )
 
-    hierarchical_score = float(
-        0.4 * pac_score + 0.3 * cascade_score + 0.3 * coherence_score
-    )
+    hierarchical_score = float(0.4 * pac_score + 0.3 * cascade_score + 0.3 * coherence_score)
 
     # Assess statistical validation
     spectral_score, confidence_score, consistency_score, stat_issues, stat_recs, sig = (
@@ -315,9 +314,7 @@ def assess_overall_maturity(
     if overall_score < 50:
         all_recommendations.append("System maturity is low; review all parameters")
     elif overall_score < 70:
-        all_recommendations.append(
-            "System maturity is moderate; focus on weak components"
-        )
+        all_recommendations.append("System maturity is moderate; focus on weak components")
 
     return MaturityScore(
         hierarchical_score=hierarchical_score,
@@ -335,45 +332,89 @@ def assess_overall_maturity(
     )
 
 
-def print_maturity_assessment(score: MaturityScore) -> None:
-    """Pretty-print maturity assessment results."""
+def log_maturity_assessment(score: MaturityScore) -> None:
+    """Log maturity assessment results via structured logging."""
 
-    print("\n" + "=" * 80)
-    print("APGI SYSTEM MATURITY ASSESSMENT")
-    print("=" * 80)
-
-    print(f"\nOVERALL MATURITY: {score.overall_score:.1f}/100")
-    print(f"  Hierarchical Architecture (§8): {score.hierarchical_score:.1f}/100")
-    print(f"  Statistical Validation (§12): {score.statistical_score:.1f}/100")
-
-    print("\nCOMPONENT SCORES:")
-    print(f"  Phase-Amplitude Coupling: {score.pac_score:.1f}/100")
-    print(f"  Threshold Cascade: {score.cascade_score:.1f}/100")
-    print(f"  Spectral Signature: {score.spectral_score:.1f}/100")
-    print(f"  Cross-Level Coherence: {score.coherence_score:.1f}/100")
+    logger.info(
+        "maturity_assessment",
+        overall_score=score.overall_score,
+        hierarchical_score=score.hierarchical_score,
+        statistical_score=score.statistical_score,
+        pac_score=score.pac_score,
+        cascade_score=score.cascade_score,
+        spectral_score=score.spectral_score,
+        coherence_score=score.coherence_score,
+    )
 
     if score.spectral_signature:
-        print("\nSPECTRAL ANALYSIS:")
-        print(f"  Spectral Exponent (β): {score.spectral_signature.beta:.3f}")
-        print(f"  Hurst Exponent (H): {score.spectral_signature.hurst:.3f}")
-        print(
-            f"  Pink Noise: {'✓ YES' if score.spectral_signature.is_pink_noise else '✗ NO'}"
+        logger.info(
+            "spectral_analysis",
+            spectral_beta=score.spectral_signature.beta,
+            hurst_exponent=score.spectral_signature.hurst,
+            is_pink_noise=score.spectral_signature.is_pink_noise,
+            r_squared=score.spectral_signature.r_squared,
         )
-        print(f"  Goodness of Fit (R²): {score.spectral_signature.r_squared:.3f}")
 
     if score.issues:
-        print(f"\nISSUES ({len(score.issues)}):")
         for issue in score.issues:
-            print(f"  ⚠ {issue}")
-    else:
-        print("\nISSUES: None detected ✓")
+            logger.warning("maturity_issue", issue=issue)
 
     if score.recommendations:
-        print(f"\nRECOMMENDATIONS ({len(score.recommendations)}):")
         for i, rec in enumerate(score.recommendations, 1):
-            print(f"  {i}. {rec}")
+            logger.info("maturity_recommendation", number=i, recommendation=rec)
 
-    print("\n" + "=" * 80 + "\n")
+
+def format_maturity_assessment(score: MaturityScore) -> str:
+    """Format maturity assessment as human-readable string.
+
+    Returns:
+        Formatted assessment string for display
+    """
+    lines = [
+        "",
+        "=" * 80,
+        "APGI SYSTEM MATURITY ASSESSMENT",
+        "=" * 80,
+        f"\nOVERALL MATURITY: {score.overall_score:.1f}/100",
+        f"  Hierarchical Architecture (§8): {score.hierarchical_score:.1f}/100",
+        f"  Statistical Validation (§12): {score.statistical_score:.1f}/100",
+        "\nCOMPONENT SCORES:",
+        f"  Phase-Amplitude Coupling: {score.pac_score:.1f}/100",
+        f"  Threshold Cascade: {score.cascade_score:.1f}/100",
+        f"  Spectral Signature: {score.spectral_score:.1f}/100",
+        f"  Cross-Level Coherence: {score.coherence_score:.1f}/100",
+    ]
+
+    if score.spectral_signature:
+        lines.extend(
+            [
+                "\nSPECTRAL ANALYSIS:",
+                f"  Spectral Exponent (β): {score.spectral_signature.beta:.3f}",
+                f"  Hurst Exponent (H): {score.spectral_signature.hurst:.3f}",
+                f"  Pink Noise: {'✓ YES' if score.spectral_signature.is_pink_noise else '✗ NO'}",
+                f"  Goodness of Fit (R²): {score.spectral_signature.r_squared:.3f}",
+            ]
+        )
+
+    if score.issues:
+        lines.append(f"\nISSUES ({len(score.issues)}):")
+        for issue in score.issues:
+            lines.append(f"  ⚠ {issue}")
+    else:
+        lines.append("\nISSUES: None detected ✓")
+
+    if score.recommendations:
+        lines.append(f"\nRECOMMENDATIONS ({len(score.recommendations)}):")
+        for i, rec in enumerate(score.recommendations, 1):
+            lines.append(f"  {i}. {rec}")
+
+    lines.extend(["", "=" * 80, ""])
+    return "\n".join(lines)
+
+
+def print_maturity_assessment(score: MaturityScore) -> None:
+    """Pretty-print maturity assessment results (backward compatibility)."""
+    print(format_maturity_assessment(score))
 
 
 def get_maturity_rating(score: float) -> str:

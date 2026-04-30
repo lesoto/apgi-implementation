@@ -12,12 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from core.preprocessing import (
-    RunningStats,
-    compute_prediction_error,
-    normalize_error,
-    z_score,
-)
+from core.preprocessing import RunningStats, compute_prediction_error, normalize_error, z_score
 
 
 class TestRunningStats:
@@ -80,9 +75,7 @@ class TestRunningStats:
 
         # Sample variance with Bessel correction
         expected = np.var(values, ddof=1)
-        assert (
-            pytest.approx(stats.variance(bessel_correction=True), rel=1e-7) == expected
-        )
+        assert pytest.approx(stats.variance(bessel_correction=True), rel=1e-7) == expected
 
     def test_variance_mle(self):
         """Should compute variance without Bessel correction."""
@@ -93,9 +86,7 @@ class TestRunningStats:
 
         # Population variance (MLE)
         expected = np.var(values, ddof=0)
-        assert (
-            pytest.approx(stats.variance(bessel_correction=False), rel=1e-7) == expected
-        )
+        assert pytest.approx(stats.variance(bessel_correction=False), rel=1e-7) == expected
 
     def test_variance_empty_window(self):
         """Should return 1.0 for empty window."""

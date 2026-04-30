@@ -1,20 +1,14 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
 
 from core.allostatic import allostatic_threshold_ode
-from core.dynamics import (
-    compute_precision_coupled_noise_std,
-    update_prediction,
-    update_signal_ode,
-)
-from core.ignition import (
-    compute_ignition_probability,
-    detect_ignition_event,
-    sample_ignition_state,
-)
+from core.dynamics import compute_precision_coupled_noise_std, update_prediction, update_signal_ode
+from core.ignition import compute_ignition_probability, detect_ignition_event, sample_ignition_state
+from core.logging_config import get_logger
 from core.precision import (
     apply_ach_gain,
     apply_dopamine_bias_to_error,
@@ -25,11 +19,7 @@ from core.precision import (
     update_variance_ema,
 )
 from core.preprocessing import RunningStats, compute_prediction_error
-from core.signal import (
-    instantaneous_signal,
-    integrate_signal_leaky,
-    stabilize_signal_log,
-)
+from core.signal import instantaneous_signal, integrate_signal_leaky, stabilize_signal_log
 from core.thermodynamics import compute_landauer_cost
 from core.threshold import (
     apply_ne_threshold_modulation,
@@ -51,6 +41,8 @@ from hierarchy.multiscale import (
 from stats.hurst import estimate_hurst_robust
 from stats.spectral_model import validate_pink_noise
 
+logger = get_logger("apgi.pipeline")
+
 
 @dataclass
 class PrecisionState:
@@ -71,7 +63,7 @@ class HierarchicalState:
     thetas: list[float] = None  # type: ignore[assignment]
     phases: list[float] = None  # type: ignore[assignment]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.pis is None:
             self.pis = [1.0] * self.n_levels
         if self.thetas is None:
@@ -179,12 +171,8 @@ class APGIPipeline:
         """
         if not self.use_hierarchical:
             # Single-scale case
-            z_e = (epsilon_e - self.state.mu_e) / (
-                self.state.sigma2_e**0.5 + self.config["eps"]
-            )
-            z_i = (epsilon_i - self.state.mu_i) / (
-                self.state.sigma2_i**0.5 + self.config["eps"]
-            )
+            z_e = (epsilon_e - self.state.mu_e) / (self.state.sigma2_e**0.5 + self.config["eps"])
+            z_i = (epsilon_i - self.state.mu_i) / (self.state.sigma2_i**0.5 + self.config["eps"])
             return np.array([z_e]), np.array([z_i])
 
         # Multi-scale: fully vectorized EMA updates
@@ -226,43 +214,46 @@ class APGIPipeline:
             self.config["ignite_tau"] = self.config["tau_sigma"]
 
         # Validate configuration against spec constraints (§15)
-        try:
+        # Default is non-strict mode: warn on validation issues but allow continuation
+        strict_mode = self.config.get("strict_mode", False)
+        if strict_mode:
             validate_config(self.config)
-        except ValidationError as e:
-            import warnings
-
-            warnings.warn(
-                f"Configuration validation failed: {e}. "
-                "Some constraints may be violated. Spec §15.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
+            logger.debug("config_validation_passed")
+        else:
+            # Non-strict mode: emit warnings but continue with auto-adjustments
+            try:
+                validate_config(self.config)
+            except ValidationError as e:
+                warnings.warn(
+                    f"Config validation failed: {e}. Continuing with fallback values.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
 
         # Validate NE configuration to prevent double-counting
-        if self.config.get("ne_on_precision", False) and self.config.get(
-            "ne_on_threshold", False
-        ):
+        # This is always fatal - even in non-strict mode
+        if self.config.get("ne_on_precision", False) and self.config.get("ne_on_threshold", False):
             raise ValidationError(
                 "Both ne_on_precision and ne_on_threshold are True. "
                 "This double-counts norepinephrine effects. "
                 "Enable only one. See spec Section 2.3-2.4."
             )
-        # Auto-adjust NE parameters for threshold mode to prevent runaway
-        if (
-            self.config.get("ne_on_threshold", False)
-            and self.config.get("gamma_ne", 0.1) >= 0.1
-        ):
-            import warnings
 
-            warnings.warn(
-                "ne_on_threshold=True with gamma_ne>=0.1 causes threshold instability. "
-                "Auto-adjusting: gamma_ne 0.1 → 0.01, kappa 0.02 → 0.15. "
-                "To suppress this warning, set gamma_ne<=0.01 or kappa>=0.15.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            self.config["gamma_ne"] = 0.01
-            self.config["kappa"] = 0.15
+        # Check for threshold instability and auto-adjust in non-strict mode
+        if not strict_mode:
+            gamma_ne = self.config.get("gamma_ne", 0.1)
+            kappa = self.config.get("kappa", 0.15)
+            if self.config.get("ne_on_threshold", False) and gamma_ne >= 0.1 and kappa <= 0.15:
+                warnings.warn(
+                    f"ne_on_threshold=True with gamma_ne={gamma_ne} and kappa={kappa} "
+                    "causes threshold instability. Auto-adjusting to safe values. "
+                    "Use gamma_ne <= 0.01 or kappa >= 0.15. Spec §4.4.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                # Auto-adjust to safe values
+                self.config["gamma_ne"] = 0.01
+                self.config["kappa"] = 0.15
 
         self.S = float(self.config["S0"])
         self.theta = float(self.config["theta_0"])
@@ -310,15 +301,13 @@ class APGIPipeline:
 
             # Initialize oscillatory phases for threshold modulation (basic mode)
             self.phase_levels = np.zeros(n_levels)
-            self.omega_levels = (
-                2 * np.pi / self.taus
-            )  # Natural frequencies from timescales
+            self.omega_levels = 2 * np.pi / self.taus  # Natural frequencies from timescales
 
             # Initialize HierarchicalPrecisionNetwork for proper per-level error computation
             # Enable for advanced mode, and also for basic mode
-            if self.config.get(
-                "use_hierarchical_precision_ode", False
-            ) or self.config.get("use_hierarchical", False):
+            if self.config.get("use_hierarchical_precision_ode", False) or self.config.get(
+                "use_hierarchical", False
+            ):
                 self.hierarchical_network = HierarchicalPrecisionNetwork(
                     n_levels=n_levels,
                     tau_pi=self.config.get("tau_pi", 1000.0),
@@ -406,7 +395,7 @@ class APGIPipeline:
         x_i: float,
         x_hat_e: float | None = None,
         x_hat_i: float | None = None,
-    ):
+    ) -> dict:
         # Use provided predictions or internalized ones per §1.4
         _x_hat_e = x_hat_e if x_hat_e is not None else self.x_hat_e
         _x_hat_i = x_hat_i if x_hat_i is not None else self.x_hat_i
@@ -430,12 +419,8 @@ class APGIPipeline:
             self.state.sigma2_i = self.stats_i.variance(bessel_correction=True)
         else:
             # Use EMA (default)
-            self.state.mu_e = update_mean_ema(
-                self.state.mu_e, z_e, self.config["alpha_e"]
-            )
-            self.state.mu_i = update_mean_ema(
-                self.state.mu_i, z_i, self.config["alpha_i"]
-            )
+            self.state.mu_e = update_mean_ema(self.state.mu_e, z_e, self.config["alpha_e"])
+            self.state.mu_i = update_mean_ema(self.state.mu_i, z_i, self.config["alpha_i"])
             self.state.sigma2_e = update_variance_ema(
                 self.state.sigma2_e, z_e, self.state.mu_e, self.config["alpha_e"]
             )
@@ -573,9 +558,7 @@ class APGIPipeline:
                 adaptive_noise_std,
             )
 
-        self.S = stabilize_signal_log(
-            self.S, enabled=self.config["signal_log_nonlinearity"]
-        )
+        self.S = stabilize_signal_log(self.S, enabled=self.config["signal_log_nonlinearity"])
 
         # 7) Cost/value and threshold update (canonical spec semantics)
         # Mode A: Standard allostatic threshold (default)
@@ -588,13 +571,9 @@ class APGIPipeline:
             if self.config.get("use_bold_calibration", False):
                 bold_calibration = {
                     "bold_signal_change": 2.0,  # Default 2% BOLD change
-                    "conversion_factor": self.config.get(
-                        "bold_conversion_factor", 1.2e-6
-                    ),
+                    "conversion_factor": self.config.get("bold_conversion_factor", 1.2e-6),
                     "tissue_volume": self.config.get("bold_tissue_volume", 1.0),
-                    "ignition_spike_factor": self.config.get(
-                        "bold_ignition_spike_factor", 1.075
-                    ),
+                    "ignition_spike_factor": self.config.get("bold_ignition_spike_factor", 1.075),
                 }
 
             C_t = compute_metabolic_cost_realistic(
@@ -605,9 +584,7 @@ class APGIPipeline:
                 enforce_landauer=self.config.get("use_thermodynamic_cost", False),
                 kappa_meta=self.config.get("kappa_meta", 1.0),
                 kappa_units=self.config.get("kappa_units", "dimensionless"),
-                bold_calibration=(
-                    bold_calibration if bold_calibration is not None else {}
-                ),
+                bold_calibration=(bold_calibration if bold_calibration is not None else {}),
             )
         else:
             C_t = compute_metabolic_cost(self.S, self.config["c0"], self.config["c1"])
@@ -630,9 +607,7 @@ class APGIPipeline:
             self.history["C_landauer"].append(C_landauer)
             self.history["bits_erased"].append(bits_erased)
 
-        V_t = compute_information_value(
-            z_e_n, z_i_eff, self.config["v1"], self.config["v2"]
-        )
+        V_t = compute_information_value(z_e_n, z_i_eff, self.config["v1"], self.config["v2"])
 
         # 7b/8) Threshold and Ignition: Standard or Reservoir-as-Threshold mode
         # Spec §10: Reservoir can serve as alternative execution path
@@ -660,9 +635,7 @@ class APGIPipeline:
                 1.0 + self.config.get("reservoir_theta_scale", 0.1) * S_reservoir
             )
             # Skip allostatic update - reservoir provides dynamics
-            p_ignite = compute_ignition_probability(
-                self.S, theta_next, self.config["ignite_tau"]
-            )
+            p_ignite = compute_ignition_probability(self.S, theta_next, self.config["ignite_tau"])
             if self.config["stochastic_ignition"]:
                 B_t = sample_ignition_state(p_ignite)
             else:
@@ -724,9 +697,7 @@ class APGIPipeline:
                 S_levels = np.zeros(self.n_levels)
                 S_levels[0] = self.S
                 if self.n_levels > 1:
-                    S_levels[1:] = np.abs(self.phi_e_levels[1:]) + np.abs(
-                        self.phi_i_levels[1:]
-                    )
+                    S_levels[1:] = np.abs(self.phi_e_levels[1:]) + np.abs(self.phi_i_levels[1:])
 
                 # Use hierarchical precision if available, otherwise compute from per-level variance
                 if self.hierarchical_network is not None:
@@ -746,9 +717,7 @@ class APGIPipeline:
 
                 # Compute full hierarchical threshold set using modular component
                 from hierarchy.coupling import bottom_up_threshold_cascade
-                from oscillation.threshold_modulation import (
-                    hierarchical_threshold_modulation,
-                )
+                from oscillation.threshold_modulation import hierarchical_threshold_modulation
 
                 thetas_mod = hierarchical_threshold_modulation(
                     thetas=theta_0_levels,
@@ -775,9 +744,7 @@ class APGIPipeline:
             theta_next = float(np.clip(theta_next, 0.1, 20.0))
 
             # 8) Ignition (§5)
-            p_ignite = compute_ignition_probability(
-                self.S, theta_next, self.config["ignite_tau"]
-            )
+            p_ignite = compute_ignition_probability(self.S, theta_next, self.config["ignite_tau"])
             if self.config["stochastic_ignition"]:
                 B_t = sample_ignition_state(p_ignite)
             else:
@@ -803,9 +770,7 @@ class APGIPipeline:
         #   9a) Refractory boost: θ ← θ + δ·B(t)  [using CURRENT B_t]
         #   9b) Decay to baseline: θ ← θ_base + (θ - θ_base)·e^{-κ}
         theta_next = apply_refractory_boost(theta_next, B_t, self.config["delta"])
-        theta_next = threshold_decay(
-            theta_next, self.config["theta_base"], self.config["kappa"]
-        )
+        theta_next = threshold_decay(theta_next, self.config["theta_base"], self.config["kappa"])
 
         # 10) Internal Prediction Update per §1.4 Generative Model Dynamics
         # Support both flag names for backward compatibility
@@ -902,9 +867,7 @@ class APGIPipeline:
                 # Broadcast phase reset across the full hierarchy when enabled.
                 # kuramoto_broadcast_ignition=True triggers ignition-induced phase
                 # resets at all levels with hierarchical distance decay (§9.2).
-                broadcast_ignition = self.config.get(
-                    "kuramoto_broadcast_ignition", False
-                )
+                broadcast_ignition = self.config.get("kuramoto_broadcast_ignition", False)
                 if broadcast_ignition:
                     # Full-hierarchy broadcast: reset every level with decay
                     for _lvl in range(self.kuramoto.n_levels):
@@ -919,27 +882,19 @@ class APGIPipeline:
         # Add observable mapping if enabled (§14)
         # Use pre-reset values for correct margin computation
         if self.neural_observables is not None:
-            neural_obs = self.neural_observables.step(
-                S_at_ignition, theta_at_ignition, B_t
-            )
+            neural_obs = self.neural_observables.step(S_at_ignition, theta_at_ignition, B_t)
             result["neural_gamma_power"] = neural_obs["gamma_power"]
             result["neural_erp_amplitude"] = neural_obs["erp_amplitude"]
             result["neural_ignition_rate"] = neural_obs["ignition_rate"]
 
         if self.behavioral_observables is not None:
-            behavioral_obs = self.behavioral_observables.step(
-                S_at_ignition, theta_at_ignition, B_t
-            )
+            behavioral_obs = self.behavioral_observables.step(S_at_ignition, theta_at_ignition, B_t)
             result["behavioral_rt_variability"] = behavioral_obs["rt_variability"]
-            result["behavioral_response_criterion"] = behavioral_obs[
-                "response_criterion"
-            ]
+            result["behavioral_response_criterion"] = behavioral_obs["response_criterion"]
             result["behavioral_decision_rate"] = behavioral_obs["decision_rate"]
 
         if self.prediction_validator is not None:
-            pred_result = self.prediction_validator.step(
-                S_at_ignition, theta_at_ignition, B_t
-            )
+            pred_result = self.prediction_validator.step(S_at_ignition, theta_at_ignition, B_t)
             result["prediction_margin"] = pred_result["delta"]
             result["prediction_p_ign"] = pred_result["p_ign"]
 

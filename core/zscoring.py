@@ -95,7 +95,7 @@ class ZScoreWindow:
 
         return {"mean": float(mean), "std": float(std), "n": self._count}
 
-    def reset(self):
+    def reset(self) -> None:
         """Clear the window."""
 
         self.buffer.clear()
@@ -162,7 +162,7 @@ class DualZScoreProcessor:
             "interoceptive": self.window_i.get_stats(),
         }
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset both windows."""
 
         self.window_e.reset()

@@ -22,7 +22,7 @@ from config import CONFIG  # noqa: E402
 from pipeline import APGIPipeline  # noqa: E402
 
 
-def main():
+def main() -> None:
     """Run advanced APGI example."""
 
     print("=" * 60)
@@ -52,7 +52,7 @@ def main():
     # Run simulation
     print("\n3. Running simulation with advanced features...")
     n_steps = 200
-    history = {
+    history: dict[str, list[float] | list[np.ndarray]] = {
         "S": [],
         "theta": [],
         "B": [],
@@ -141,9 +141,10 @@ def main():
     print(f"   Timescale ratio (k): {config['timescale_k']}")
 
     # Calculate timescales
-    tau_0 = config["tau_s"]
-    k = config["timescale_k"]
-    for level in range(config["n_levels"]):
+    tau_0 = float(config["tau_s"])  # type: ignore[arg-type]
+    k = float(config["timescale_k"])  # type: ignore[arg-type]
+    n_levels: int = config["n_levels"]  # type: ignore[assignment]
+    for level in range(n_levels):
         tau_l = tau_0 * (k**level)
         print(f"   Level {level}: τ = {tau_l:.2f} ms")
 

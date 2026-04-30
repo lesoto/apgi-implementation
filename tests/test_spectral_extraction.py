@@ -9,6 +9,8 @@ Tests cover:
 - Cross-level coherence
 """
 
+from typing import Any
+
 import numpy as np
 import pytest
 
@@ -29,7 +31,7 @@ from stats.spectral_extraction import (
 class TestRobustRegression:
     """Test robust log-log regression with outlier detection."""
 
-    def test_robust_regression_clean_data(self):
+    def test_robust_regression_clean_data(self) -> None:
         """Test regression on clean data without outliers."""
         # Generate clean 1/f data
         x = np.linspace(0, 5, 100)
@@ -40,7 +42,7 @@ class TestRobustRegression:
         assert abs(slope - (-1.0)) < 0.01
         assert r2 > 0.99
 
-    def test_robust_regression_with_outliers(self):
+    def test_robust_regression_with_outliers(self) -> None:
         """Test regression with outliers."""
         # Generate data with outliers
         x = np.linspace(0, 5, 100)
@@ -56,7 +58,7 @@ class TestRobustRegression:
         assert abs(slope - (-1.0)) < 0.2
         assert r2 > 0.3  # Relaxed threshold for robust regression with outliers
 
-    def test_robust_regression_different_slopes(self):
+    def test_robust_regression_different_slopes(self) -> None:
         """Test regression with different spectral exponents."""
         for beta_true in [0.5, 1.0, 1.5]:
             x = np.linspace(0, 5, 100)
@@ -70,7 +72,7 @@ class TestRobustRegression:
 class TestSpectralExponentEstimation:
     """Test spectral exponent estimation methods."""
 
-    def test_welch_pink_noise(self):
+    def test_welch_pink_noise(self) -> None:
         """Test Welch method on pink noise."""
         # Generate pink noise (1/f)
         n = 10000
@@ -86,7 +88,7 @@ class TestSpectralExponentEstimation:
         assert 0.5 < beta < 1.5  # Pink noise range
         assert r2 > 0.5
 
-    def test_periodogram_pink_noise(self):
+    def test_periodogram_pink_noise(self) -> None:
         """Test periodogram method on pink noise."""
         n = 10000
         freqs = np.fft.rfftfreq(n)
@@ -101,7 +103,7 @@ class TestSpectralExponentEstimation:
         assert 0.5 < beta < 1.5
         assert r2 > 0.5
 
-    def test_dfa_hurst_exponent(self):
+    def test_dfa_hurst_exponent(self) -> None:
         """Test DFA Hurst exponent estimation."""
         # Generate fractional Brownian motion
         n = 5000
@@ -120,12 +122,12 @@ class TestSpectralExponentEstimation:
 class TestBootstrapConfidenceIntervals:
     """Test bootstrap confidence interval computation."""
 
-    def test_bootstrap_ci_coverage(self):
+    def test_bootstrap_ci_coverage(self) -> None:
         """Test that bootstrap CI has reasonable coverage."""
         signal = np.random.randn(1000)
 
-        def mean_estimator(sig):
-            return np.mean(sig)
+        def mean_estimator(sig: np.ndarray) -> float:
+            return float(np.mean(sig))
 
         ci_lower, ci_upper = bootstrap_confidence_interval(
             signal, mean_estimator, n_bootstrap=100, ci=0.95
@@ -134,11 +136,11 @@ class TestBootstrapConfidenceIntervals:
         assert ci_lower < np.mean(signal) < ci_upper
         assert ci_upper - ci_lower > 0
 
-    def test_bootstrap_ci_width(self):
+    def test_bootstrap_ci_width(self) -> None:
         """Test that CI width decreases with sample size."""
 
-        def mean_estimator(sig):
-            return np.mean(sig)
+        def mean_estimator(sig: np.ndarray) -> float:
+            return float(np.mean(sig))
 
         # Small sample
         signal_small = np.random.randn(100)
@@ -161,7 +163,7 @@ class TestBootstrapConfidenceIntervals:
 class TestAICBIC:
     """Test AIC and BIC computation."""
 
-    def test_aic_bic_values(self):
+    def test_aic_bic_values(self) -> None:
         """Test that AIC and BIC are computed correctly."""
         n_samples = 100
         n_params = 2
@@ -174,7 +176,7 @@ class TestAICBIC:
         assert not np.isnan(bic)
         assert bic > aic  # BIC penalizes complexity more
 
-    def test_aic_bic_comparison(self):
+    def test_aic_bic_comparison(self) -> None:
         """Test AIC/BIC for model comparison."""
         n_samples = 100
 
@@ -191,7 +193,7 @@ class TestAICBIC:
 class TestSpectralSignatureExtraction:
     """Test full spectral signature extraction."""
 
-    def test_extract_1f_signature_pink_noise(self):
+    def test_extract_1f_signature_pink_noise(self) -> None:
         """Test extraction on pink noise."""
         # Generate pink noise
         n = 10000
@@ -209,7 +211,7 @@ class TestSpectralSignatureExtraction:
         assert 0 <= sig.confidence <= 1
         assert sig.r_squared > 0.5
 
-    def test_extract_1f_signature_white_noise(self):
+    def test_extract_1f_signature_white_noise(self) -> None:
         """Test extraction on white noise (should not be pink)."""
         signal = np.random.randn(10000)
 
@@ -219,7 +221,7 @@ class TestSpectralSignatureExtraction:
         # White noise has β ≈ 0
         assert sig.beta < 0.5 or not sig.is_pink_noise
 
-    def test_extract_1f_signature_brown_noise(self):
+    def test_extract_1f_signature_brown_noise(self) -> None:
         """Test extraction on brown noise (β ≈ 2)."""
         # Brown noise is integrated white noise
         white = np.random.randn(10000)
@@ -231,7 +233,7 @@ class TestSpectralSignatureExtraction:
         # Brown noise has β ≈ 2
         assert sig.beta > 1.5 or not sig.is_pink_noise
 
-    def test_extract_1f_signature_confidence_intervals(self):
+    def test_extract_1f_signature_confidence_intervals(self) -> None:
         """Test that confidence intervals are reasonable."""
         signal = np.random.randn(5000)
 
@@ -248,7 +250,7 @@ class TestSpectralSignatureExtraction:
             # Fallback CI should still provide some bounds
             assert not np.isnan(sig.beta)  # pragma: no cover
 
-    def test_extract_1f_signature_ci_fallback_else_branch(self):
+    def test_extract_1f_signature_ci_fallback_else_branch(self) -> None:
         """Test else branch when CI is computed successfully."""
         # Use a large signal to ensure CI is computed
         signal = np.random.randn(10000)
@@ -263,7 +265,7 @@ class TestSpectralSignatureExtraction:
             # Else branch - should not happen for large signals
             assert not np.isnan(sig.beta)  # pragma: no cover
 
-    def test_extract_1f_signature_ci_small_signal(self):
+    def test_extract_1f_signature_ci_small_signal(self) -> None:
         """Test CI with small signal to trigger else branch."""
         # Use a small signal to potentially trigger else branch
         signal = np.random.randn(50)
@@ -278,7 +280,7 @@ class TestSpectralSignatureExtraction:
             # If CI is computed, check it's valid
             assert sig.beta_ci_lower < sig.beta_ci_upper
 
-    def test_extract_1f_signature_ci_computed(self):
+    def test_extract_1f_signature_ci_computed(self) -> None:
         """Test CI when it is successfully computed."""
         # Use a large signal to ensure CI is computed
         signal = np.random.randn(10000)
@@ -291,7 +293,7 @@ class TestSpectralSignatureExtraction:
         assert sig.beta_ci_lower < sig.beta_ci_upper
         assert not np.isnan(sig.beta)
 
-    def test_extract_1f_signature_ci_fallback_triggered(self):
+    def test_extract_1f_signature_ci_fallback_triggered(self) -> None:
         """Test CI fallback when bootstrap fails and returns NaN."""
         # Create signal that will cause bootstrap to fail
         signal = np.random.randn(10)
@@ -307,7 +309,7 @@ class TestSpectralSignatureExtraction:
             # If CI is computed, check it's valid
             assert sig.beta_ci_lower < sig.beta_ci_upper
 
-    def test_extract_1f_signature_ci_fallback(self):
+    def test_extract_1f_signature_ci_fallback(self) -> None:
         """Test CI fallback when bootstrap fails due to small sample size."""
         # Create small signal that may cause bootstrap to fail
         signal = np.random.randn(50)
@@ -317,7 +319,7 @@ class TestSpectralSignatureExtraction:
         assert isinstance(sig, SpectralSignature)
         assert not np.isnan(sig.beta)
 
-    def test_extract_1f_signature_methods(self):
+    def test_extract_1f_signature_methods(self) -> None:
         """Test extraction with different methods."""
         signal = np.random.randn(5000)
 
@@ -331,7 +333,7 @@ class TestSpectralSignatureExtraction:
 class TestHierarchicalSpectralValidation:
     """Test hierarchical spectral validation."""
 
-    def test_hierarchical_validation_multiple_levels(self):
+    def test_hierarchical_validation_multiple_levels(self) -> None:
         """Test validation across multiple hierarchy levels."""
         # Generate signals for 3 levels
         signals = [
@@ -348,7 +350,7 @@ class TestHierarchicalSpectralValidation:
         assert len(result["signatures"]) == 3
         assert result["coherence_matrix"].shape == (3, 3)
 
-    def test_hierarchical_coherence_matrix(self):
+    def test_hierarchical_coherence_matrix(self) -> None:
         """Test that coherence matrix is symmetric."""
         signals = [
             np.random.randn(5000),
@@ -367,7 +369,7 @@ class TestHierarchicalSpectralValidation:
 class TestSpectralSignaturePrinting:
     """Test pretty-printing of spectral signatures."""
 
-    def test_print_spectral_signature(self, capsys):
+    def test_print_spectral_signature(self, capsys: Any) -> None:
         """Test that printing doesn't crash."""
         sig = SpectralSignature(
             beta=1.0,
@@ -395,7 +397,7 @@ class TestSpectralSignaturePrinting:
 class TestEdgeCases:
     """Test edge cases and error handling."""
 
-    def test_extract_1f_signature_short_signal(self):
+    def test_extract_1f_signature_short_signal(self) -> None:
         """Test extraction on very short signal."""
         signal = np.random.randn(100)
 
@@ -403,7 +405,7 @@ class TestEdgeCases:
         sig = extract_1f_signature(signal, fs=1.0, n_bootstrap=10)
         assert isinstance(sig, SpectralSignature)
 
-    def test_extract_1f_signature_short_signal_edge_case(self):
+    def test_extract_1f_signature_short_signal_edge_case(self) -> None:
         """Test extraction on extremely short signal."""
         signal = np.random.randn(10)
 
@@ -411,7 +413,7 @@ class TestEdgeCases:
         sig = extract_1f_signature(signal, fs=1.0, n_bootstrap=5)
         assert isinstance(sig, SpectralSignature)
 
-    def test_extract_1f_signature_constant_signal(self):
+    def test_extract_1f_signature_constant_signal(self) -> None:
         """Test extraction on constant signal."""
         signal = np.ones(1000)
 
@@ -419,13 +421,13 @@ class TestEdgeCases:
         with pytest.raises(ValueError):
             extract_1f_signature(signal, fs=1.0, n_bootstrap=10)
 
-    def test_extract_1f_signature_constant_signal_value_error(self):
+    def test_extract_1f_signature_constant_signal_value_error(self) -> None:
         """Test constant signal raises ValueError when all methods fail."""
         signal = np.ones(1000)
         with pytest.raises(ValueError):
             extract_1f_signature(signal, fs=1.0, n_bootstrap=10)
 
-    def test_extract_1f_signature_nan_handling(self):
+    def test_extract_1f_signature_nan_handling(self) -> None:
         """Test extraction with NaN values."""
         signal = np.random.randn(1000)
         signal[100:110] = np.nan
@@ -434,7 +436,7 @@ class TestEdgeCases:
         with pytest.raises(ValueError):
             extract_1f_signature(signal, fs=1.0, n_bootstrap=10)
 
-    def test_extract_1f_signature_single_method_welch(self):
+    def test_extract_1f_signature_single_method_welch(self) -> None:
         """Test extraction with single Welch method."""
         signal = np.random.randn(1000)
         sig = extract_1f_signature(signal, fs=1.0, methods=["welch"], n_bootstrap=5)

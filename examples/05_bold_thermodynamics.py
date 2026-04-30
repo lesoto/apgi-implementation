@@ -23,7 +23,7 @@ from energy.bold_calibration import validate_energy_against_landauer
 from pipeline import APGIPipeline  # noqa: E402
 
 
-def main():
+def main() -> None:
     """Run BOLD-calibrated thermodynamic analysis example."""
 
     print("=" * 60)
@@ -86,9 +86,7 @@ def main():
             S, eps, kappa_meta=summary["kappa_mean"], kappa_units="joules_per_bit"
         )
 
-        print(
-            f"{S:6.1f} | {bits:4.1f} | {cost_uncalibrated:10.2e} J | {cost_calibrated:10.2e} J"
-        )
+        print(f"{S:6.1f} | {bits:4.1f} | {cost_uncalibrated:10.2e} J | {cost_calibrated:10.2e} J")
 
     # Part 3: Validate energy against Landauer's principle
     print("\n3. Energy Validation Against Landauer's Principle")
@@ -137,7 +135,7 @@ def main():
     n_steps = 100
     print(f"\nRunning {n_steps} steps with BOLD-calibrated thermodynamics...")
 
-    thermodynamic_data = {
+    thermodynamic_data: dict[str, list[float]] = {
         "S": [],
         "landauer_cost": [],
         "info_bits": [],
@@ -187,9 +185,7 @@ def main():
         scale_factor = 1e20  # Same scaling used in threshold.py
         total_energy_j = total_energy / scale_factor
 
-        overall_validation = validate_energy_against_landauer(
-            total_energy_j, total_bits
-        )
+        overall_validation = validate_energy_against_landauer(total_energy_j, total_bits)
 
         print("\nOverall Validation:")
         print(f"  Total energy: {total_energy_j:.2e} J")

@@ -20,6 +20,7 @@ import numpy as np
 from config import CONFIG
 from pipeline import APGIPipeline
 from stats.maturity_assessment import (
+    MaturityScore,
     assess_overall_maturity,
     get_maturity_rating,
     print_maturity_assessment,
@@ -40,9 +41,7 @@ def run_hierarchical_simulation_for_assessment(
         Tuple of (pipeline, signal_levels, theta_levels, phi_levels, pi_levels, S_history)
     """
 
-    print(
-        f"Running hierarchical simulation with {n_levels} levels for {n_steps} steps..."
-    )
+    print(f"Running hierarchical simulation with {n_levels} levels for {n_steps} steps...")
 
     # Configure for hierarchical mode with tuned cascade parameters
     config = dict(CONFIG)
@@ -108,32 +107,17 @@ def run_hierarchical_simulation_for_assessment(
             for ell in range(n_levels):
                 if ell == 0:
                     # Level 0 uses the main signal S
-                    s_val = (
-                        pipeline.history["S"][t]
-                        if t < len(pipeline.history["S"])
-                        else 0
-                    )
+                    s_val = pipeline.history["S"][t] if t < len(pipeline.history["S"]) else 0
                 else:
                     # Higher levels use accumulated phi values
-                    if hasattr(pipeline, "phi_e_levels") and hasattr(
-                        pipeline, "phi_i_levels"
-                    ):
-                        s_val = abs(pipeline.phi_e_levels[ell]) + abs(
-                            pipeline.phi_i_levels[ell]
-                        )
+                    if hasattr(pipeline, "phi_e_levels") and hasattr(pipeline, "phi_i_levels"):
+                        s_val = abs(pipeline.phi_e_levels[ell]) + abs(pipeline.phi_i_levels[ell])
                     else:
-                        s_val = (
-                            pipeline.history["S"][t]
-                            if t < len(pipeline.history["S"])
-                            else 0
-                        )
+                        s_val = pipeline.history["S"][t] if t < len(pipeline.history["S"]) else 0
                 signal_levels[ell].append(s_val)
 
                 # Capture per-level thresholds if hierarchical is enabled
-                if (
-                    hasattr(pipeline, "hierarchical")
-                    and pipeline.hierarchical is not None
-                ):
+                if hasattr(pipeline, "hierarchical") and pipeline.hierarchical is not None:
                     if hasattr(pipeline.hierarchical, "thetas") and ell < len(
                         pipeline.hierarchical.thetas
                     ):
@@ -146,9 +130,7 @@ def run_hierarchical_simulation_for_assessment(
                         )
                 else:
                     theta_levels[ell].append(
-                        pipeline.history["theta"][t]
-                        if t < len(pipeline.history["theta"])
-                        else 1.0
+                        pipeline.history["theta"][t] if t < len(pipeline.history["theta"]) else 1.0
                     )
 
                 # Capture precision and phase from hierarchical network
@@ -177,7 +159,7 @@ def run_hierarchical_simulation_for_assessment(
     )
 
 
-def assess_system_maturity():
+def assess_system_maturity() -> MaturityScore:
     """Run complete maturity assessment."""
 
     print("\n" + "=" * 80)
@@ -185,12 +167,14 @@ def assess_system_maturity():
     print("=" * 80)
 
     # Run simulation
-    pipeline, signal_levels, theta_levels, phi_levels, pi_levels, S_history = (
+    pipeline, signal_levels_raw, theta_levels_raw, phi_levels, pi_levels, S_history_raw = (
         run_hierarchical_simulation_for_assessment(n_steps=5000, n_levels=4)
     )
 
     # Convert to numpy arrays
-    S_history = np.array(S_history)
+    S_history = np.array(S_history_raw)
+    signal_levels = [np.array(s) for s in signal_levels_raw]
+    theta_levels = [np.array(t) for t in theta_levels_raw]
     signal_levels_np = [np.array(s) for s in signal_levels]
     theta_levels_np = [np.array(t) for t in theta_levels]
 
@@ -213,12 +197,8 @@ def assess_system_maturity():
                 )[0, 1]
                 print(f"Level {ell - 1} signal vs Level {ell} theta: corr = {corr:.4f}")
                 # Check superthreshold events
-                superthresh = np.sum(
-                    signal_levels_np[ell - 1] > theta_levels_np[ell - 1]
-                )
-                print(
-                    f"  Level {ell - 1} superthreshold events: {superthresh}/{min_len}"
-                )
+                superthresh = np.sum(signal_levels_np[ell - 1] > theta_levels_np[ell - 1])
+                print(f"  Level {ell - 1} superthreshold events: {superthresh}/{min_len}")
     print("=====================\n")
 
     print("\nAssessing system maturity...")
@@ -254,9 +234,7 @@ def assess_system_maturity():
     if maturity_score.spectral_signature:
         print(f"   - Spectral Exponent: {maturity_score.spectral_signature.beta:.3f}")
         print(f"   - Hurst Exponent: {maturity_score.spectral_signature.hurst:.3f}")
-        print(
-            f"   - Pink Noise: {'✓' if maturity_score.spectral_signature.is_pink_noise else '✗'}"
-        )
+        print(f"   - Pink Noise: {'✓' if maturity_score.spectral_signature.is_pink_noise else '✗'}")
 
     # Path to 100/100
     print("\n" + "=" * 80)
@@ -308,7 +286,7 @@ def assess_system_maturity():
     return maturity_score
 
 
-def compare_configurations():
+def compare_configurations() -> None:
     """Compare maturity scores for different configurations."""
 
     print("\n" + "=" * 80)
@@ -340,15 +318,15 @@ def compare_configurations():
 
         # Quick simulation
         rng = np.random.default_rng(42)
-        S_history = []
+        S_history_list: list[float] = []
 
         for t in range(2000):
             epsilon_e = rng.standard_normal() * 0.1
             epsilon_i = rng.standard_normal() * 0.1
             output = pipeline.step(epsilon_e, epsilon_i)
-            S_history.append(output["S"])
+            S_history_list.append(float(output["S"]))
 
-        S_history = np.array(S_history)
+        S_history = np.array(S_history_list)
 
         # For hierarchical modes, collect hierarchical data
         hierarchical_mode = config.get("hierarchical_mode", "off")

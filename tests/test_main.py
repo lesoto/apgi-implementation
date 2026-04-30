@@ -20,14 +20,14 @@ from main import (
 class TestGenerateSyntheticInput:
     """Test synthetic input generation."""
 
-    def test_generate_synthetic_input_returns_tuple(self):
+    def test_generate_synthetic_input_returns_tuple(self) -> None:
         """Test that synthetic input returns 4-tuple of floats."""
         result = generate_synthetic_input(t=0)
         assert isinstance(result, tuple)
         assert len(result) == 4
         assert all(isinstance(x, float) for x in result)
 
-    def test_generate_synthetic_input_default_noise(self):
+    def test_generate_synthetic_input_default_noise(self) -> None:
         """Test synthetic input with default noise."""
         np.random.seed(42)
         x_e, x_hat_e, x_i, x_hat_i = generate_synthetic_input(t=0, noise_std=0.1)
@@ -36,7 +36,7 @@ class TestGenerateSyntheticInput:
         assert abs(x_i - (0.5 + 0.3 * np.cos(0))) < 0.5  # Allow for noise
         assert x_hat_i == 0.5
 
-    def test_generate_synthetic_input_custom_noise(self):
+    def test_generate_synthetic_input_custom_noise(self) -> None:
         """Test synthetic input with custom noise std."""
         np.random.seed(42)
         result1 = generate_synthetic_input(t=10, noise_std=0.01)
@@ -45,7 +45,7 @@ class TestGenerateSyntheticInput:
         # Results should differ due to different noise std
         assert result1 != result2
 
-    def test_generate_synthetic_input_periodic_components(self):
+    def test_generate_synthetic_input_periodic_components(self) -> None:
         """Test that synthetic input has periodic components."""
         # Test at different time points to see periodic behavior
         result_t0 = generate_synthetic_input(t=0)
@@ -57,7 +57,7 @@ class TestGenerateSyntheticInput:
 class TestRunStandardPipeline:
     """Test standard single-scale pipeline execution."""
 
-    def test_run_standard_pipeline_basic(self):
+    def test_run_standard_pipeline_basic(self) -> None:
         """Test basic pipeline execution."""
         results = run_standard_pipeline(n_steps=10, progress_interval=100)
         assert "config" in results
@@ -68,7 +68,7 @@ class TestRunStandardPipeline:
         assert "history" in results
         assert "final_state" in results
 
-    def test_run_standard_pipeline_history_keys(self):
+    def test_run_standard_pipeline_history_keys(self) -> None:
         """Test that history contains all expected keys."""
         results = run_standard_pipeline(n_steps=5)
         history = results["history"]
@@ -77,7 +77,7 @@ class TestRunStandardPipeline:
             assert key in history
             assert len(history[key]) == 5
 
-    def test_run_standard_pipeline_custom_config(self):
+    def test_run_standard_pipeline_custom_config(self) -> None:
         """Test pipeline with custom configuration."""
         from config import CONFIG
 
@@ -88,14 +88,14 @@ class TestRunStandardPipeline:
         assert results["config"]["lam"] == 0.3
         assert results["config"]["eta"] == 0.05
 
-    def test_run_standard_pipeline_ignition_count(self):
+    def test_run_standard_pipeline_ignition_count(self) -> None:
         """Test that ignition count is tracked."""
         results = run_standard_pipeline(n_steps=100)
         assert "ignition_count" in results
         assert isinstance(results["ignition_count"], int)
         assert 0 <= results["ignition_count"] <= 100
 
-    def test_run_standard_pipeline_final_state(self):
+    def test_run_standard_pipeline_final_state(self) -> None:
         """Test final state contains expected fields."""
         results = run_standard_pipeline(n_steps=10)
         final_state = results["final_state"]
@@ -108,7 +108,7 @@ class TestRunStandardPipeline:
 class TestRunMultiscalePipeline:
     """Test multi-scale hierarchical pipeline execution."""
 
-    def test_run_multiscale_pipeline_basic(self):
+    def test_run_multiscale_pipeline_basic(self) -> None:
         """Test basic multi-scale pipeline."""
         results = run_multiscale_pipeline(n_steps=10, n_levels=3)
         assert "config" in results
@@ -120,7 +120,7 @@ class TestRunMultiscalePipeline:
         assert "ignition_count" in results
         assert "history" in results
 
-    def test_run_multiscale_pipeline_timescales(self):
+    def test_run_multiscale_pipeline_timescales(self) -> None:
         """Test that timescales are generated correctly."""
         results = run_multiscale_pipeline(n_steps=5, n_levels=3, timescale_k=1.6)
         timescales = results["timescales"]
@@ -130,7 +130,7 @@ class TestRunMultiscalePipeline:
         assert timescales[1] == timescales[0] * 1.6
         assert timescales[2] == timescales[1] * 1.6
 
-    def test_run_multiscale_pipeline_weights(self):
+    def test_run_multiscale_pipeline_weights(self) -> None:
         """Test that weights are normalized."""
         results = run_multiscale_pipeline(n_steps=5, n_levels=3)
         weights = results["weights"]
@@ -138,7 +138,7 @@ class TestRunMultiscalePipeline:
         # Weights should sum to approximately 1
         assert abs(sum(weights) - 1.0) < 0.01
 
-    def test_run_multiscale_pipeline_history(self):
+    def test_run_multiscale_pipeline_history(self) -> None:
         """Test multi-scale history contains expected keys."""
         results = run_multiscale_pipeline(n_steps=5, n_levels=3)
         history = results["history"]
@@ -149,7 +149,7 @@ class TestRunMultiscalePipeline:
         assert len(history["S_multiscale"]) == 5
         assert len(history["S_standard"]) == 5
 
-    def test_run_multiscale_pipeline_custom_config(self):
+    def test_run_multiscale_pipeline_custom_config(self) -> None:
         """Test multi-scale with custom config."""
         from config import CONFIG
 
@@ -162,7 +162,7 @@ class TestRunMultiscalePipeline:
 class TestAnalyzeSignalStatistics:
     """Test signal statistics analysis."""
 
-    def test_analyze_signal_statistics_basic(self):
+    def test_analyze_signal_statistics_basic(self) -> None:
         """Test basic statistics computation."""
         signal = [1.0, 2.0, 3.0, 4.0, 5.0]
         stats = analyze_signal_statistics(signal, label="Test")
@@ -176,14 +176,14 @@ class TestAnalyzeSignalStatistics:
         assert stats["max"] == 5.0
         assert stats["range"] == 4.0
 
-    def test_analyze_signal_statistics_hurst_insufficient_data(self):
+    def test_analyze_signal_statistics_hurst_insufficient_data(self) -> None:
         """Test Hurst exponent with insufficient data."""
         signal = [1.0, 2.0, 3.0]
         stats = analyze_signal_statistics(signal, label="Test")
         assert "hurst_exponent" not in stats  # Should not be computed
         assert "mean" in stats
 
-    def test_analyze_signal_statistics_hurst_sufficient_data(self):
+    def test_analyze_signal_statistics_hurst_sufficient_data(self) -> None:
         """Test Hurst exponent with sufficient data."""
         # Generate 256 samples of random walk
         np.random.seed(42)
@@ -193,7 +193,7 @@ class TestAnalyzeSignalStatistics:
         assert "hurst_exponent" in stats
         assert isinstance(stats["hurst_exponent"], float)
 
-    def test_analyze_signal_statistics_empty_signal(self):
+    def test_analyze_signal_statistics_empty_signal(self) -> None:
         """Test statistics with empty signal (handles gracefully)."""
         import warnings
 
@@ -207,7 +207,7 @@ class TestAnalyzeSignalStatistics:
                 # Expected for empty array
                 pass
 
-    def test_analyze_signal_statistics_runtime_warning(self):
+    def test_analyze_signal_statistics_runtime_warning(self) -> None:
         """Test statistics with RuntimeWarning (handles gracefully)."""
         import warnings
 
@@ -221,7 +221,7 @@ class TestAnalyzeSignalStatistics:
                 # Expected for problematic data
                 pass
 
-    def test_analyze_signal_statistics_single_value(self):
+    def test_analyze_signal_statistics_single_value(self) -> None:
         """Test statistics with single value."""
         stats = analyze_signal_statistics([1.0], label="Test")
         assert "mean" in stats
@@ -231,7 +231,7 @@ class TestAnalyzeSignalStatistics:
 class TestSaveResults:
     """Test results saving functionality."""
 
-    def test_save_results_creates_file(self):
+    def test_save_results_creates_file(self) -> None:
         """Test that save_results creates a file."""
         results = {"test": "data", "value": 42}
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
@@ -244,7 +244,7 @@ class TestSaveResults:
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-    def test_save_results_valid_json(self):
+    def test_save_results_valid_json(self) -> None:
         """Test that saved file is valid JSON."""
         results = {
             "config": {"lam": 0.2},
@@ -264,7 +264,7 @@ class TestSaveResults:
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-    def test_save_results_numpy_conversion(self):
+    def test_save_results_numpy_conversion(self) -> None:
         """Test that numpy arrays are converted to lists."""
         results = {
             "array": np.array([1.0, 2.0, 3.0]),
@@ -288,31 +288,31 @@ class TestMainFunction:
     """Test main CLI entry point."""
 
     @patch("sys.argv", ["main.py", "--steps", "10"])
-    def test_main_default_mode(self):
+    def test_main_default_mode(self) -> None:
         """Test main with default arguments."""
         result = main()
         assert result == 0
 
     @patch("sys.argv", ["main.py", "--steps", "5", "--seed", "42"])
-    def test_main_with_seed(self):
+    def test_main_with_seed(self) -> None:
         """Test main with random seed."""
         result = main()
         assert result == 0
 
     @patch("sys.argv", ["main.py", "--steps", "5", "--beta", "0.5"])
-    def test_main_with_beta(self):
+    def test_main_with_beta(self) -> None:
         """Test main with dopamine bias."""
         result = main()
         assert result == 0
 
     @patch("sys.argv", ["main.py", "--steps", "5", "--stochastic"])
-    def test_main_stochastic_ignition(self):
+    def test_main_stochastic_ignition(self) -> None:
         """Test main with stochastic ignition."""
         result = main()
         assert result == 0
 
     @patch("sys.argv", ["main.py", "--steps", "5", "--ne-on-threshold"])
-    def test_main_ne_on_threshold(self):
+    def test_main_ne_on_threshold(self) -> None:
         """Test main with NE on threshold."""
         import warnings
 
@@ -322,7 +322,7 @@ class TestMainFunction:
             assert result == 0
 
     @patch("sys.argv", ["main.py", "--multiscale", "--steps", "5", "--levels", "3"])
-    def test_main_multiscale_mode(self):
+    def test_main_multiscale_mode(self) -> None:
         """Test main in multiscale mode."""
         result = main()
         assert result == 0
@@ -331,32 +331,30 @@ class TestMainFunction:
         "sys.argv",
         ["main.py", "--multiscale", "--steps", "5", "--levels", "3", "--k", "2.0"],
     )
-    def test_main_multiscale_custom_k(self):
+    def test_main_multiscale_custom_k(self) -> None:
         """Test main with custom timescale factor."""
         result = main()
         assert result == 0
 
     @patch("sys.argv", ["main.py", "--steps", "5", "--demo"])
-    def test_main_demo_flag(self):
+    def test_main_demo_flag(self) -> None:
         """Test main with demo flag."""
         result = main()
         assert result == 0
 
-    def test_main_keyboard_interrupt(self):
+    def test_main_keyboard_interrupt(self) -> None:
         """Test main handles KeyboardInterrupt."""
         with patch("sys.argv", ["main.py", "--steps", "5"]):
             with patch("main.run_standard_pipeline", side_effect=KeyboardInterrupt):
                 result = main()
                 assert result == 130
 
-    def test_main_exception_handling(self):
+    def test_main_exception_handling(self) -> None:
         """Test main handles exceptions gracefully."""
         import warnings
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
-            with patch(
-                "sys.argv", ["main.py", "--steps", "-1"]
-            ):  # Invalid negative steps
+            with patch("sys.argv", ["main.py", "--steps", "-1"]):  # Invalid negative steps
                 result = main()
                 assert result == 1

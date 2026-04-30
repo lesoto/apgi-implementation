@@ -211,9 +211,7 @@ class TestTemperatureEstimation:
     def test_zero_denominator_estimate_temperature(self):
         """Should raise ValueError when denominator is zero."""
         with pytest.raises(ValueError, match="Denominator is zero"):
-            estimate_temperature_from_cost(
-                C_metabolic=1e-20, S=1.0, eps=0.01, kappa_meta=0.0
-            )
+            estimate_temperature_from_cost(C_metabolic=1e-20, S=1.0, eps=0.01, kappa_meta=0.0)
 
 
 class TestThermodynamicConstraintValidation:

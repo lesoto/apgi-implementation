@@ -58,7 +58,7 @@ def generate_input_signals(
     return x_e, x_i
 
 
-def demonstrate_kuramoto_system():
+def demonstrate_kuramoto_system() -> None:
     """Demonstrate standalone Kuramoto system."""
     print("\n" + "=" * 70)
     print("Example 1: Standalone Kuramoto Oscillator System")
@@ -102,9 +102,7 @@ def demonstrate_kuramoto_system():
     print(f"\nResults:")
     print(f"  Mean synchronization: {np.mean(sync_history):.4f}")
     print(f"  Final synchronization: {sync_history[-1]:.4f}")
-    print(
-        f"  Synchronization range: [{min(sync_history):.4f}, {max(sync_history):.4f}]"
-    )
+    print(f"  Synchronization range: [{min(sync_history):.4f}, {max(sync_history):.4f}]")
 
     print(f"\n  Phase ranges (radians):")
     for level in range(n_levels):
@@ -123,7 +121,7 @@ def demonstrate_kuramoto_system():
     print(f"    Post-reset sync: {result['synchronization']:.4f}")
 
 
-def demonstrate_kuramoto_with_apgi():
+def demonstrate_kuramoto_with_apgi() -> None:
     """Demonstrate Kuramoto-integrated APGI pipeline."""
     print("\n" + "=" * 70)
     print("Example 2: APGI Pipeline with Kuramoto Coupling")
@@ -198,7 +196,7 @@ def demonstrate_kuramoto_with_apgi():
         print(f"    This coordinates oscillatory state with ignition timing")
 
 
-def demonstrate_phase_modulation():
+def demonstrate_phase_modulation() -> None:
     """Demonstrate phase-amplitude coupling (PAC)."""
     print("\n" + "=" * 70)
     print("Example 3: Phase-Amplitude Coupling (PAC)")
@@ -249,16 +247,14 @@ def demonstrate_phase_modulation():
         print(f"\n  Phase dynamics:")
         for level in range(min(3, len(phase_history[0]))):
             phases = phase_array[:, level]
-            print(
-                f"    Level {level}: phase range [{phases.min():.3f}, {phases.max():.3f}] rad"
-            )
+            print(f"    Level {level}: phase range [{phases.min():.3f}, {phases.max():.3f}] rad")
 
     print(f"\n  PAC mechanism:")
     print(f"    θ_ℓ(t) = θ_0 · [1 + κ_phase · Π_ℓ+1 · cos(φ_ℓ+1(t))]")
     print(f"    Higher-level phases modulate lower-level thresholds")
 
 
-def demonstrate_synchronization_patterns():
+def demonstrate_synchronization_patterns() -> None:
     """Demonstrate different synchronization patterns."""
     print("\n" + "=" * 70)
     print("Example 4: Synchronization Patterns")
@@ -313,7 +309,7 @@ def demonstrate_synchronization_patterns():
     print(f"  - Strong coupling: near-complete synchronization")
 
 
-def demonstrate_frequency_modulation():
+def demonstrate_frequency_modulation() -> None:
     """Demonstrate frequency modulation by precision."""
     print("\n" + "=" * 70)
     print("Example 5: Precision-Modulated Frequencies")
@@ -369,7 +365,7 @@ def demonstrate_frequency_modulation():
     print(f"  This links attention (precision) to oscillatory speed")
 
 
-def main():
+def main() -> None:
     """Run all Kuramoto coupling examples."""
     print("=" * 70)
     print("APGI Kuramoto Oscillatory Coupling Examples")

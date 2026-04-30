@@ -20,7 +20,7 @@ from core.thermodynamics import compute_information_bits, compute_landauer_cost
 from pipeline import APGIPipeline
 
 
-def main():
+def main() -> None:
     """Run thermodynamic analysis example."""
 
     print("=" * 60)
@@ -36,11 +36,11 @@ def main():
     config["c1"] = 1.0  # Simple linear cost coefficient
     config["c2"] = 0.0  # No ignition cost for this example
     print("   ✓ Configuration created")
-    print(f"     - Boltzmann constant: {config['k_boltzmann']:.2e} J/K")
+    print(f"     - Boltzmann constant: {float(config['k_boltzmann']):.2e} J/K")  # type: ignore[arg-type]
     print(
-        f"     - Environment temperature: {config['T_env']:.1f} K ({config['T_env'] - 273:.1f}°C)"
+        f"     - Environment temperature: {float(config['T_env']):.1f} K ({float(config['T_env']) - 273:.1f}°C)"  # type: ignore[arg-type]
     )
-    print(f"     - Metabolic efficiency: {config['kappa_meta']:.2f}")
+    print(f"     - Metabolic efficiency: {float(config['kappa_meta']):.2f}")  # type: ignore[arg-type]
     print("     - Cost model: C(t) = c1 * S(t) (simple linear)")
 
     # Initialize pipeline
@@ -52,7 +52,7 @@ def main():
     print("\n3. Running simulation for thermodynamic analysis...")
     n_steps = 500
 
-    thermodynamic_data = {
+    thermodynamic_data: dict[str, list[float]] = {
         "S": [],
         "landauer_cost": [],
         "info_bits": [],
@@ -76,15 +76,15 @@ def main():
         # Compute Landauer cost
         landauer = compute_landauer_cost(
             S=S,
-            eps=config["eps"],
-            k_b=config["k_boltzmann"],
-            T_env=config["T_env"],
-            kappa_meta=config["kappa_meta"],
+            eps=float(config["eps"]),  # type: ignore[arg-type]
+            k_b=float(config["k_boltzmann"]),  # type: ignore[arg-type]
+            T_env=float(config["T_env"]),  # type: ignore[arg-type]
+            kappa_meta=float(config["kappa_meta"]),  # type: ignore[arg-type]
         )
         thermodynamic_data["landauer_cost"].append(landauer)
 
         # Compute information bits
-        bits = compute_information_bits(S, config["eps"])
+        bits = compute_information_bits(S, float(config["eps"]))  # type: ignore[arg-type]
         thermodynamic_data["info_bits"].append(bits)
 
         # Record metabolic cost
@@ -104,7 +104,7 @@ def main():
 
         # Note: Temperature estimation disabled - requires C in Joules but our C is arbitrary units
         # To enable, convert metabolic cost to Joules using a scaling factor
-        thermodynamic_data["temperature"].append(config["T_env"])
+        thermodynamic_data["temperature"].append(float(config["T_env"]))  # type: ignore[arg-type]
 
     print(f"   ✓ Simulation completed ({n_steps} steps)")
 
@@ -145,12 +145,8 @@ def main():
     print("   Metabolic efficiency (C / E_min):")
     print(f"     Mean:  {np.mean(efficiency_array):.4f}")
     print(f"     Std:   {np.std(efficiency_array):.4f}")
-    print(
-        f"     Range: [{np.min(efficiency_array):.4f}, {np.max(efficiency_array):.4f}]"
-    )
-    print(
-        "   Note: C is in arbitrary units, not Joules. Ratio shows cost excess over minimum."
-    )
+    print(f"     Range: [{np.min(efficiency_array):.4f}, {np.max(efficiency_array):.4f}]")
+    print("   Note: C is in arbitrary units, not Joules. Ratio shows cost excess over minimum.")
 
     # Validate thermodynamic constraint
     print("\n6. Thermodynamic Constraint Validation:")
@@ -161,8 +157,8 @@ def main():
     landauer_array_au = landauer_array * scale_factor
 
     # Check constraint satisfaction
-    constraint_satisfied = np.all(cost_array >= landauer_array_au)
-    violations = np.sum(cost_array < landauer_array_au)
+    constraint_satisfied: bool = bool(np.all(cost_array >= landauer_array_au))
+    violations: int = int(np.sum(cost_array < landauer_array_au))
 
     print(f"   Constraint satisfied: {constraint_satisfied}")
     print(f"   Violations: {violations} / {n_steps}")
@@ -176,8 +172,8 @@ def main():
 
     # Display energy statistics
     print("\n7. Energy Statistics:")
-    total_landauer = np.sum(landauer_array_au)  # Use AU-scaled Landauer for comparison
-    total_metabolic = np.sum(cost_array)
+    total_landauer: float = np.sum(landauer_array_au)  # Use AU-scaled Landauer for comparison
+    total_metabolic: float = np.sum(cost_array)
 
     print(f"   Total Landauer cost (AU): {total_landauer:.4e}")
     print(f"   Total metabolic cost (AU): {total_metabolic:.4e}")
@@ -185,12 +181,12 @@ def main():
 
     # Display information-theoretic analysis
     print("\n8. Information-Theoretic Analysis:")
-    total_bits = np.sum(bits_array)
+    total_bits: float = np.sum(bits_array)
     avg_bits_per_step = total_bits / n_steps
 
     print(f"   Total information bits: {total_bits:.2f}")
     print(f"   Average bits per step: {avg_bits_per_step:.4f}")
-    print(f"   Information rate: {avg_bits_per_step / config['dt']:.4f} bits/ms")
+    print(f"   Information rate: {avg_bits_per_step / float(config['dt']):.4f} bits/ms")  # type: ignore[arg-type]
 
     # Display cost-benefit analysis
     print("\n9. Cost-Benefit Analysis:")
@@ -201,27 +197,15 @@ def main():
 
     if np.any(high_signal_mask):
         print("   High-signal periods (S > mean):")
-        print(
-            f"     Average Landauer cost: {np.mean(landauer_array[high_signal_mask]):.4e} J"
-        )
-        print(
-            f"     Average metabolic cost: {np.mean(cost_array[high_signal_mask]):.4f}"
-        )
-        print(
-            f"     Average efficiency: {np.mean(efficiency_array[high_signal_mask]):.4f}"
-        )
+        print(f"     Average Landauer cost: {np.mean(landauer_array[high_signal_mask]):.4e} J")
+        print(f"     Average metabolic cost: {np.mean(cost_array[high_signal_mask]):.4f}")
+        print(f"     Average efficiency: {np.mean(efficiency_array[high_signal_mask]):.4f}")
 
     if np.any(low_signal_mask):
         print("   Low-signal periods (S ≤ mean):")
-        print(
-            f"     Average Landauer cost: {np.mean(landauer_array[low_signal_mask]):.4e} J"
-        )
-        print(
-            f"     Average metabolic cost: {np.mean(cost_array[low_signal_mask]):.4f}"
-        )
-        print(
-            f"     Average efficiency: {np.mean(efficiency_array[low_signal_mask]):.4f}"
-        )
+        print(f"     Average Landauer cost: {np.mean(landauer_array[low_signal_mask]):.4e} J")
+        print(f"     Average metabolic cost: {np.mean(cost_array[low_signal_mask]):.4f}")
+        print(f"     Average efficiency: {np.mean(efficiency_array[low_signal_mask]):.4f}")
 
     print("\n" + "=" * 60)
     print("Thermodynamic analysis example completed successfully!")

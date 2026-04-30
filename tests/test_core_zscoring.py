@@ -16,7 +16,7 @@ from core.zscoring import DualZScoreProcessor, ZScoreWindow, create_standard_zsc
 class TestZScoreWindow:
     """Tests for ZScoreWindow class."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Should initialize with correct parameters."""
         window = ZScoreWindow(sampling_rate_hz=100.0, window_seconds=10.0)
         assert window.sampling_rate == 100.0
@@ -24,19 +24,19 @@ class TestZScoreWindow:
         assert window.window_size == 1000
         assert window._count == 0
 
-    def test_small_window(self):
+    def test_small_window(self) -> None:
         """Should raise ValueError for too small window."""
         with pytest.raises(ValueError, match="Window size"):
             ZScoreWindow(sampling_rate_hz=1.0, window_seconds=1.0)
 
-    def test_update_single_value(self):
+    def test_update_single_value(self) -> None:
         """Should update with single value."""
         window = ZScoreWindow(sampling_rate_hz=100.0, window_seconds=1.0)
         result = window.update(1.0)
         # First value: mean=1.0, std undefined, returns 0
         assert result == 0.0
 
-    def test_update_multiple_values(self):
+    def test_update_multiple_values(self) -> None:
         """Should compute z-scores for multiple values."""
         window = ZScoreWindow(sampling_rate_hz=100.0, window_seconds=1.0)
 
@@ -51,7 +51,7 @@ class TestZScoreWindow:
         non_zero_scores = [z for z in z_scores if z != 0]
         assert len(non_zero_scores) > 0
 
-    def test_get_stats(self):
+    def test_get_stats(self) -> None:
         """Should return current window statistics."""
         window = ZScoreWindow(sampling_rate_hz=100.0, window_seconds=1.0)
 
@@ -65,7 +65,7 @@ class TestZScoreWindow:
         assert stats["n"] == 5
         assert stats["mean"] == 3.0
 
-    def test_get_stats_empty(self):
+    def test_get_stats_empty(self) -> None:
         """Should handle empty window."""
         window = ZScoreWindow(sampling_rate_hz=100.0, window_seconds=1.0)
         stats = window.get_stats()
@@ -73,7 +73,7 @@ class TestZScoreWindow:
         assert stats["std"] == 1.0
         assert stats["n"] == 0
 
-    def test_reset(self):
+    def test_reset(self) -> None:
         """Should clear the window."""
         window = ZScoreWindow(sampling_rate_hz=100.0, window_seconds=1.0)
 
@@ -85,7 +85,7 @@ class TestZScoreWindow:
         assert window._count == 0
         assert window._sum == 0.0
 
-    def test_zscore_calculation(self):
+    def test_zscore_calculation(self) -> None:
         """Should compute z-score correctly."""
         window = ZScoreWindow(sampling_rate_hz=100.0, window_seconds=0.1)
 
@@ -99,7 +99,7 @@ class TestZScoreWindow:
         # Should be close to 0, but allow for numerical precision
         assert pytest.approx(result, abs=0.5) == 0.0
 
-    def test_window_sliding(self):
+    def test_window_sliding(self) -> None:
         """Should slide window correctly."""
         window = ZScoreWindow(sampling_rate_hz=10.0, window_seconds=0.5)
         # window_size = 5
@@ -112,7 +112,7 @@ class TestZScoreWindow:
         assert stats["n"] == 5
         assert stats["mean"] == 7.0
 
-    def test_window_full_removal(self):
+    def test_window_full_removal(self) -> None:
         """Should remove oldest values when window is full."""
         window = ZScoreWindow(sampling_rate_hz=10.0, window_seconds=0.5)
         # window_size = 5
@@ -125,7 +125,7 @@ class TestZScoreWindow:
         stats = window.get_stats()
         assert stats["n"] == 5
 
-    def test_zscore_with_very_small_std(self):
+    def test_zscore_with_very_small_std(self) -> None:
         """Should return 0.0 when std < eps."""
         window = ZScoreWindow(sampling_rate_hz=100.0, window_seconds=0.1, eps=1e-6)
         # Fill with very similar values (std will be near 0)
@@ -136,7 +136,7 @@ class TestZScoreWindow:
         result = window.update(1.0)
         assert result == 0.0
 
-    def test_update_with_large_value(self):
+    def test_update_with_large_value(self) -> None:
         """Should handle large values."""
         window = ZScoreWindow(sampling_rate_hz=10.0, window_seconds=0.5)
 
@@ -149,7 +149,7 @@ class TestZScoreWindow:
         # Should compute z-score without error
         assert isinstance(result, float)
 
-    def test_update_with_negative_value(self):
+    def test_update_with_negative_value(self) -> None:
         """Should handle negative values."""
         window = ZScoreWindow(sampling_rate_hz=10.0, window_seconds=0.5)
 
@@ -160,7 +160,7 @@ class TestZScoreWindow:
         result = window.update(-10.0)
         assert isinstance(result, float)
 
-    def test_buffer_sum_consistency(self):
+    def test_buffer_sum_consistency(self) -> None:
         """Test that _sum is correctly maintained."""
         window = ZScoreWindow(sampling_rate_hz=10.0, window_seconds=0.5)
 
@@ -176,7 +176,7 @@ class TestZScoreWindow:
 class TestDualZScoreProcessor:
     """Tests for DualZScoreProcessor class."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Should initialize with correct windows."""
         processor = DualZScoreProcessor(
             sampling_rate_e_hz=100.0,
@@ -186,7 +186,7 @@ class TestDualZScoreProcessor:
         assert processor.window_e.sampling_rate == 100.0
         assert processor.window_i.sampling_rate == 50.0
 
-    def test_process(self):
+    def test_process(self) -> None:
         """Should process both modalities."""
         processor = DualZScoreProcessor(
             sampling_rate_e_hz=10.0,
@@ -201,7 +201,7 @@ class TestDualZScoreProcessor:
         # Both should eventually return non-zero z-scores
         assert True  # Processing succeeded
 
-    def test_get_stats(self):
+    def test_get_stats(self) -> None:
         """Should return stats for both windows."""
         processor = DualZScoreProcessor(
             sampling_rate_e_hz=10.0,
@@ -218,7 +218,7 @@ class TestDualZScoreProcessor:
         assert stats["exteroceptive"]["n"] > 0
         assert stats["interoceptive"]["n"] > 0
 
-    def test_reset(self):
+    def test_reset(self) -> None:
         """Should reset both windows."""
         processor = DualZScoreProcessor(
             sampling_rate_e_hz=10.0,
@@ -234,7 +234,7 @@ class TestDualZScoreProcessor:
         assert stats["exteroceptive"]["n"] == 0
         assert stats["interoceptive"]["n"] == 0
 
-    def test_reset_clears_buffers(self):
+    def test_reset_clears_buffers(self) -> None:
         """Should clear both buffers on reset."""
         processor = DualZScoreProcessor(
             sampling_rate_e_hz=10.0,
@@ -258,7 +258,7 @@ class TestDualZScoreProcessor:
         assert processor.window_e._sum_sq == 0.0
         assert processor.window_i._sum_sq == 0.0
 
-    def test_process_with_different_modalities(self):
+    def test_process_with_different_modalities(self) -> None:
         """Should handle different exteroceptive and interoceptive values."""
         processor = DualZScoreProcessor(
             sampling_rate_e_hz=10.0,
@@ -275,7 +275,7 @@ class TestDualZScoreProcessor:
         assert stats["exteroceptive"]["n"] > 0
         assert stats["interoceptive"]["n"] > 0
 
-    def test_process_initial_zero_zscores(self):
+    def test_process_initial_zero_zscores(self) -> None:
         """Should return 0.0 for initial values."""
         processor = DualZScoreProcessor(
             sampling_rate_e_hz=10.0,
@@ -292,13 +292,13 @@ class TestDualZScoreProcessor:
 class TestCreateStandardZscorer:
     """Tests for create_standard_zscorer function."""
 
-    def test_default_rates(self):
+    def test_default_rates(self) -> None:
         """Should create with default sampling rates."""
         zscorer = create_standard_zscorer()
         assert zscorer.window_e.sampling_rate == 100.0
         assert zscorer.window_i.sampling_rate == 50.0
 
-    def test_custom_rates(self):
+    def test_custom_rates(self) -> None:
         """Should accept custom sampling rates."""
         zscorer = create_standard_zscorer(
             extero_rate_hz=200.0,
@@ -307,7 +307,7 @@ class TestCreateStandardZscorer:
         assert zscorer.window_e.sampling_rate == 200.0
         assert zscorer.window_i.sampling_rate == 100.0
 
-    def test_window_duration(self):
+    def test_window_duration(self) -> None:
         """Should use 10-second window."""
         zscorer = create_standard_zscorer()
         assert zscorer.window_e.window_duration == 10.0

@@ -32,8 +32,11 @@ APGI is a unified computational framework for modeling allostatic threshold dyna
 git clone <repository-url>
 cd apgi-implementation
 
-# Install dependencies
-pip install numpy scipy scikit-learn
+# Install with core dependencies
+pip install -e .
+
+# Or install with all optional dependencies
+pip install -e ".[all]"
 
 # Verify installation
 python -m pytest tests/ -v
@@ -76,6 +79,33 @@ python examples/03_observable_mapping.py
 
 # Thermodynamic analysis
 python examples/04_thermodynamics.py
+
+# BOLD thermodynamics
+python examples/05_bold_thermodynamics.py
+
+# Hierarchical system
+python examples/06_hierarchical_system.py
+
+# Spectral validation
+python examples/08_spectral_validation.py
+
+# Kuramoto coupling
+python examples/09_kuramoto_coupling.py
+
+# Reservoir as threshold
+python examples/10_reservoir_as_threshold.py
+
+# Maturity assessment
+python examples/11_maturity_assessment.py
+
+# Maturity demo
+python examples/12_maturity_demo.py
+
+# Validation end-to-end
+python examples/13_validation_e2e.py
+
+# BOLD calibration
+python examples/14_bold_calibration.py
 ```
 
 ---
@@ -170,6 +200,10 @@ APGIPipeline
 ```text
 apgi-implementation/
 ├── core/                          # Core components
+│   ├── allostatic.py              # Allostatic dynamics
+│   ├── compliance.py              # Compliance validation
+│   ├── config_schema.py           # Pydantic config schemas
+│   ├── logging_config.py          # Logging configuration
 │   ├── preprocessing.py           # Signal preprocessing
 │   ├── precision.py               # Precision system
 │   ├── accumulation.py            # Signal accumulation
@@ -180,34 +214,31 @@ apgi-implementation/
 │   ├── thermodynamics.py          # Landauer's principle
 │   └── validation.py              # Parameter validation
 ├── hierarchy/                     # Hierarchical architecture
-│   └── hierarchical_system.py     # Multi-timescale system
+│   ├── coupling.py                # Cross-level coupling
+│   └── multiscale.py              # Multi-timescale system
 ├── oscillation/                   # Oscillatory coupling
-│   └── kuramoto.py                # Kuramoto oscillators
+│   ├── kuramoto.py                # Kuramoto oscillators
+│   ├── phase.py                   # Phase dynamics
+│   └── threshold_modulation.py    # Threshold modulation
 ├── reservoir/                     # Reservoir computing
+│   ├── liquid_network.py          # Liquid network
 │   └── liquid_state_machine.py    # LSM implementation
 ├── validation/                    # Observable mapping
+│   ├── empirical_validation.py    # Empirical validation
 │   └── observable_mapping.py      # Neural/behavioral observables
 ├── analysis/                      # Stability analysis
-│   └── stability.py               # Fixed-point analysis
-├── tests/                         # Test suite
-│   ├── test_preprocessing.py
-│   ├── test_precision.py
-│   ├── test_accumulation.py
-│   ├── test_threshold.py
-│   ├── test_ignition.py
-│   ├── test_reset.py
-│   ├── test_sde.py
-│   ├── test_thermodynamics.py
-│   ├── test_validation.py
-│   ├── test_kuramoto.py
-│   ├── test_observable_mapping.py
-│   ├── test_stability.py
-│   └── test_pipeline_integration.py
-├── examples/                      # Example notebooks
-│   ├── 01_basic_usage.py
-│   ├── 02_advanced_features.py
-│   ├── 03_observable_mapping.py
-│   └── 04_thermodynamics.py
+│   ├── stability.py               # Fixed-point analysis
+│   └── hurst.py                   # Hurst exponent
+├── stats/                         # Statistical analysis
+│   ├── maturity_assessment.py     # Maturity assessment
+│   ├── spectral_extraction.py     # Spectral analysis
+│   └── hurst.py                   # Hurst exponent
+├── energy/                        # Thermodynamics
+│   ├── bold_calibration.py        # BOLD calibration
+│   ├── calibration_utils.py      # Calibration utilities
+│   └── thermodynamics.py          # Thermodynamic constraints
+├── tests/                         # Test suite (50+ test files)
+├── examples/                      # Example scripts (14 examples)
 ├── docs/                          # Documentation
 │   ├── API_REFERENCE.md
 │   ├── DESIGN_CHOICES.md
@@ -216,6 +247,7 @@ apgi-implementation/
 ├── pipeline.py                    # Main pipeline
 ├── config.py                      # Configuration
 ├── main.py                        # CLI interface
+├── pyproject.toml                 # Project configuration
 └── README.md                      # This file
 ```
 
@@ -286,9 +318,8 @@ python -m pytest tests/ --cov=. --cov-report=html
 
 ### Test Results
 
-- **Total Tests:** 164
-- **Pass Rate:** 100% (164/164)
-- **Execution Time:** 0.95 seconds
+- **Total Tests:** 799
+- **Execution Time:** ~2.5 seconds
 - **Coverage:** All major components
 
 ---
@@ -469,8 +500,8 @@ cd apgi-implementation
 python -m venv venv
 source venv/bin/activate
 
-# Install dependencies
-pip install numpy scipy scikit-learn pytest pytest-cov
+# Install with development dependencies
+pip install -e ".[dev]"
 
 # Run tests
 python -m pytest tests/ -v
@@ -517,6 +548,15 @@ python -m pytest tests/ -v
 - [Advanced Features](examples/02_advanced_features.py) - All features
 - [Observable Mapping](examples/03_observable_mapping.py) - Neural/behavioral observables
 - [Thermodynamics](examples/04_thermodynamics.py) - Landauer's principle
+- [BOLD Thermodynamics](examples/05_bold_thermodynamics.py) - BOLD signal analysis
+- [Hierarchical System](examples/06_hierarchical_system.py) - Multi-timescale processing
+- [Spectral Validation](examples/08_spectral_validation.py) - Spectral analysis
+- [Kuramoto Coupling](examples/09_kuramoto_coupling.py) - Oscillatory coupling
+- [Reservoir as Threshold](examples/10_reservoir_as_threshold.py) - Reservoir computing
+- [Maturity Assessment](examples/11_maturity_assessment.py) - System maturity
+- [Maturity Demo](examples/12_maturity_demo.py) - Maturity demonstration
+- [Validation E2E](examples/13_validation_e2e.py) - End-to-end validation
+- [BOLD Calibration](examples/14_bold_calibration.py) - BOLD calibration
 
 ---
 
@@ -538,14 +578,3 @@ If you use APGI in your research, please cite:
   url={https://github.com/[repository-url]}
 }
 ```
-
----
-
-## Contact
-
-For questions, issues, or contributions, please:
-
-1. Check [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
-2. Review [API Reference](docs/API_REFERENCE.md)
-3. Run relevant [examples](examples/)
-4. Open an issue on GitHub

@@ -12,10 +12,7 @@ from oscillation.kuramoto import (
     OrnsteinUhlenbeckNoise,
 )
 from oscillation.phase import compute_phase, phase_coupling_kuramoto, update_phase_euler
-from oscillation.threshold_modulation import (
-    compute_modulation_factor,
-    modulate_threshold_by_phase,
-)
+from oscillation.threshold_modulation import compute_modulation_factor, modulate_threshold_by_phase
 
 __all__ = [
     "compute_phase",

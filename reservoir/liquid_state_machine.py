@@ -191,9 +191,7 @@ class LiquidStateMachine:
             u = np.asarray(u)
 
         if u.shape[0] != self.M:
-            raise ValueError(
-                f"Input dimension mismatch: expected {self.M}, got {u.shape[0]}"
-            )
+            raise ValueError(f"Input dimension mismatch: expected {self.M}, got {u.shape[0]}")
 
         # Determine effective time constant
         if tau is not None:

@@ -18,7 +18,13 @@ All constraints include spec section references for traceability.
 
 from __future__ import annotations
 
-from typing import Any
+import warnings
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from core.logging_config import get_logger
+
+    logger = get_logger("apgi.validation")
 
 
 class ValidationError(ValueError):
@@ -72,7 +78,7 @@ def _validate_neuromodulator_separation(config: dict) -> None:
 
     if ne_on_precision and ne_on_threshold:
         raise ValidationError(
-            "NE cannot modulate both precision and threshold. "
+            "NE cannot modulate both precision and threshold (double-counts). "
             "Set exactly one to True. Spec §2.3-2.4."
         )
 
@@ -86,8 +92,7 @@ def _validate_signal_accumulation(config: dict) -> None:
 
     if not (0 < lam < 1):
         raise ValidationError(
-            f"lam must be in (0, 1), got {lam}. "
-            "Spec §3.2: S(t+1) = (1-λ)S(t) + λ·S_inst(t)"
+            f"lam must be in (0, 1), got {lam}. " "Spec §3.2: S(t+1) = (1-λ)S(t) + λ·S_inst(t)"
         )
 
 
@@ -116,7 +121,7 @@ def _validate_threshold_dynamics(config: dict) -> None:
     """Validate threshold dynamics constraints (§4, §6).
 
     Spec §4.5: Exponential decay rate κ must be > 0
-    Spec §6.1: Reset factor ρ must be in (0, 1)
+    Spec §6.1: Reset factor ρ must be in (0, 1) - validated at step() time
     """
     kappa = config.get("kappa", 0.15)
 
@@ -125,10 +130,6 @@ def _validate_threshold_dynamics(config: dict) -> None:
             f"kappa must be > 0, got {kappa}. "
             "Spec §4.5: θ(t+1) = θ_base + (θ(t) - θ_base)·exp(-κ)"
         )
-
-    # Reset factor ρ (if exposed)
-    if "reset_factor" in config:
-        validate_reset_factor(config["reset_factor"])
 
 
 def _validate_ignition_dynamics(config: dict) -> None:
@@ -140,8 +141,7 @@ def _validate_ignition_dynamics(config: dict) -> None:
 
     if tau_sigma <= 0:
         raise ValidationError(
-            f"ignite_tau (τ_σ) must be > 0, got {tau_sigma}. "
-            "Spec §5.2: P_ign = σ([S-θ]/τ_σ)"
+            f"ignite_tau (τ_σ) must be > 0, got {tau_sigma}. " "Spec §5.2: P_ign = σ([S-θ]/τ_σ)"
         )
 
 
@@ -185,8 +185,7 @@ def _validate_hierarchical_parameters(config: dict) -> None:
 
         if k <= 1:
             raise ValidationError(
-                f"timescale_k must be > 1, got {k}. "
-                "Spec §8.1: τ_ℓ = τ_0·k^ℓ requires k > 1"
+                f"timescale_k must be > 1, got {k}. " "Spec §8.1: τ_ℓ = τ_0·k^ℓ requires k > 1"
             )
 
         # Validate that all timescales are > 1
@@ -197,8 +196,7 @@ def _validate_hierarchical_parameters(config: dict) -> None:
             tau_ell = tau_0 * (k**level)
             if tau_ell <= 1:
                 raise ValidationError(
-                    f"τ_{level} = {tau_ell:.2f} ≤ 1. "
-                    "Spec §8.2: All timescales must be > 1"
+                    f"τ_{level} = {tau_ell:.2f} ≤ 1. " "Spec §8.2: All timescales must be > 1"
                 )
 
 
@@ -222,15 +220,14 @@ def _validate_precision_parameters(config: dict) -> None:
             "Spec §2.2: Precision bounds"
         )
 
-    # Reasonable range check
+    # Reasonable range check - warn in production
     if pi_max / pi_min > 1e8:
-        import warnings
-
         warnings.warn(
             f"Precision range very large: pi_max/pi_min = {pi_max / pi_min:.1e}. "
-            "May cause numerical issues. Spec §2.2 recommends (0.01, 100).",
+            "May cause numerical issues. Spec §2.2 recommends (0.01, 100). "
+            "Use strict_mode=True to enforce strict validation.",
             RuntimeWarning,
-            stacklevel=3,
+            stacklevel=2,
         )
 
 
@@ -242,9 +239,7 @@ def _validate_numerical_stability(config: dict) -> None:
     eps = config.get("eps", 1e-8)
 
     if eps <= 0 or eps >= 1:
-        raise ValidationError(
-            f"eps must be in (0, 1), got {eps}. " "Numerical stability threshold"
-        )
+        raise ValidationError(f"eps must be in (0, 1), got {eps}. " "Numerical stability threshold")
 
     # Check for reasonable learning rates
     eta = config.get("eta", 0.1)
@@ -257,14 +252,11 @@ def _validate_numerical_stability(config: dict) -> None:
     noise_std = config.get("noise_std", 0.01)
     if noise_std < 0:
         raise ValidationError(
-            f"noise_std must be ≥ 0, got {noise_std}. "
-            "Spec §7.2: SDE diffusion coefficient"
+            f"noise_std must be ≥ 0, got {noise_std}. " "Spec §7.2: SDE diffusion coefficient"
         )
 
 
-def validate_parameter(
-    name: str, value: Any, constraint: str, spec_section: str = ""
-) -> None:
+def validate_parameter(name: str, value: Any, constraint: str, spec_section: str = "") -> None:
     """Validate a single parameter against a constraint.
 
     Args:
@@ -286,41 +278,31 @@ def validate_parameter(
         parts = constraint[4:-1].split(",")
         a, b = float(parts[0].strip()), float(parts[1].strip())
         if not (a < value < b):
-            raise ValidationError(
-                f"{name}={value} not {constraint}. Spec {spec_section}"
-            )
+            raise ValidationError(f"{name}={value} not {constraint}. Spec {spec_section}")
 
     elif constraint.startswith(">="):
         # Parse ">= a" format (must check before ">")
         threshold = float(constraint[2:].strip())
         if value < threshold:
-            raise ValidationError(
-                f"{name}={value} not {constraint}. Spec {spec_section}"
-            )
+            raise ValidationError(f"{name}={value} not {constraint}. Spec {spec_section}")
 
     elif constraint.startswith(">"):
         # Parse "> a" format
         threshold = float(constraint[1:].strip())
         if value <= threshold:
-            raise ValidationError(
-                f"{name}={value} not {constraint}. Spec {spec_section}"
-            )
+            raise ValidationError(f"{name}={value} not {constraint}. Spec {spec_section}")
 
     elif constraint.startswith("<="):
         # Parse "<= a" format (must check before "<")
         threshold = float(constraint[2:].strip())
         if value > threshold:
-            raise ValidationError(
-                f"{name}={value} not {constraint}. Spec {spec_section}"
-            )
+            raise ValidationError(f"{name}={value} not {constraint}. Spec {spec_section}")
 
     elif constraint.startswith("<"):
         # Parse "< a" format
         threshold = float(constraint[1:].strip())
         if value >= threshold:
-            raise ValidationError(
-                f"{name}={value} not {constraint}. Spec {spec_section}"
-            )
+            raise ValidationError(f"{name}={value} not {constraint}. Spec {spec_section}")
 
 
 def get_constraint_summary() -> dict:
@@ -368,16 +350,29 @@ def get_constraint_summary() -> dict:
     }
 
 
-def print_constraint_summary() -> None:
-    """Print human-readable summary of all constraints."""
+def format_constraint_summary() -> str:
+    """Format human-readable summary of all constraints."""
     summary = get_constraint_summary()
-    print("\n" + "=" * 70)
-    print("APGI PARAMETER CONSTRAINTS (Spec §15)")
-    print("=" * 70)
+    lines = [
+        "",
+        "=" * 70,
+        "APGI PARAMETER CONSTRAINTS (Spec §15)",
+        "=" * 70,
+    ]
 
     for category, constraints in summary.items():
-        print(f"\n{category}:")
+        lines.append(f"\n{category}:")
         for constraint in constraints:
-            print(f"  • {constraint}")
+            lines.append(f"  • {constraint}")
 
-    print("\n" + "=" * 70)
+    lines.append("\n" + "=" * 70)
+    return "\n".join(lines)
+
+
+def print_constraint_summary() -> None:
+    """Print human-readable summary of all constraints to stdout.
+
+    Examples:
+        >>> print_constraint_summary()  # Prints constraint summary
+    """
+    print(format_constraint_summary())

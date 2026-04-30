@@ -96,8 +96,7 @@ def demo_hierarchical_assessment():
     ]
     phi_levels = [2 * np.pi * np.arange(len(s)) / 1000 for s in signals]
     pi_levels = [
-        np.ones(len(s)) * (0.5 + 0.1 * np.sin(2 * np.pi * np.arange(len(s)) / 500))
-        for s in signals
+        np.ones(len(s)) * (0.5 + 0.1 * np.sin(2 * np.pi * np.arange(len(s)) / 500)) for s in signals
     ]
 
     # Assess maturity

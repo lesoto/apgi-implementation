@@ -3,9 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 
-def instantaneous_signal(
-    z_e: float, z_i_eff: float, pi_e_eff: float, pi_i_eff: float
-) -> float:
+def instantaneous_signal(z_e: float, z_i_eff: float, pi_e_eff: float, pi_i_eff: float) -> float:
     """S_inst = Π_e_eff |z_e| + Π_i_eff |z_i_eff|."""
 
     return float(pi_e_eff * abs(z_e) + pi_i_eff * abs(z_i_eff))

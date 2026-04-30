@@ -25,7 +25,7 @@ from pipeline import APGIPipeline, HierarchicalState, PrecisionState
 
 
 @pytest.fixture
-def base_config():
+def base_config() -> dict[str, float | int | bool]:
     """Base configuration for pipeline tests."""
     return {
         "S0": 0.5,
@@ -62,7 +62,7 @@ def base_config():
 
 
 @pytest.fixture
-def discrete_config(base_config):
+def discrete_config(base_config: dict[str, float | int | bool]) -> dict[str, float | int | bool]:
     """Configuration for discrete canonical mode."""
     config = base_config.copy()
     config["use_canonical_discrete_mode"] = True
@@ -70,7 +70,7 @@ def discrete_config(base_config):
 
 
 @pytest.fixture
-def ode_config(base_config):
+def ode_config(base_config: dict[str, float | int | bool]) -> dict[str, float | int | bool]:
     """Configuration for ODE mode."""
     config = base_config.copy()
     config["use_canonical_discrete_mode"] = False
@@ -78,7 +78,9 @@ def ode_config(base_config):
 
 
 @pytest.fixture
-def hierarchical_config(base_config):
+def hierarchical_config(
+    base_config: dict[str, float | int | bool],
+) -> dict[str, float | int | bool]:
     """Configuration with hierarchical mode enabled."""
     config = base_config.copy()
     config["use_hierarchical"] = True
@@ -89,7 +91,7 @@ def hierarchical_config(base_config):
 
 
 @pytest.fixture
-def reservoir_config(base_config):
+def reservoir_config(base_config: dict[str, float | int | bool]) -> dict[str, float | int | bool]:
     """Configuration with reservoir enabled."""
     config = base_config.copy()
     config["use_reservoir"] = True
@@ -101,7 +103,9 @@ def reservoir_config(base_config):
 
 
 @pytest.fixture
-def thermodynamic_config(base_config):
+def thermodynamic_config(
+    base_config: dict[str, float | int | bool],
+) -> dict[str, float | int | bool]:
     """Configuration with thermodynamic cost enabled."""
     config = base_config.copy()
     config["use_thermodynamic_cost"] = True
@@ -112,7 +116,7 @@ def thermodynamic_config(base_config):
 
 
 @pytest.fixture
-def observable_config(base_config):
+def observable_config(base_config: dict[str, float | int | bool]) -> dict[str, float | int | bool]:
     """Configuration with observable mapping enabled."""
     config = base_config.copy()
     config["use_observable_mapping"] = True
@@ -120,7 +124,7 @@ def observable_config(base_config):
 
 
 @pytest.fixture
-def stability_config(base_config):
+def stability_config(base_config: dict[str, float | int | bool]) -> dict[str, float | int | bool]:
     """Configuration with stability analysis enabled."""
     config = base_config.copy()
     config["use_stability_analysis"] = True
@@ -128,7 +132,7 @@ def stability_config(base_config):
 
 
 @pytest.fixture
-def kuramoto_config(base_config):
+def kuramoto_config(base_config: dict[str, float | int | bool]) -> dict[str, float | int | bool]:
     """Configuration with Kuramoto oscillators enabled."""
     config = base_config.copy()
     config["use_kuramoto"] = True
@@ -137,7 +141,7 @@ def kuramoto_config(base_config):
 
 
 @pytest.fixture
-def somatic_config(base_config):
+def somatic_config(base_config: dict[str, float | int | bool]) -> dict[str, float | int | bool]:
     """Configuration with somatic precision enabled."""
     config = base_config.copy()
     config["use_somatic_precision"] = True
@@ -147,7 +151,9 @@ def somatic_config(base_config):
 
 
 @pytest.fixture
-def ne_precision_config(base_config):
+def ne_precision_config(
+    base_config: dict[str, float | int | bool],
+) -> dict[str, float | int | bool]:
     """Configuration with NE on precision."""
     config = base_config.copy()
     config["ne_on_precision"] = True
@@ -156,7 +162,9 @@ def ne_precision_config(base_config):
 
 
 @pytest.fixture
-def ne_threshold_config(base_config):
+def ne_threshold_config(
+    base_config: dict[str, float | int | bool],
+) -> dict[str, float | int | bool]:
     """Configuration with NE on threshold."""
     config = base_config.copy()
     config["ne_on_threshold"] = True
@@ -166,7 +174,7 @@ def ne_threshold_config(base_config):
 
 
 @pytest.fixture
-def generative_config(base_config):
+def generative_config(base_config: dict[str, float | int | bool]) -> dict[str, float | int | bool]:
     """Configuration with generative model update enabled."""
     config = base_config.copy()
     config["use_generative_model_update"] = True
@@ -178,7 +186,9 @@ def generative_config(base_config):
 
 
 @pytest.fixture
-def sliding_window_config(base_config):
+def sliding_window_config(
+    base_config: dict[str, float | int | bool],
+) -> dict[str, float | int | bool]:
     """Configuration with sliding window variance method."""
     config = base_config.copy()
     config["variance_method"] = "sliding_window"
@@ -187,7 +197,9 @@ def sliding_window_config(base_config):
 
 
 @pytest.fixture
-def continuous_threshold_config(base_config):
+def continuous_threshold_config(
+    base_config: dict[str, float | int | bool],
+) -> dict[str, float | int | bool]:
     """Configuration with continuous threshold ODE."""
     config = base_config.copy()
     config["use_continuous_threshold_ode"] = True
@@ -196,7 +208,9 @@ def continuous_threshold_config(base_config):
 
 
 @pytest.fixture
-def hierarchical_precision_ode_config(hierarchical_config):
+def hierarchical_precision_ode_config(
+    hierarchical_config: dict[str, float | int | bool],
+) -> dict[str, float | int | bool]:
     """Configuration with hierarchical precision ODE."""
     config = hierarchical_config.copy()
     config["use_hierarchical_precision_ode"] = True
@@ -207,7 +221,9 @@ def hierarchical_precision_ode_config(hierarchical_config):
 
 
 @pytest.fixture
-def phase_modulation_config(hierarchical_config):
+def phase_modulation_config(
+    hierarchical_config: dict[str, float | int | bool],
+) -> dict[str, float | int | bool]:
     """Configuration with phase modulation."""
     config = hierarchical_config.copy()
     config["use_phase_modulation"] = True
@@ -217,7 +233,9 @@ def phase_modulation_config(hierarchical_config):
 
 
 @pytest.fixture
-def reservoir_threshold_config(reservoir_config):
+def reservoir_threshold_config(
+    reservoir_config: dict[str, float | int | bool],
+) -> dict[str, float | int | bool]:
     """Configuration with reservoir as threshold."""
     config = reservoir_config.copy()
     config["reservoir_as_threshold"] = True
@@ -510,9 +528,7 @@ class TestSignalIntegrationModes:
         assert "S" in result
         assert not pipeline.config["use_canonical_discrete_mode"]
 
-    def test_different_modes_produce_different_results(
-        self, discrete_config, ode_config
-    ):
+    def test_different_modes_produce_different_results(self, discrete_config, ode_config):
         """Test that discrete and ODE modes produce different results."""
         pipeline_discrete = APGIPipeline(discrete_config)
         pipeline_ode = APGIPipeline(ode_config)
@@ -628,9 +644,7 @@ class TestContinuousThresholdODE:
         assert "theta" in result
         assert pipeline.config["use_continuous_threshold_ode"]
 
-    def test_continuous_vs_discrete_different(
-        self, continuous_threshold_config, base_config
-    ):
+    def test_continuous_vs_discrete_different(self, continuous_threshold_config, base_config):
         """Test that continuous and discrete threshold modes differ."""
         pipeline_cont = APGIPipeline(continuous_threshold_config)
         pipeline_disc = APGIPipeline(base_config)
@@ -683,9 +697,7 @@ class TestHierarchicalFeatures:
 class TestHierarchicalPrecisionODE:
     """Tests for hierarchical precision ODE."""
 
-    def test_hierarchical_network_initialization(
-        self, hierarchical_precision_ode_config
-    ):
+    def test_hierarchical_network_initialization(self, hierarchical_precision_ode_config):
         """Test hierarchical network initialization."""
         pipeline = APGIPipeline(hierarchical_precision_ode_config)
         assert pipeline.hierarchical_network is not None
@@ -917,9 +929,9 @@ class TestGenerativeModelUpdate:
     def test_generative_update_enabled(self, generative_config):
         """Test generative model update is enabled."""
         pipeline = APGIPipeline(generative_config)
-        assert pipeline.config.get(
-            "use_generative_model_update"
-        ) or pipeline.config.get("use_internal_predictions")
+        assert pipeline.config.get("use_generative_model_update") or pipeline.config.get(
+            "use_internal_predictions"
+        )
 
     def test_predictions_in_result(self, generative_config):
         """Test predictions in step result."""
@@ -938,9 +950,7 @@ class TestGenerativeModelUpdate:
             pipeline.step(x_e=1.0, x_i=0.5)
 
         # Predictions should change
-        assert (
-            pipeline.x_hat_e != initial_x_hat_e or pipeline.x_hat_i != initial_x_hat_i
-        )
+        assert pipeline.x_hat_e != initial_x_hat_e or pipeline.x_hat_i != initial_x_hat_i
 
 
 class TestInternalPredictions:

@@ -21,7 +21,7 @@ from energy.calibration_utils import calibrate_for_realistic_kappa  # noqa: E402
 from pipeline import APGIPipeline  # noqa: E402
 
 
-def main():
+def main() -> None:
     """Demonstrate complete BOLD calibration workflow."""
 
     print("=" * 70)
@@ -70,7 +70,7 @@ def main():
     print(f"  κ_meta: {config['kappa_meta']:.2e} J/bit")
     print(f"  κ_units: {config['kappa_units']}")
     print(f"  BOLD conversion: {config['bold_conversion_factor']:.2e} J/%/cm³")
-    print(f"  Efficiency: {config['kappa_meta'] / e_min:.0f}× Landauer minimum")
+    print(f"  Efficiency: {float(config['kappa_meta']) / e_min:.0f}× Landauer minimum")  # type: ignore[arg-type]
 
     print("\nStep 4: Compare Energy Calculations")
     print("-" * 40)
@@ -85,13 +85,11 @@ def main():
         bits = compute_information_bits(S, eps)
 
         # Legacy calculation (dimensionless κ_meta = 1.0)
-        energy_legacy = compute_landauer_cost(
-            S, eps, kappa_meta=1.0, kappa_units="dimensionless"
-        )
+        energy_legacy = compute_landauer_cost(S, eps, kappa_meta=1.0, kappa_units="dimensionless")
 
         # BOLD-calibrated calculation
         energy_calibrated = compute_landauer_cost(
-            S, eps, kappa_meta=config["kappa_meta"], kappa_units="joules_per_bit"
+            S, eps, kappa_meta=float(config["kappa_meta"]), kappa_units="joules_per_bit"  # type: ignore[arg-type]
         )
 
         ratio = energy_calibrated / energy_legacy if energy_legacy > 0 else 0
@@ -129,16 +127,14 @@ def main():
             )
 
     if energy_data:
-        avg_energy = np.mean([d["energy_j"] for d in energy_data])
-        avg_bits = np.mean([d["bits"] for d in energy_data])
+        avg_energy: float = float(np.mean([d["energy_j"] for d in energy_data]))
+        avg_bits: float = float(np.mean([d["bits"] for d in energy_data]))
 
         print("\nResults:")
         print(f"  Average energy per ignition: {avg_energy:.2e} J")
         print(f"  Average bits per ignition: {avg_bits:.1f}")
         print(f"  Average energy per bit: {avg_energy / max(avg_bits, 1e-6):.2e} J/bit")
-        print(
-            f"  Efficiency: {(avg_energy / max(avg_bits, 1e-6)) / e_min:.0f}× Landauer"
-        )
+        print(f"  Efficiency: {(avg_energy / max(avg_bits, 1e-6)) / e_min:.0f}× Landauer")
 
     print("\nStep 6: Validate Against Physical Limits")
     print("-" * 40)

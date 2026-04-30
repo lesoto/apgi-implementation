@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import warnings
+from typing import Callable
 
 import numpy as np
 
@@ -11,9 +12,7 @@ warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*")
 class LiquidNetwork:
     def __init__(self, n_units: int = 500, spectral_radius: float = 0.9):
         if not (0.0 < spectral_radius < 1.0):
-            raise ValueError(
-                "spectral_radius must be in (0, 1) for echo state property"
-            )
+            raise ValueError("spectral_radius must be in (0, 1) for echo state property")
         self.n = n_units
         W_raw = np.random.randn(n_units, n_units) * 0.1
         # Normalize so ρ(W_res) = spectral_radius, guaranteeing echo state property
@@ -74,7 +73,7 @@ class LiquidNetwork:
         u: float,
         tau: float | None = None,
         dt: float = 1.0,
-        activation=np.tanh,
+        activation: Callable[[np.ndarray], np.ndarray] = np.tanh,
         precision: float | None = None,
         S_target: float | None = None,
         theta: float | None = None,
@@ -132,7 +131,7 @@ class LiquidNetwork:
 
     def apply_suprathreshold_gain(
         self, S: float, theta: float, A: float = 1.0, dt: float = 1.0
-    ):
+    ) -> np.ndarray:
         """Additive Euler term: dx/dt += A*x*[S-θ]_+."""
 
         suprath = max(0.0, S - theta)

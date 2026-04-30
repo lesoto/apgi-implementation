@@ -261,17 +261,13 @@ class TestModulateThreshold:
 
     def test_phase_modulation(self):
         """Should modulate threshold based on phase."""
-        result = modulate_threshold(
-            theta_0=1.0, pi_above=1.0, phi_above=0.0, k_down=0.1
-        )
+        result = modulate_threshold(theta_0=1.0, pi_above=1.0, phi_above=0.0, k_down=0.1)
         # theta = 1.0 * (1 + 0.1 * 1.0 * 1.0) = 1.1
         assert pytest.approx(result, rel=1e-7) == 1.1
 
     def test_opposite_phase(self):
         """Should decrease threshold at opposite phase."""
-        result = modulate_threshold(
-            theta_0=1.0, pi_above=1.0, phi_above=np.pi, k_down=0.1
-        )
+        result = modulate_threshold(theta_0=1.0, pi_above=1.0, phi_above=np.pi, k_down=0.1)
         # theta = 1.0 * (1 + 0.1 * 1.0 * -1.0) = 0.9
         assert pytest.approx(result, rel=1e-7) == 0.9
 

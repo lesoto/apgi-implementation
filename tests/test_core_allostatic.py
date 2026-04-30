@@ -233,9 +233,7 @@ class TestAllostaticThresholdController:
 
     def test_step_stores_B(self):
         """Should store ignition state for next step."""
-        controller = AllostaticThresholdController(
-            theta_0=1.0, gamma=0.01, delta=0.5, dt=1.0
-        )
+        controller = AllostaticThresholdController(theta_0=1.0, gamma=0.01, delta=0.5, dt=1.0)
 
         controller.step(C=1.0, V=1.0, eta=0.0, B=1, noise_std=0.0)
         assert controller.B_prev == 1
@@ -246,9 +244,7 @@ class TestAllostaticThresholdController:
     def test_reset(self):
         """Should reset to baseline."""
         np.random.seed(42)
-        controller = AllostaticThresholdController(
-            theta_0=1.0, gamma=0.01, delta=0.5, dt=1.0
-        )
+        controller = AllostaticThresholdController(theta_0=1.0, gamma=0.01, delta=0.5, dt=1.0)
 
         # Step to change theta
         controller.step(C=2.0, V=1.0, eta=0.1, B=0, noise_std=0.0)
@@ -261,18 +257,14 @@ class TestAllostaticThresholdController:
 
     def test_reset_with_custom_value(self):
         """Should reset to custom value."""
-        controller = AllostaticThresholdController(
-            theta_0=1.0, gamma=0.01, delta=0.5, dt=1.0
-        )
+        controller = AllostaticThresholdController(theta_0=1.0, gamma=0.01, delta=0.5, dt=1.0)
         controller.reset(theta=2.5)
         assert controller.theta == 2.5
 
     def test_multiple_steps(self):
         """Should maintain state across multiple steps."""
         np.random.seed(42)
-        controller = AllostaticThresholdController(
-            theta_0=1.0, gamma=0.01, delta=0.5, dt=1.0
-        )
+        controller = AllostaticThresholdController(theta_0=1.0, gamma=0.01, delta=0.5, dt=1.0)
 
         thetas = []
         for i in range(10):

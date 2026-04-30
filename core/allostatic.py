@@ -115,9 +115,7 @@ class AllostaticThresholdController:
         self.dt = dt
         self.B_prev = 0
 
-    def step(
-        self, C: float, V: float, eta: float, B: int, noise_std: float = 0.01
-    ) -> float:
+    def step(self, C: float, V: float, eta: float, B: int, noise_std: float = 0.01) -> float:
         """Single ODE step for threshold update with stochastic scaling.
 
         Args:
@@ -150,7 +148,7 @@ class AllostaticThresholdController:
 
         return self.theta
 
-    def reset(self, theta: float | None = None):
+    def reset(self, theta: float | None = None) -> None:
         """Reset controller state."""
 
         self.theta = theta if theta is not None else self.theta_0

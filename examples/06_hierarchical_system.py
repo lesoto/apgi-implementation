@@ -20,6 +20,7 @@ sys.path.insert(0, str(project_root))
 
 import numpy as np
 import numpy.typing as npt
+from typing import cast
 
 from config import CONFIG
 from hierarchy.multiscale import build_timescales, multiscale_weights
@@ -58,7 +59,7 @@ def generate_input_signals(
     return x_e, x_i
 
 
-def run_basic_hierarchical():
+def run_basic_hierarchical() -> None:
     """Run basic hierarchical mode example."""
     print("\n" + "=" * 70)
     print("Example 1: Basic Hierarchical Mode")
@@ -80,7 +81,10 @@ def run_basic_hierarchical():
     pipeline = APGIPipeline(config)
 
     # Show timescales
-    taus = build_timescales(config["tau_0"], config["k"], config["n_levels"])
+    tau_0 = cast(float, config["tau_0"])
+    k = cast(float, config["k"])
+    n_levels = cast(int, config["n_levels"])
+    taus = build_timescales(tau_0, k, n_levels)
     print(f"\nComputed timescales: {taus} ms")
 
     # Generate and process data
@@ -106,7 +110,7 @@ def run_basic_hierarchical():
         print(f"  Final per-level precisions: {final_pis}")
 
 
-def run_advanced_hierarchical():
+def run_advanced_hierarchical() -> None:
     """Run advanced hierarchical mode with precision ODE."""
     print("\n" + "=" * 70)
     print("Example 2: Advanced Hierarchical Mode (with Precision ODE)")
@@ -160,7 +164,7 @@ def run_advanced_hierarchical():
             print(f"    Step {-5+i}: {[f'{p:.2f}' for p in pis]}")
 
 
-def run_full_hierarchical():
+def run_full_hierarchical() -> None:
     """Run full hierarchical mode with all features."""
     print("\n" + "=" * 70)
     print("Example 3: Full Hierarchical Mode (all features)")
@@ -198,7 +202,7 @@ def run_full_hierarchical():
     print(f"\nProcessing {n_steps} steps...")
 
     # Track all hierarchical state
-    history = {
+    history: dict[str, list] = {
         "pis": [],
         "phases": [],
         "thetas": [],
@@ -228,13 +232,16 @@ def run_full_hierarchical():
     # Demonstrate per-level error computation
     print(f"\n  Per-level error processing:")
     print(f"    Each level computes z-scores at its own timescale")
-    print(f"    Level 0 (τ={config['tau_0']}ms): Fast adaptation")
+    tau_0_full = cast(float, config["tau_0"])
+    k_full = cast(float, config["k"])
+    n_levels_full = cast(int, config["n_levels"])
+    print(f"    Level 0 (τ={tau_0_full}ms): Fast adaptation")
     print(
-        f"    Level {config['n_levels']-1} (τ={config['tau_0']*(config['k']**(config['n_levels']-1)):.1f}ms): Slow adaptation"
+        f"    Level {n_levels_full-1} (τ={tau_0_full*(k_full**(n_levels_full-1)):.1f}ms): Slow adaptation"
     )
 
 
-def compare_hierarchical_modes():
+def compare_hierarchical_modes() -> None:
     """Compare different hierarchical modes side by side."""
     print("\n" + "=" * 70)
     print("Example 4: Comparing Hierarchical Modes")
@@ -273,9 +280,7 @@ def compare_hierarchical_modes():
         }
 
     print(f"\nComparison (n={n_steps} steps):")
-    print(
-        f"{'Mode':<12} {'Signal Var':>12} {'Threshold Var':>14} {'Ignition Rate':>14}"
-    )
+    print(f"{'Mode':<12} {'Signal Var':>12} {'Threshold Var':>14} {'Ignition Rate':>14}")
     print("-" * 60)
     for mode in modes:
         r = results_by_mode[mode]
@@ -290,7 +295,7 @@ def compare_hierarchical_modes():
     print(f"  - 'full': Adds phase-amplitude coupling")
 
 
-def demonstrate_timescales():
+def demonstrate_timescales() -> None:
     """Demonstrate how timescales are computed."""
     print("\n" + "=" * 70)
     print("Example 5: Understanding Timescale Hierarchy")
@@ -315,7 +320,7 @@ def demonstrate_timescales():
     print(f"      Higher levels (slower) contribute less to immediate signal")
 
 
-def main():
+def main() -> None:
     """Run all hierarchical system examples."""
     print("=" * 70)
     print("APGI Hierarchical Multi-Timescale System Examples")
