@@ -60,11 +60,27 @@ def validate_config(config: dict) -> None:
     _validate_continuous_time_sde(config)
     _validate_hierarchical_parameters(config)
     _validate_precision_parameters(config)
+    _validate_learning_rates(config)  # Spec §1.4
+    _validate_ema_parameters(config)  # Spec §1.2
+    _validate_sliding_window_params(config)  # Spec §1.2
     _validate_numerical_stability(config)
 
     # Validate post-ignition reset factor (§6)
     if "reset_factor" in config:
         validate_reset_factor(config["reset_factor"])
+
+    # Validate neuromodulatory gains
+    g_ach = config.get("g_ach", 1.0)
+    g_ne = config.get("g_ne", 1.0)
+    if g_ach < 0:
+        raise ValidationError(f"g_ach={g_ach} must be ≥ 0. Spec §2.3: ACh gain")
+    if g_ne < 0:
+        raise ValidationError(f"g_ne={g_ne} must be ≥ 0. Spec §2.3: NE gain")
+
+    # Validate dopaminergic bias
+    beta = config.get("beta", 1.15)
+    if beta < 0:
+        raise ValidationError(f"beta={beta} must be ≥ 0. Spec §2.4: DA bias")
 
 
 def _validate_neuromodulator_separation(config: dict) -> None:
@@ -231,6 +247,80 @@ def _validate_precision_parameters(config: dict) -> None:
         )
 
 
+def _validate_learning_rates(config: dict) -> None:
+    """Validate generative model learning rates (Spec §1.4).
+
+    Spec §1.4: Learning rates κ_e, κ_i must satisfy κ < 2/Π_max
+    for gradient descent convergence in the generative model.
+    """
+    if not config.get("use_internal_predictions", False):
+        return  # Skip if generative model disabled
+
+    kappa_e = config.get("kappa_e", 0.01)
+    kappa_i = config.get("kappa_i", 0.01)
+    pi_max = config.get("pi_max", 1e4)
+
+    max_kappa = 2.0 / pi_max
+
+    if kappa_e >= max_kappa:
+        raise ValidationError(
+            f"kappa_e={kappa_e} >= {max_kappa:.4f}. "
+            f"Spec §1.4 requires κ_e < 2/Π_max for generative model stability. "
+            f"Current Π_max={pi_max}, max allowed κ_e={max_kappa:.4f}"
+        )
+
+    if kappa_i >= max_kappa:
+        raise ValidationError(
+            f"kappa_i={kappa_i} >= {max_kappa:.4f}. "
+            f"Spec §1.4 requires κ_i < 2/Π_max for generative model stability. "
+            f"Current Π_max={pi_max}, max allowed κ_i={max_kappa:.4f}"
+        )
+
+
+def _validate_ema_parameters(config: dict) -> None:
+    """Validate EMA variance estimation parameters (Spec §1.2).
+
+    Spec §1.2: EMA smoothing parameters α must be in (0, 1].
+    """
+    variance_method = config.get("variance_method", "ema")
+
+    if variance_method == "ema":
+        alpha_e = config.get("alpha_e", 0.05)
+        alpha_i = config.get("alpha_i", 0.05)
+
+        if not (0 < alpha_e <= 1):
+            raise ValidationError(f"alpha_e={alpha_e} must be in (0, 1] for EMA. Spec §1.2")
+
+        if not (0 < alpha_i <= 1):
+            raise ValidationError(f"alpha_i={alpha_i} must be in (0, 1] for EMA. Spec §1.2")
+
+
+def _validate_sliding_window_params(config: dict) -> None:
+    """Validate sliding window variance estimation parameters.
+
+    T_win must be positive integer for sliding window method.
+    """
+    variance_method = config.get("variance_method", "ema")
+
+    if variance_method == "sliding_window":
+        T_win = config.get("T_win", 50)
+
+        if not isinstance(T_win, int) or T_win <= 0:
+            raise ValidationError(
+                f"T_win={T_win} must be positive integer for sliding window. "
+                f"Spec §1.2 (Method B)"
+            )
+
+        # Warn if window is too small for meaningful Bessel correction
+        if T_win < 5:
+            warnings.warn(
+                f"T_win={T_win} is very small. Bessel correction may be unstable. "
+                f"Recommend T_win >= 10. Spec §1.2",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+
 def _validate_numerical_stability(config: dict) -> None:
     """Validate general numerical stability constraints.
 
@@ -253,6 +343,30 @@ def _validate_numerical_stability(config: dict) -> None:
     if noise_std < 0:
         raise ValidationError(
             f"noise_std must be ≥ 0, got {noise_std}. " "Spec §7.2: SDE diffusion coefficient"
+        )
+
+    # Validate cost-value coefficients
+    c0 = config.get("c0", 0.0)
+    c1 = config.get("c1", 0.2)
+    c2 = config.get("c2", 0.5)
+    v1 = config.get("v1", 0.5)
+    v2 = config.get("v2", 0.5)
+
+    for name, value in [("c0", c0), ("c1", c1), ("c2", c2), ("v1", v1), ("v2", v2)]:
+        if value < 0:
+            raise ValidationError(f"{name}={value} must be ≥ 0. Spec §4.2-4.3: Cost-value model")
+
+    # Validate refractory boost
+    delta = config.get("delta", 0.5)
+    if delta < 0:
+        raise ValidationError(f"delta={delta} must be ≥ 0. Spec §6: Refractory boost")
+
+    # Validate log nonlinearity toggle
+    signal_log_nonlinearity = config.get("signal_log_nonlinearity", True)
+    if not isinstance(signal_log_nonlinearity, bool):
+        raise ValidationError(
+            f"signal_log_nonlinearity must be boolean, got {type(signal_log_nonlinearity)}. "
+            f"Spec §3.3: Optional log compression"
         )
 
 

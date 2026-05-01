@@ -190,8 +190,13 @@ class LiquidStateMachine:
         else:
             u = np.asarray(u)
 
+        # Handle input validation: exact match required, but allow scalar broadcasting
         if u.shape[0] != self.M:
-            raise ValueError(f"Input dimension mismatch: expected {self.M}, got {u.shape[0]}")
+            # Allow scalar broadcasting: single value can be broadcast to any M
+            if u.shape[0] == 1:
+                u = np.broadcast_to(u, (self.M,))
+            else:
+                raise ValueError(f"Input dimension mismatch: expected {self.M}, got {u.shape[0]}")
 
         # Determine effective time constant
         if tau is not None:
@@ -319,13 +324,19 @@ class LiquidStateMachine:
             "r2": r2,
         }
 
-    def collect_state(self, target: Optional[float] = None) -> None:
-        """Collect current state for training.
+    def collect_state(
+        self, state: Optional[np.ndarray] = None, target: Optional[float] = None
+    ) -> None:
+        """Collect state for training.
 
         Args:
+            state: State to collect (optional, defaults to current self.x)
             target: Target signal value (optional)
         """
-        self.history.append(self.x.copy())
+        if state is not None:
+            self.history.append(state.copy())
+        else:
+            self.history.append(self.x.copy())
         if target is not None:
             self.history_targets.append(target)
 
@@ -336,7 +347,7 @@ class LiquidStateMachine:
             (X, y) where X is states (T, N) and y is targets (T,)
 
         Raises:
-            ValueError: If no data collected
+            ValueError: If no data collected or no targets collected
         """
         if len(self.history) == 0:
             raise ValueError("No training data collected")

@@ -20,7 +20,7 @@ from typing import Callable
 import numpy as np
 
 
-@dataclass
+@dataclass(frozen=True)
 class SpectralSignature:
     """Result of spectral signature extraction."""
 
@@ -381,6 +381,7 @@ def extract_1f_signature(
     n_bootstrap: int = 100,
     beta_target: float = 1.0,
     beta_tolerance: float = 0.3,
+    compute_ci: bool = True,
 ) -> SpectralSignature:
     """Automated extraction of 1/f spectral signature with confidence intervals.
 
@@ -467,13 +468,20 @@ def extract_1f_signature(
             pass
         return float("nan")
 
-    ci_lower, ci_upper = bootstrap_confidence_interval(
-        signal, beta_estimator, n_bootstrap=n_bootstrap, ci=0.95, fs=fs
-    )
+    # Compute confidence intervals if requested
+    if compute_ci:
+        ci_lower, ci_upper = bootstrap_confidence_interval(
+            signal, beta_estimator, n_bootstrap=n_bootstrap, ci=0.95, fs=fs
+        )
 
-    # If bootstrap failed, use fallback CI based on R²
-    if np.isnan(ci_lower) or np.isnan(ci_upper):
-        ci_width = 0.1 * (1 - r2_best)  # Wider CI for worse fits
+        # If bootstrap failed, use fallback CI based on R²
+        if np.isnan(ci_lower) or np.isnan(ci_upper):
+            ci_width = 0.1 * (1 - r2_best)  # Wider CI for worse fits
+            ci_lower = beta_consensus - ci_width
+            ci_upper = beta_consensus + ci_width
+    else:
+        # Skip bootstrap, use fallback CI
+        ci_width = 0.1 * (1 - r2_best)
         ci_lower = beta_consensus - ci_width
         ci_upper = beta_consensus + ci_width
 

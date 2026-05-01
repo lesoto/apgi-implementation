@@ -136,8 +136,12 @@ def assess_hierarchical_architecture(
             coherences = []
             for ell in range(n_levels - 1):
                 if len(signal_levels[ell]) > 100 and len(signal_levels[ell + 1]) > 100:
+                    # Ensure nperseg doesn't exceed signal length
+                    min_len = min(len(signal_levels[ell]), len(signal_levels[ell + 1]))
+                    nperseg = min(256, min_len // 4)
+                    nperseg = max(nperseg, 8)  # Minimum for meaningful analysis
                     f, coh = scipy_signal.coherence(
-                        signal_levels[ell], signal_levels[ell + 1], fs=fs
+                        signal_levels[ell], signal_levels[ell + 1], fs=fs, nperseg=nperseg
                     )
                     # Average coherence in mid-frequency range
                     mid_idx = len(coh) // 2
@@ -189,6 +193,12 @@ def assess_statistical_validation(
     issues = []
     recommendations = []
     spectral_signature = None
+
+    # Check for very short signals - return 0 scores for unreliable data
+    if len(signal) < 100:
+        issues.append("Signal too short for reliable spectral analysis")
+        recommendations.append("Increase signal length to at least 100 samples")
+        return (0.0, 0.0, 0.0, issues, recommendations, None)
 
     # 1. Extract 1/f signature
     try:

@@ -132,8 +132,10 @@ class LiquidNetwork:
     def apply_suprathreshold_gain(
         self, S: float, theta: float, A: float = 1.0, dt: float = 1.0
     ) -> np.ndarray:
-        """Additive Euler term: dx/dt += A*x*[S-θ]_+."""
+        """Additive Euler term: dx/dt += A*x*[S-θ]_+ + baseline*[S-θ]_+."""
 
         suprath = max(0.0, S - theta)
-        self.x += dt * (A * self.x * suprath)
+        # Include baseline drive to bootstrap from zero initial state
+        baseline = 0.01
+        self.x += dt * (A * self.x * suprath + baseline * suprath)
         return self.x

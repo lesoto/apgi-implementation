@@ -1,13 +1,5 @@
 # Hierarchical Multi-Timescale APGI System Guide
 
-**Version:** 1.0  
-**Date:** April 21, 2026  
-**Status:** Production Ready ✅
-
----
-
-## Quick Start
-
 Enable the full hierarchical system with a single configuration parameter:
 
 ```python

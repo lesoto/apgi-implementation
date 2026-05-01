@@ -26,8 +26,8 @@ class APGIConfig(BaseModel):
 
     # Numerical stability
     eps: float = Field(default=1e-8, gt=0, lt=1, description="Numerical stability threshold")
-    pi_min: float = Field(default=1e-4, gt=0, description="Minimum precision")
-    pi_max: float = Field(default=1e4, gt=0, description="Maximum precision")
+    pi_min: float = Field(default=0.01, gt=0, description="Minimum precision")
+    pi_max: float = Field(default=100.0, gt=0, description="Maximum precision")
 
     # EMA variance update
     alpha_e: float = Field(default=0.05, gt=0, lt=1, description="Exteroceptive EMA rate")
@@ -70,7 +70,12 @@ class APGIConfig(BaseModel):
     reset_factor: float = Field(default=0.1, gt=0, lt=1, description="Signal reset factor (rho)")
 
     # Threshold adaptation timescales
-    tau_theta: float = Field(default=20.0, gt=0, description="Threshold adaptation timescale")
+    tau_theta: float = Field(
+        default=20.0, gt=0, description="Threshold adaptation timescale (allostatic)"
+    )
+    tau_theta_recovery: float = Field(
+        default=0.45, gt=0, description="Threshold recovery timescale (perceptual)"
+    )
 
     # Hierarchical cascade tuning
     KAPPA_UP: float = Field(default=0.1, ge=0, le=1, description="Bottom-up cascade strength")
@@ -115,6 +120,13 @@ class APGIConfig(BaseModel):
 
     # BOLD calibration
     use_bold_calibration: bool = Field(default=False, description="Enable BOLD calibration")
+    bold_conversion_factor: float = Field(
+        default=1.2e-18, gt=0, description="Joules per 1% BOLD change per cm³"
+    )
+    bold_tissue_volume: float = Field(default=1.0, gt=0, description="Tissue volume in cm³")
+    bold_ignition_spike_factor: float = Field(
+        default=1.075, gt=0, description="Energy spike factor during ignition"
+    )
 
     # Reservoir layer
     use_reservoir: bool = Field(default=False, description="Enable reservoir computing")
@@ -124,9 +136,20 @@ class APGIConfig(BaseModel):
         default=0.9, gt=0, lt=1, description="Reservoir spectral radius"
     )
     reservoir_input_scale: float = Field(default=0.1, gt=0, description="Input scaling")
+    reservoir_readout_method: Literal["linear", "energy"] = Field(
+        default="linear", description="Reservoir readout method"
+    )
+    reservoir_amplification: float = Field(
+        default=0.0, ge=0, description="Suprathreshold amplification strength"
+    )
 
     # Kuramoto oscillators
     use_kuramoto: bool = Field(default=False, description="Enable Kuramoto oscillators")
+    kuramoto_tau_xi: float = Field(default=1.0, gt=0, description="OU noise correlation timescale")
+    kuramoto_sigma_xi: float = Field(default=0.1, ge=0, description="OU noise amplitude")
+    kuramoto_reset_amount: float = Field(
+        default=3.14159, gt=0, description="Phase reset on ignition (radians)"
+    )
 
     # Hierarchical mode
     hierarchical_mode: Literal["off", "basic", "advanced", "full"] | None = Field(
@@ -183,6 +206,42 @@ class APGIConfig(BaseModel):
                 f"dt={self.dt} exceeds max {max_dt:.4f}. "
                 f"Spec §7.4 requires dt <= min(τ_S, τ_θ, τ_Π) / 10."
             )
+        return self
+
+    @model_validator(mode="after")
+    def validate_learning_rates(self) -> "APGIConfig":
+        """Validate generative model learning rates (Spec §1.4)."""
+        if self.use_internal_predictions:
+            max_kappa = 2.0 / self.pi_max
+            if self.kappa_e >= max_kappa:
+                raise ValueError(
+                    f"kappa_e={self.kappa_e} >= {max_kappa:.4f}. "
+                    f"Spec §1.4 requires κ_e < 2/Π_max for stability."
+                )
+            if self.kappa_i >= max_kappa:
+                raise ValueError(
+                    f"kappa_i={self.kappa_i} >= {max_kappa:.4f}. "
+                    f"Spec §1.4 requires κ_i < 2/Π_max for stability."
+                )
+        return self
+
+    @model_validator(mode="after")
+    def validate_somatic_bias_consistency(self) -> "APGIConfig":
+        """Ensure somatic bias parameters are consistent."""
+        # beta and beta_da should not both be explicitly set to different values
+        if self.beta_da is not None and abs(self.beta_da - self.beta) > 0.01:
+            # beta_da takes precedence (backward compatibility)
+            self.beta = self.beta_da
+        return self
+
+    @model_validator(mode="after")
+    def validate_variance_method_params(self) -> "APGIConfig":
+        """Validate variance estimation parameters."""
+        if self.variance_method == "ema":
+            if not (0 < self.alpha_e <= 1):
+                raise ValueError(f"alpha_e={self.alpha_e} must be in (0, 1] for EMA")
+            if not (0 < self.alpha_i <= 1):
+                raise ValueError(f"alpha_i={self.alpha_i} must be in (0, 1] for EMA")
         return self
 
     @model_validator(mode="after")

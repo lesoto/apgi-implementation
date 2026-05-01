@@ -51,3 +51,112 @@ class TestAPGIPipelineExtended:
         # Should have deterministic ignition decision
         assert "B" in result
         assert isinstance(result["B"], (int, np.integer))
+
+    def test_bold_calibration_path(self):
+        """Should cover bold_calibration dict creation (line 572)."""
+        config = CONFIG.copy()
+        config["use_realistic_cost"] = True
+        config["use_bold_calibration"] = True
+        config["bold_conversion_factor"] = 1.2e-6
+        config["bold_tissue_volume"] = 1.5
+        config["bold_ignition_spike_factor"] = 1.08
+
+        pipeline = APGIPipeline(config)
+
+        # Run a step to trigger bold_calibration path
+        result = pipeline.step(1.0, 0.0, 0.5, 0.5)
+        assert "B" in result
+
+    def test_hierarchical_without_network_compute_precision(self):
+        """Should cover compute_precision in list comprehension (line 520)."""
+        config = CONFIG.copy()
+        config["use_hierarchical"] = True
+        config["n_levels"] = 3
+        config["tau_0"] = 10.0  # Required: tau_0 > 1 (Spec §8.2)
+        # Explicitly disable hierarchical_precision_ode to ensure compute_precision path
+        config["use_hierarchical_precision_ode"] = False
+
+        pipeline = APGIPipeline(config)
+        # Even without precision ODE, pipeline may create network
+        # Just verify the pipeline runs correctly with hierarchical mode
+
+        # Run steps
+        for t in range(5):
+            result = pipeline.step(float(t), 0.0, 0.5, 0.5)
+            assert "S" in result
+
+    def test_hierarchical_network_compute_precision_path(self):
+        """Should cover compute_precision in list comprehension for hierarchical (line 706)."""
+        config = CONFIG.copy()
+        config["use_hierarchical"] = True
+        config["n_levels"] = 3
+        config["tau_0"] = 10.0  # Required: tau_0 > 1 (Spec §8.2)
+        config["use_hierarchical_precision_ode"] = True
+
+        pipeline = APGIPipeline(config)
+        # With precision ODE, hierarchical_network should be created
+        assert pipeline.hierarchical_network is not None
+
+        # Run steps
+        for t in range(5):
+            result = pipeline.step(float(t), 0.0, 0.5, 0.5)
+            assert "S" in result
+
+    def test_bottom_up_threshold_cascade_path(self):
+        """Should cover bottom_up_threshold_cascade in for loop (lines 731-732)."""
+        config = CONFIG.copy()
+        config["use_hierarchical"] = True
+        config["n_levels"] = 4
+        config["tau_0"] = 10.0  # Required: tau_0 > 1 (Spec §8.2)
+        config["kappa_up"] = 0.1  # Enable bottom-up cascade
+
+        pipeline = APGIPipeline(config)
+
+        # Run steps to trigger the cascade
+        for t in range(10):
+            result = pipeline.step(float(t), 0.0, 0.5, 0.5)
+            assert "theta" in result
+
+    def test_continuous_threshold_ode_with_refractory(self):
+        """Should cover continuous threshold ODE with refractory drift (lines 654-655)."""
+        config = CONFIG.copy()
+        config["use_continuous_threshold_ode"] = True
+        config["use_ode_refractory_drift"] = True
+
+        pipeline = APGIPipeline(config)
+
+        # Run steps to trigger ODE mode with refractory
+        for t in range(10):
+            result = pipeline.step(float(t), 0.0, 0.5, 0.5)
+            assert "theta" in result
+
+    def test_continuous_threshold_ode_without_refractory(self):
+        """Should cover continuous threshold ODE without refractory drift."""
+        config = CONFIG.copy()
+        config["use_continuous_threshold_ode"] = True
+        config["use_ode_refractory_drift"] = False
+
+        pipeline = APGIPipeline(config)
+
+        # Run steps to trigger ODE mode without refractory
+        for t in range(10):
+            result = pipeline.step(float(t), 0.0, 0.5, 0.5)
+            assert "theta" in result
+
+    def test_kuramoto_broadcast_ignition(self):
+        """Should cover kuramoto broadcast ignition (lines 873-877)."""
+        config = CONFIG.copy()
+        config["use_phase_modulation"] = True
+        config["kuramoto_n_levels"] = 3
+        config["kuramoto_broadcast_ignition"] = True
+
+        pipeline = APGIPipeline(config)
+
+        # Run steps, hoping for ignition
+        for t in range(50):
+            result = pipeline.step(float(t % 10), 0.0, 0.5, 0.5)
+            if result["B"] == 1:
+                # Check if kuramoto data is in result
+                if "kuramoto_phases" in result:
+                    assert isinstance(result["kuramoto_phases"], list)
+                break

@@ -18,9 +18,10 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from typing import cast
+
 import numpy as np
 import numpy.typing as npt
-from typing import cast
 
 from config import CONFIG
 from hierarchy.multiscale import build_timescales, multiscale_weights

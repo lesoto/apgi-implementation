@@ -1,13 +1,5 @@
 # APGI Design Choices & Implementation Rationale
 
-**Version:** 1.0  
-**Date:** April 21, 2026  
-**Status:** Production Ready
-
----
-
-## Overview
-
 This document explains the key design decisions made during APGI implementation, including deviations from the specification and justifications for architectural choices.
 
 ---

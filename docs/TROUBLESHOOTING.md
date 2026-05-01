@@ -1,11 +1,5 @@
 # APGI Troubleshooting Guide
 
-**Version:** 1.0  
-**Date:** April 21, 2026  
-**Status:** Production Ready
-
----
-
 ## Common Errors
 
 ### Error: `ValueError: lam must be in (0,1)`

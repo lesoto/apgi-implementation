@@ -7,8 +7,8 @@ CONFIG = {
     "sigma2_i0": 1.0,
     # Numerical stability
     "eps": 1e-8,
-    "pi_min": 1e-4,
-    "pi_max": 1e4,
+    "pi_min": 0.01,
+    "pi_max": 100.0,
     # EMA variance update
     "alpha_e": 0.05,
     "alpha_i": 0.05,

@@ -133,10 +133,10 @@ class TestLiquidStateMachineStep:
         assert not np.allclose(x_before, x_after)
 
     def test_step_invalid_input_dimension(self):
-        """Should raise error for wrong input dimension."""
-        lsm = LiquidStateMachine(N=100, M=2)
+        """Should raise error for wrong input dimension (not scalar-like)."""
+        lsm = LiquidStateMachine(N=100, M=3)
         with pytest.raises(ValueError):
-            lsm.step(np.array([0.5]), tau=1.0)  # Wrong dimension
+            lsm.step(np.array([0.5, 0.3]), tau=1.0)  # Wrong dimension (2 vs 3)
 
     def test_step_invalid_tau(self):
         """Should raise error for invalid tau."""

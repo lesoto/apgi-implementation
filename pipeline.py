@@ -304,10 +304,8 @@ class APGIPipeline:
             self.omega_levels = 2 * np.pi / self.taus  # Natural frequencies from timescales
 
             # Initialize HierarchicalPrecisionNetwork for proper per-level error computation
-            # Enable for advanced mode, and also for basic mode
-            if self.config.get("use_hierarchical_precision_ode", False) or self.config.get(
-                "use_hierarchical", False
-            ):
+            # Only enable when use_hierarchical_precision_ode is explicitly True
+            if self.config.get("use_hierarchical_precision_ode", False):
                 self.hierarchical_network = HierarchicalPrecisionNetwork(
                     n_levels=n_levels,
                     tau_pi=self.config.get("tau_pi", 1000.0),

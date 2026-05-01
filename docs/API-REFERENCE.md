@@ -1,27 +1,5 @@
 # APGI API Reference
 
-**Version:** 1.0  
-**Date:** April 21, 2026  
-**Status:** Production Ready
-
----
-
-## Table of Contents
-
-1. [Core Pipeline](#core-pipeline)
-2. [Signal Processing](#signal-processing)
-3. [Precision System](#precision-system)
-4. [Threshold Dynamics](#threshold-dynamics)
-5. [Ignition Mechanism](#ignition-mechanism)
-6. [Oscillatory Coupling](#oscillatory-coupling)
-7. [Reservoir Layer](#reservoir-layer)
-8. [Thermodynamics](#thermodynamics)
-9. [Observable Mapping](#observable-mapping)
-10. [Stability Analysis](#stability-analysis)
-11. [Validation](#validation)
-
----
-
 ## Core Pipeline
 
 ### `APGIPipeline`
@@ -942,9 +920,3 @@ except ValueError as e:
 ```
 
 ---
-
-## Performance
-
-- **Pipeline step:** ~0.1 ms (CPU)
-- **Memory usage:** ~10 MB (base) + 1 MB per 1000 history steps
-- **Test suite:** 164 tests in 0.94 seconds

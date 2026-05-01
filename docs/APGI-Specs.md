@@ -1,24 +1,20 @@
 # APGI System: Full Mathematical Specification
 
-**Version:** 1.0 (Production Ready)  
-**Implementation Status:** 95/100 ✅  
-**Last Updated:** April 21, 2026
-
-## 0. Core Variables
+## Core Variables
 
 At time $t$:
 
-| Variable | Description | Implementation |
+| Variable | Description |
 | -------- | ----------- | --------------- |
-| $z_e(t)$ | exteroceptive prediction error | ✅ Implemented |
-| $z_i(t)$ | interoceptive prediction error | ✅ Implemented |
-| $\Pi_e(t), \Pi_i(t)$ | precisions (inverse variances) | ✅ Implemented |
-| $S(t)$ | accumulated (precision-weighted) signal | ✅ Implemented |
-| $\theta(t)$ | dynamic ignition threshold | ✅ Implemented |
-| $B(t) \in \{0,1\}$ | ignition state | ✅ Implemented |
-| $\beta(t)$ | dopaminergic bias term | ✅ Implemented |
-| $C(t)$ | metabolic cost | ✅ Implemented |
-| $V(t)$ | expected information value | ✅ Implemented |
+| $z_e(t)$ | exteroceptive prediction error |
+| $z_i(t)$ | interoceptive prediction error |
+| $\Pi_e(t), \Pi_i(t)$ | precisions (inverse variances) |
+| $S(t)$ | accumulated (precision-weighted) signal |
+| $\theta(t)$ | dynamic ignition threshold |
+| $B(t) \in \{0,1\}$ | ignition state |
+| $\beta(t)$ | dopaminergic bias term |
+| $C(t)$ | metabolic cost |
+| $V(t)$ | expected information value |
 
 ---
 

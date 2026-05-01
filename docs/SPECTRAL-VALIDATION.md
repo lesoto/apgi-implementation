@@ -1,13 +1,5 @@
 # Spectral Validation Guide
 
-**Version:** 1.0  
-**Date:** April 21, 2026  
-**Status:** Production Ready ✅
-
----
-
-## Overview
-
 APGI predicts that the threshold and signal dynamics exhibit
 long-range temporal correlations consistent with 1/f power spectra —
 a signature of hierarchical multi-timescale systems (Spec §12).

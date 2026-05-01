@@ -168,3 +168,69 @@ def phase_gated_ignition_probability(
 
     window_factor = compute_phase_window(phi, window_center, window_width)
     return float(p_base * (0.5 + 0.5 * window_factor))  # Scale but don't zero out
+
+
+class HierarchicalPhaseModulator:
+    """Hierarchical phase modulator with broadcast capability.
+
+    Manages phase states across multiple hierarchical levels and supports
+    phase reset with optional broadcast to neighboring levels.
+    """
+
+    def __init__(self, n_levels: int, broadcast_decay: float = 0.5) -> None:
+        """Initialize the hierarchical phase modulator.
+
+        Args:
+            n_levels: Number of hierarchy levels
+            broadcast_decay: Decay factor for broadcast reset (default: 0.5)
+        """
+        self.n_levels = n_levels
+        self.broadcast_decay = broadcast_decay
+        self.phases = np.zeros(n_levels)
+
+    def reset_phase_on_ignition(
+        self,
+        level: int,
+        reset_amount: float,
+        broadcast: bool = False,
+    ) -> None:
+        """Reset phase at a specific level, optionally broadcasting to others.
+
+        Args:
+            level: Level to reset
+            reset_amount: Amount to add to phase (modulo 2*pi)
+            broadcast: If True, also reset neighboring levels with decay
+        """
+        # Line 196: Check for invalid level
+        if level < 0 or level >= self.n_levels:
+            return
+
+        # Reset the target level
+        self.phases[level] = (self.phases[level] + reset_amount) % (2 * np.pi)
+
+        # Lines 203-212: Broadcast to other levels
+        if broadcast:
+            for other_level in range(self.n_levels):
+                if other_level == level:
+                    continue
+                # Calculate distance from reset level
+                distance = abs(other_level - level)
+                effective_reset = reset_amount * (self.broadcast_decay**distance)
+                self.phases[other_level] = (self.phases[other_level] + effective_reset) % (
+                    2 * np.pi
+                )
+
+
+def phase_amplitude_coupling(phase: float, amplitude: float) -> float:
+    """Compute phase-amplitude coupling factor.
+
+    Couples phase of one oscillation with amplitude of another.
+
+    Args:
+        phase: Phase value (radians)
+        amplitude: Amplitude value
+
+    Returns:
+        Coupled value: max(0, cos(phase)) * amplitude
+    """
+    return float(max(0.0, np.cos(phase)) * amplitude)

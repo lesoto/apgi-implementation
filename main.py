@@ -1,5 +1,10 @@
 """APGI (Adaptive Precision Gated Ignition) - Main Entry Point
 
+Available Options:
+    --demo, --steps, --output, --multiscale, --levels, --k
+    --ne-on-threshold, --gamma-ne, --beta, --stochastic, --seed
+    --log-level, --json-logs, --max-history, --strict-mode
+
 Example usage:
     python main.py --steps 1000 --output results.json
     python main.py --demo  # Run demonstration with synthetic data
