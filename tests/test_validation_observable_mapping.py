@@ -1,5 +1,7 @@
 """Tests for validation/observable_mapping.py neural and behavioral observable extraction."""
 
+from unittest.mock import patch
+
 import numpy as np
 
 from validation.observable_mapping import (
@@ -325,6 +327,16 @@ class TestKeyTestablePredictionValidator:
         assert history == validator.history
         assert history is not validator.history
 
+    def test_validate_no_ignition_cohens_d(self):
+        """Test validate method when there are no ignition events."""
+        validator = KeyTestablePredictionValidator(tau_sigma=0.5)
+        # Add 100 samples with NO ignition (B=0)
+        for i in range(100):
+            validator.step(S=float(i) / 100.0, theta=0.5, B=0)
+        result = validator.validate()
+        assert result["valid"] is True
+        assert result["cohens_d"] == 0.0
+
 
 class TestParameterIdentifiabilityAnalyzer:
     """Test parameter identifiability analysis."""
@@ -369,10 +381,12 @@ class TestParameterIdentifiabilityAnalyzer:
         assert result["constraint3_tau_sigma_positive"] is True
         assert result["all_satisfied"] is True
 
-    def test_compute_fisher_information_linalg_error(self):
+    @patch("numpy.linalg.eigvals")
+    def test_compute_fisher_information_linalg_error(self, mock_eigvals):
         """Test LinAlgError handling in Fisher information computation."""
+        mock_eigvals.side_effect = np.linalg.LinAlgError("Mock LinAlgError")
         params = {"lam": 0.2, "eta": 0.1, "ignite_tau": 0.5}
-        # Create data that will cause LinAlgError
+        # Create data
         S_history = np.array([1.0, 1.0, 1.0])
         theta_history = np.array([1.0, 1.0, 1.0])
         B_history = np.array([0, 0, 0])

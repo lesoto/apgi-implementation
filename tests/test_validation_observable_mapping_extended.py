@@ -1,5 +1,7 @@
 """Extended tests for validation/observable_mapping.py to achieve 100% coverage."""
 
+from unittest.mock import patch
+
 import numpy as np
 
 from validation.observable_mapping import ParameterIdentifiabilityAnalyzer
@@ -40,9 +42,11 @@ class TestParameterIdentifiabilityAnalyzerExtended:
         # Should return dict with constraint results
         assert isinstance(result, dict)
 
-    def test_compute_fisher_matrix_linalg_error(self, suppress_lapack):
+    @patch("numpy.linalg.eigvals")
+    def test_compute_fisher_matrix_linalg_error(self, mock_eigvals, suppress_lapack):
         """Should handle LinAlgError in Fisher matrix computation."""
-        # Create data that will cause LinAlgError
+        mock_eigvals.side_effect = np.linalg.LinAlgError("Mock LinAlgError")
+        # Create data
         S_history = np.array([1.0, 1.0, 1.0])  # Constant signal
         theta_history = np.array([1.0, 1.0, 1.0])
         B_history = np.array([0, 0, 0])
