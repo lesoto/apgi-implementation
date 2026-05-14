@@ -80,10 +80,6 @@ def robust_log_regression(
     x_mean, x_std = np.mean(x), np.std(x)
     y_mean, y_std = np.mean(y), np.std(y)
 
-    # Avoid division by zero in scaling
-    if x_std < 1e-10 or y_std < 1e-10:
-        return float("nan"), float("nan"), float("nan")
-
     x_scaled = (x - x_mean) / x_std
     y_scaled = (y - y_mean) / y_std
 

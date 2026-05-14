@@ -1,13 +1,5 @@
 # APGI Parameter Constraints Guide
 
-**Version:** 1.0  
-**Date:** April 21, 2026  
-**Status:** Production Ready
-
----
-
-## Overview
-
 This guide documents all APGI parameters, their valid ranges, physical meanings, and typical values. All parameters are validated at pipeline initialization.
 
 ---

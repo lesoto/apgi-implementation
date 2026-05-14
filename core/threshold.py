@@ -194,6 +194,19 @@ def update_threshold_discrete(
     return float(theta + eta * (metabolic_cost - information_value) + delta * B_prev)
 
 
+def apply_serotonin_threshold_offset(theta: float, beta_5ht: float) -> float:
+    """Serotonergic threshold offset: θ_eff = θ + β_5HT (spec §8.4).
+
+    5-HT encodes patience / uncertainty tolerance by raising the ignition
+    threshold additively. Positive β_5HT delays premature perceptual
+    commitment; zero recovers baseline behaviour.
+
+    Theoretical grounding: Dayan & Daw (2008); Crockett et al. (2012).
+    Flagged as HIGH-UNCERTAINTY mapping in spec §8.4.
+    """
+    return float(theta + beta_5ht)
+
+
 def apply_refractory_boost(theta_next: float, B: int, delta: float) -> float:
     """Post-ignition boost: θ <- θ + δ*B."""
 

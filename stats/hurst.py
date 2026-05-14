@@ -102,6 +102,110 @@ def power_spectrum(
     return S
 
 
+def dfa_analysis(
+    signal: np.ndarray,
+    scales: np.ndarray | list[int] | None = None,
+    order: int = 1,
+) -> tuple[float, np.ndarray, np.ndarray]:
+    """Detrended Fluctuation Analysis (DFA) for Hurst exponent estimation.
+
+    Implements the DFA algorithm (Peng et al., 1994) to detect long-range
+    temporal correlations in time series. More robust than spectral methods
+    for non-stationary signals (e.g. APGI threshold dynamics).
+
+    The DFA exponent α equals the Hurst exponent H for 0 < H < 1.
+    Spec §22: APGI predicts H ≈ 0.8–1.1 in coupled threshold dynamics.
+
+    Algorithm:
+    1. Compute integrated profile: y(t) = Σ_{k=1}^{t} (x_k − <x>)
+    2. Divide y into non-overlapping windows of size n
+    3. Fit polynomial trend of degree `order` in each window and compute
+       root-mean-square residual F(n)
+    4. Repeat for a range of scales n
+    5. α = slope of log F(n) vs log n (power-law scaling region)
+
+    Args:
+        signal: Input time series (≥ 16 samples recommended)
+        scales: Window sizes to use. Defaults to 20 log-spaced values
+                spanning [4, N//4].
+        order: Polynomial detrending order (1 = linear, 2 = quadratic).
+               Higher orders remove slower non-stationarities.
+
+    Returns:
+        (alpha, scales_used, F_values) where
+        - alpha: DFA scaling exponent (≈ H for stationary processes)
+        - scales_used: Array of window sizes actually evaluated
+        - F_values: Corresponding fluctuation function F(n)
+
+    Raises:
+        ValueError: If signal is too short or fewer than 2 valid scales exist.
+    """
+    x = np.asarray(signal, dtype=float)
+    N = len(x)
+    if N < 16:
+        raise ValueError(f"signal too short for DFA: {N} samples (need ≥ 16)")
+
+    # Integrated profile (zero-mean detrended cumulative sum)
+    y = np.cumsum(x - np.mean(x))
+
+    # Default log-spaced scales from 4 to N//4
+    if scales is None:
+        min_scale = 4
+        max_scale = max(8, N // 4)
+        scales = np.unique(
+            np.round(np.logspace(np.log10(min_scale), np.log10(max_scale), 20)).astype(int)
+        )
+    scales = np.asarray(scales, dtype=int)
+    scales = scales[(scales >= 4) & (scales <= N // 2)]
+
+    F_values = []
+    valid_scales = []
+
+    for n in scales:
+        n_windows = N // n
+        y_trunc = y[: n_windows * n].reshape(n_windows, n)
+        t = np.arange(n, dtype=float)
+        # Fit polynomial trend and accumulate squared residuals
+        rms_sq = 0.0
+        for window in y_trunc:
+            coeffs = np.polyfit(t, window, order)
+            trend = np.polyval(coeffs, t)
+            rms_sq += np.mean((window - trend) ** 2)
+        F_values.append(np.sqrt(rms_sq / n_windows))
+        valid_scales.append(n)
+
+    valid_scales_arr = np.array(valid_scales, dtype=int)
+    F_arr = np.array(F_values, dtype=float)
+
+    if len(valid_scales_arr) < 2:
+        raise ValueError("fewer than 2 valid scales — signal may be too short")
+
+    # Power-law fit: log F(n) = α log n + const
+    alpha, _ = np.polyfit(np.log(valid_scales_arr), np.log(F_arr), 1)
+    return float(alpha), valid_scales_arr, F_arr
+
+
+def estimate_hurst_dfa(
+    signal: np.ndarray,
+    scales: np.ndarray | list[int] | None = None,
+    order: int = 1,
+) -> float:
+    """Estimate Hurst exponent using Detrended Fluctuation Analysis.
+
+    Convenience wrapper around dfa_analysis() returning only H.
+
+    Args:
+        signal: Input time series
+        scales: Window sizes (default: 20 log-spaced values in [4, N//4])
+        order: Polynomial detrending order (default: 1 = linear DFA)
+
+    Returns:
+        Hurst exponent H (= DFA scaling exponent α)
+    """
+    alpha, _, _ = dfa_analysis(signal, scales=scales, order=order)
+    return alpha
+
+
 def estimate_hurst_robust(
     signal: np.ndarray,
     fs: float = 1.0,

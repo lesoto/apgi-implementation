@@ -41,6 +41,21 @@ def stabilize_signal_log(S: float, enabled: bool = True) -> float:
     return float(np.log1p(max(0.0, S)))
 
 
+def instantaneous_signal_phi(
+    phi_e: float,
+    phi_i_eff: float,
+    pi_e_eff: float,
+    pi_i_eff: float,
+) -> float:
+    """S_inst = Π_e_eff · φ(z_e) + Π_i_eff · φ(z_i_eff).
+
+    Signed version required by §12 (S_inst⁽ˡ⁾ = Π · φ(ε) · Γ).
+    phi_e and phi_i_eff are already φ-transformed errors; no abs is taken.
+    Negative values suppress ignition (avoidance pathway).
+    """
+    return float(pi_e_eff * phi_e + pi_i_eff * phi_i_eff)
+
+
 def compute_apgi_signal(
     z_e: float,
     z_i: float,

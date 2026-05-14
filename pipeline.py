@@ -5,10 +5,12 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from active_inference.policy import ActiveInferenceAgent
 from core.allostatic import allostatic_threshold_ode
 from core.dynamics import compute_precision_coupled_noise_std, update_prediction, update_signal_ode
 from core.ignition import compute_ignition_probability, detect_ignition_event, sample_ignition_state
 from core.logging_config import get_logger
+from core.phi_transform import phi_transform, phi_transform_array
 from core.precision import (
     apply_ach_gain,
     apply_dopamine_bias_to_error,
@@ -19,11 +21,16 @@ from core.precision import (
     update_variance_ema,
 )
 from core.preprocessing import RunningStats, compute_prediction_error
-from core.signal import instantaneous_signal, integrate_signal_leaky, stabilize_signal_log
+from core.signal import (
+    instantaneous_signal_phi,
+    integrate_signal_leaky,
+    stabilize_signal_log,
+)
 from core.thermodynamics import compute_landauer_cost
 from core.threshold import (
     apply_ne_threshold_modulation,
     apply_refractory_boost,
+    apply_serotonin_threshold_offset,
     compute_information_value,
     compute_metabolic_cost,
     compute_metabolic_cost_realistic,
@@ -33,11 +40,12 @@ from core.threshold import (
 from core.validation import ValidationError, validate_config
 from hierarchy.coupling import HierarchicalPrecisionNetwork
 from hierarchy.multiscale import (
-    aggregate_multiscale_signal,
+    aggregate_multiscale_signal_phi,
     build_timescales,
     multiscale_weights,
     update_multiscale_feature,
 )
+from hierarchy.resonance import NestedResonanceSystem, build_resonance_system
 from stats.hurst import estimate_hurst_robust
 from stats.spectral_model import validate_pink_noise
 
@@ -321,6 +329,21 @@ class APGIPipeline:
             self.sigma2_e_levels = np.ones(1)
             self.sigma2_i_levels = np.ones(1)
 
+        # Cross-Level Threshold Resonance (§8/§9) — Russian Doll architecture
+        # Opt-in via use_resonance=True.  When active, per-level S accumulators
+        # and live phase-modulated thresholds replace independent accumulators.
+        self.resonance_system: NestedResonanceSystem | None = None
+        if self.use_hierarchical and self.config.get("use_resonance", False):
+            self.resonance_system = build_resonance_system(
+                n_levels=self.n_levels,
+                taus=self.taus,
+                theta_base=self.config["theta_base"],
+                dt=self.config.get("dt", 1.0),
+                kappa_down=self.config.get("resonance_kappa_down", 0.1),
+                kappa_up=self.config.get("resonance_kappa_up", 0.0),
+                phi_noise_std=self.config.get("resonance_phi_noise_std", 0.0),
+            )
+
         # Somatic marker state if enabled
         self.M = self.config.get("M_somatic", 0.0)  # Somatic marker ∈ [-2, +2]
 
@@ -371,6 +394,24 @@ class APGIPipeline:
             from analysis.stability import StabilityAnalyzer
 
             self.stability_analyzer = StabilityAnalyzer(self.config)
+
+        # Active Inference Action Loop (§19)
+        self.active_inference_agent: ActiveInferenceAgent | None = None
+        if self.config.get("use_active_inference", False):
+            ai_params = self.config.get("ai_action_params", None)
+            if ai_params is not None:
+                ai_params = np.asarray(ai_params, dtype=float)
+            self.active_inference_agent = ActiveInferenceAgent(
+                n_actions=self.config.get("ai_n_actions", 3),
+                action_params=ai_params,
+                policy_precision=self.config.get("ai_policy_precision", 2.0),
+                w_epistemic=self.config.get("ai_w_epistemic", 1.0),
+                w_pragmatic=self.config.get("ai_w_pragmatic", 1.0),
+                w_metabolic=self.config.get("ai_w_metabolic", 0.5),
+                sensory_feedback_rate=self.config.get("ai_sensory_feedback_rate", 0.1),
+                metabolic_feedback_rate=self.config.get("ai_metabolic_feedback_rate", 0.1),
+                precision_update_rate=self.config.get("ai_precision_update_rate", 0.05),
+            )
 
         self.history = {
             "S": [],
@@ -466,6 +507,14 @@ class APGIPipeline:
 
         z_i_eff = apply_dopamine_bias_to_error(z_i_n, self.config["beta"])
 
+        # 5a-φ) Signed nonlinear transform §6 — φ(ε) = α·tanh(γ·ε), valence-asymmetric
+        _a_pos = self.config.get("alpha_plus", 1.0)
+        _a_neg = self.config.get("alpha_minus", 1.0)
+        _g_pos = self.config.get("gamma_plus", 2.0)
+        _g_neg = self.config.get("gamma_minus", 2.0)
+        phi_e_n = phi_transform(z_e_n, _a_pos, _a_neg, _g_pos, _g_neg)
+        phi_i_eff = phi_transform(z_i_eff, _a_pos, _a_neg, _g_pos, _g_neg)
+
         # 5b) Hierarchical precision ODE if enabled
         if self.hierarchical_network is not None and self.config.get(
             "use_hierarchical_precision_ode", False
@@ -474,9 +523,10 @@ class APGIPipeline:
             # Compute per-level z-scores for both channels via vectorized EMA (§7)
             z_e_levels, z_i_levels = self._compute_per_level_errors(z_e, z_i)
 
-            # Full precision cascade: combine exteroceptive + interoceptive errors
-            # per level so cross-level error propagation is complete (§7, §8.4)
-            combined_epsilon = np.abs(z_e_levels) + np.abs(z_i_levels)
+            # Full precision cascade: apply φ transform per level then combine (§6, §7)
+            combined_epsilon = phi_transform_array(
+                z_e_levels, _a_pos, _a_neg, _g_pos, _g_neg
+            ) + phi_transform_array(z_i_levels, _a_pos, _a_neg, _g_pos, _g_neg)
 
             # Step the hierarchical network using actual combined per-level errors
             pis_new, phi_new = self.hierarchical_network.step(
@@ -502,12 +552,30 @@ class APGIPipeline:
                     self.phi_i_levels[level], z_i_eff, self.taus[level]
                 )
 
+            # Advance oscillatory phases every step in basic hierarchical mode.
+            # Without this, phases stay at 0 (cos(0)=1 constant) and the PAC
+            # threshold modulation from §8 produces no oscillatory windows.
+            # The precision-ODE branch already updates phases; resonance_system
+            # manages its own phases internally — skip in both those cases.
+            if self.hierarchical_network is None and self.resonance_system is None:
+                _kappa_ph = self.config.get(
+                    "kappa_phase", self.config.get("resonance_kappa_down", 0.1)
+                )
+                _phases = np.array(self.hierarchical.phases)  # type: ignore[union-attr]
+                for _l in range(self.n_levels):
+                    _dphi = self.omega_levels[_l] * dt
+                    if _l < self.n_levels - 1:
+                        _dphi += _kappa_ph * np.sin(_phases[_l + 1] - _phases[_l]) * dt
+                    _phases[_l] = (_phases[_l] + _dphi) % (2.0 * np.pi)
+                self.hierarchical.phases = _phases.tolist()  # type: ignore[union-attr]
+
         # 6) Instantaneous signal (diagnostic) + SDE integration via ODE drift
         # Use hierarchical aggregation if enabled, otherwise single-scale
         if self.use_hierarchical:
-            # Aggregate multi-scale signal: S = Σ_i w_i Π_i |Φ_i|
-            # Combine exteroceptive and interoceptive features
-            phi_combined = np.abs(self.phi_e_levels) + np.abs(self.phi_i_levels)
+            # Aggregate multi-scale signal: S = Σ_i w_i Π_i φ(Φ_i)  (§12, signed)
+            phi_combined = phi_transform_array(
+                self.phi_e_levels, _a_pos, _a_neg, _g_pos, _g_neg
+            ) + phi_transform_array(self.phi_i_levels, _a_pos, _a_neg, _g_pos, _g_neg)
 
             # Use hierarchical precision if available, otherwise compute from per-level variance
             if self.hierarchical_network is not None:
@@ -527,9 +595,20 @@ class APGIPipeline:
                     ]
                 )
 
-            S_inst = aggregate_multiscale_signal(phi_combined, pi_levels, self.weights)
+            S_inst = aggregate_multiscale_signal_phi(phi_combined, pi_levels, self.weights)
+
+            # Cross-Level Threshold Resonance (§8/§9): step per-level accumulators
+            # S_inst_l = Π_l · φ_l(ε)  per-level instantaneous salience
+            if self.resonance_system is not None:
+                _S_inst_levels = pi_levels * phi_combined
+                self.resonance_system.step(_S_inst_levels, pi_levels, dt)
+                # Sync live phases and precisions back to the hierarchical state so
+                # that hierarchical_threshold_modulation uses current resonance phases
+                assert self.hierarchical is not None
+                self.hierarchical.phases = self.resonance_system.phi.tolist()
+                self.hierarchical.pis = self.resonance_system.pi.tolist()
         else:
-            S_inst = instantaneous_signal(z_e_n, z_i_eff, pi_e_eff, pi_i_eff)
+            S_inst = instantaneous_signal_phi(phi_e_n, phi_i_eff, pi_e_eff, pi_i_eff)
 
         # Wire dynamics.py (update_signal_ode) OR discrete leaky accumulation
         # Spec §7.3: σ_S = 1/sqrt(Π_e^eff + Π_i^eff)
@@ -537,8 +616,11 @@ class APGIPipeline:
         dt = self.config.get("dt", 1.0)
         tau_s = self.config.get("tau_s", 5.0)
 
-        # Choose between ODE (continuous) and discrete leaky accumulation
-        if self.config.get("use_canonical_discrete_mode", False):
+        # Choose between resonance accumulator, ODE (continuous), or discrete leaky accumulation
+        if self.resonance_system is not None:
+            # Resonance system manages per-level leaky S accumulators (§8/§9)
+            self.S = self.resonance_system.primary_signal
+        elif self.config.get("use_canonical_discrete_mode", False):
             # Discrete canonical mode: S(t+1) = (1-λ)S(t) + λS_inst(t)
             lam = self.config["lam"]
             self.S = integrate_signal_leaky(self.S, S_inst, lam)
@@ -684,6 +766,12 @@ class APGIPipeline:
                     theta_next, self.config["g_ne"], self.config["gamma_ne"]
                 )
 
+            # 7e) Serotonergic threshold offset: θ_eff = θ + β_5HT (spec §8.4)
+            # 5-HT encodes patience/uncertainty-tolerance; β_5HT > 0 raises ignition bar.
+            beta_5ht = self.config.get("beta_5ht", 0.0)
+            if beta_5ht != 0.0:
+                theta_next = apply_serotonin_threshold_offset(theta_next, beta_5ht)
+
             # 7d) Hierarchical threshold modulation (PAC + Cascade) if enabled (§8.4)
             # Apply to ALL hierarchical modes for consistency
             if self.hierarchical is not None:
@@ -695,7 +783,9 @@ class APGIPipeline:
                 S_levels = np.zeros(self.n_levels)
                 S_levels[0] = self.S
                 if self.n_levels > 1:
-                    S_levels[1:] = np.abs(self.phi_e_levels[1:]) + np.abs(self.phi_i_levels[1:])
+                    S_levels[1:] = phi_transform_array(
+                        self.phi_e_levels[1:], _a_pos, _a_neg, _g_pos, _g_neg
+                    ) + phi_transform_array(self.phi_i_levels[1:], _a_pos, _a_neg, _g_pos, _g_neg)
 
                 # Use hierarchical precision if available, otherwise compute from per-level variance
                 if self.hierarchical_network is not None:
@@ -713,30 +803,35 @@ class APGIPipeline:
                         ]
                     )
 
-                # Compute full hierarchical threshold set using modular component
-                from hierarchy.coupling import bottom_up_threshold_cascade
-                from oscillation.threshold_modulation import hierarchical_threshold_modulation
+                if self.resonance_system is not None:
+                    # Resonance system already computed phase-modulated thresholds (§8)
+                    theta_next = self.resonance_system.primary_threshold
+                    self.hierarchical.thetas = self.resonance_system.theta.tolist()
+                else:
+                    # Compute full hierarchical threshold set using modular component
+                    from hierarchy.coupling import bottom_up_threshold_cascade
+                    from oscillation.threshold_modulation import hierarchical_threshold_modulation
 
-                thetas_mod = hierarchical_threshold_modulation(
-                    thetas=theta_0_levels,
-                    pis=_pi_levels,
-                    phases=np.array(self.hierarchical.phases),
-                    kappa_down=self.config.get("kappa_phase", 0.1),
-                )
+                    thetas_mod = hierarchical_threshold_modulation(
+                        thetas=theta_0_levels,
+                        pis=_pi_levels,
+                        phases=np.array(self.hierarchical.phases),
+                        kappa_down=self.config.get("kappa_phase", 0.1),
+                    )
 
-                # Apply bottom-up cascade if enabled
-                if self.config.get("kappa_up", 0.0) > 0:
-                    for level in range(1, self.n_levels):
-                        thetas_mod[level] = bottom_up_threshold_cascade(
-                            theta_ell=thetas_mod[level],
-                            S_ell_minus_1=S_levels[level - 1],
-                            theta_ell_minus_1=thetas_mod[level - 1],
-                            kappa_up=self.config.get("kappa_up", 0.0),
-                        )
+                    # Apply bottom-up cascade if enabled
+                    if self.config.get("kappa_up", 0.0) > 0:
+                        for level in range(1, self.n_levels):
+                            thetas_mod[level] = bottom_up_threshold_cascade(
+                                theta_ell=thetas_mod[level],
+                                S_ell_minus_1=S_levels[level - 1],
+                                theta_ell_minus_1=thetas_mod[level - 1],
+                                kappa_up=self.config.get("kappa_up", 0.0),
+                            )
 
-                # Use the modulated threshold for the primary ignition level (level 0)
-                theta_next = float(thetas_mod[0])
-                self.hierarchical.thetas = thetas_mod.tolist()
+                    # Use the modulated threshold for the primary ignition level (level 0)
+                    theta_next = float(thetas_mod[0])
+                    self.hierarchical.thetas = thetas_mod.tolist()
 
             # Global threshold clamping for stability (§7.4)
             theta_next = float(np.clip(theta_next, 0.1, 20.0))
@@ -762,6 +857,16 @@ class APGIPipeline:
             if not (0 < reset_factor < 1):
                 raise ValueError(f"reset_factor must be in (0, 1), got {reset_factor}")
             self.S = self.S * reset_factor
+            # Resonance-level ignition reset (§17): refractory boost + partial signal clear
+            if self.resonance_system is not None:
+                rho_s_val = self.config.get("RHO_RETAIN", reset_factor) or reset_factor
+                delta_ref_val = self.config.get("DELTA_RESET", self.config.get("delta", 0.5)) or 0.5
+                self.resonance_system.apply_level_ignition(
+                    level=0,
+                    rho_S=float(rho_s_val),
+                    delta_refractory=float(delta_ref_val),
+                )
+                self.S = self.resonance_system.primary_signal
 
         # 9) Post-ignition threshold dynamics (§6)
         # Canonical spec semantics:
@@ -769,6 +874,50 @@ class APGIPipeline:
         #   9b) Decay to baseline: θ ← θ_base + (θ - θ_base)·e^{-κ}
         theta_next = apply_refractory_boost(theta_next, B_t, self.config["delta"])
         theta_next = threshold_decay(theta_next, self.config["theta_base"], self.config["kappa"])
+
+        # 9a) Active Inference Action Loop (§19) — fires on ignition (step 17)
+        # or every step depending on ai_on_ignition_only config.
+        # Returns action selection result and applies three feedback channels:
+        #   channel 1: Δx̂ₑ (sensory)  → x_hat_e shifted toward prediction error
+        #   channel 2: ΔM  (metabolic) → somatic marker updated
+        #   channel 3: ΔΣ  (epistemic) → sigma2 reduced, Πₜ raised next step
+        ai_result: dict | None = None
+        if self.active_inference_agent is not None:
+            _ai_on_ignition_only = self.config.get("ai_on_ignition_only", True)
+            _should_run_ai = (not _ai_on_ignition_only) or (B_t == 1)
+            if _should_run_ai:
+                policy = self.active_inference_agent.select_policy(
+                    sigma2_e=self.state.sigma2_e,
+                    sigma2_i=self.state.sigma2_i,
+                    S=self.S,
+                    theta=theta_next,
+                )
+                feedback = self.active_inference_agent.apply_action_feedback(
+                    action_idx=policy.action_idx,
+                    z_e=z_e,
+                    z_i=z_i,
+                    sigma2_e=self.state.sigma2_e,
+                    sigma2_i=self.state.sigma2_i,
+                    M=self.M,
+                )
+                # Apply channel 1: sensory prediction shift
+                self.x_hat_e += feedback.delta_x_hat_e
+                self.x_hat_i += feedback.delta_x_hat_i
+                # Apply channel 2: metabolic state change
+                self.M = float(np.clip(self.M + feedback.delta_M, -2.0, 2.0))
+                # Apply channel 3: epistemic precision update (floor at near-zero)
+                self.state.sigma2_e = max(self.state.sigma2_e + feedback.delta_sigma2_e, 1e-6)
+                self.state.sigma2_i = max(self.state.sigma2_i + feedback.delta_sigma2_i, 1e-6)
+                ai_result = {
+                    "ai_action_idx": policy.action_idx,
+                    "ai_action_label": policy.action_label,
+                    "ai_F_values": policy.F_values,
+                    "ai_p_policies": policy.p_policies,
+                    "ai_expected_free_energy": policy.expected_free_energy,
+                    "ai_delta_x_hat_e": feedback.delta_x_hat_e,
+                    "ai_delta_M": feedback.delta_M,
+                    "ai_delta_sigma2_e": feedback.delta_sigma2_e,
+                }
 
         # 10) Internal Prediction Update per §1.4 Generative Model Dynamics
         # Support both flag names for backward compatibility
@@ -849,6 +998,10 @@ class APGIPipeline:
             result["C_landauer"] = C_landauer
             result["bits_erased"] = bits_erased
 
+        # Add BOLD calibration info if enabled
+        if self.config.get("use_bold_calibration", False) and bold_calibration is not None:
+            result["bold_calibration"] = bold_calibration
+
         # Add reservoir info if enabled
         if self.reservoir is not None:
             result["S_reservoir"] = S_reservoir
@@ -896,6 +1049,10 @@ class APGIPipeline:
             result["prediction_margin"] = pred_result["delta"]
             result["prediction_p_ign"] = pred_result["p_ign"]
 
+        # Add active inference output if enabled (§19)
+        if ai_result is not None:
+            result.update(ai_result)
+
         # Add stability analysis if enabled (§7)
         if self.stability_analyzer is not None:
             self.stability_analyzer.step(self.S, self.theta)
@@ -904,6 +1061,13 @@ class APGIPipeline:
             result["hierarchical_pis"] = self.hierarchical.pis.copy()
             result["hierarchical_phases"] = self.hierarchical.phases.copy()
             result["hierarchical_thetas"] = self.hierarchical.thetas.copy()
+
+        if self.resonance_system is not None:
+            result["resonance_phases"] = self.resonance_system.phi.tolist()
+            result["resonance_thetas"] = self.resonance_system.theta.tolist()
+            result["resonance_S_levels"] = self.resonance_system.S.tolist()
+            result["resonance_ignition_windows"] = self.resonance_system.ignition_windows.tolist()
+            result["resonance_modulation_depth"] = self.resonance_system.modulation_depth.tolist()
 
         return result
 

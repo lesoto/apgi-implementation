@@ -1,0 +1,12 @@
+include_dirs:
+  - active_inference
+  - analysis
+  - core
+  - energy
+  - hierarchy
+  - oscillation
+  - reservoir
+  - stats
+  - validation
+exclude_dirs:
+  - tests

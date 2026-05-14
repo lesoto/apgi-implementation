@@ -147,6 +147,25 @@ def aggregate_multiscale_signal(
     return float(np.sum(w * pi * np.abs(phi)))
 
 
+def aggregate_multiscale_signal_phi(
+    phi_values: np.ndarray | list[float],
+    pi_values: np.ndarray | list[float],
+    weights: np.ndarray | list[float],
+) -> float:
+    """S = Σ_i w_i · Π_i · φ_i  (signed, no abs).
+
+    For use when phi_values already hold φ(ε)-transformed errors (§12:
+    S_inst⁽ˡ⁾ = Π · φ(ε) · Γ).  The sign is preserved so that aversive
+    prediction errors can suppress ignition.
+    """
+    phi = np.asarray(phi_values, dtype=float)
+    pi = np.asarray(pi_values, dtype=float)
+    w = np.asarray(weights, dtype=float)
+    if not (len(phi) == len(pi) == len(w)):
+        raise ValueError("phi_values, pi_values, and weights must have same length")
+    return float(np.sum(w * pi * phi))
+
+
 def apply_reset_rule(
     S: float, theta: float, rho: float = 0.1, delta: float = 2.0
 ) -> tuple[float, float]:

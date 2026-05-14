@@ -24,6 +24,9 @@ CONFIG = {
     "BETA_AWAKE_AVG": 1.15,  # Canonical baseline for alert wakefulness
     "beta": 1.15,  # Alias for BETA_AWAKE_AVG (backward compatibility)
     "beta_da": 1.15,  # Spec-preferred name (alias for backward compatibility)
+    # Serotonin — patience/uncertainty-tolerance offset on θ (spec §8.4)
+    # θ_eff = θ + β_5HT  (additive; 0 = no 5-HT effect, positive = raises threshold)
+    "beta_5ht": 0.0,
     # Prevent NE double-counting (recommended)
     "ne_on_precision": True,
     "ne_on_threshold": False,
@@ -80,6 +83,14 @@ CONFIG = {
     "bold_conversion_factor": 1.2e-18,  # Joules per 1% BOLD change per cm³ tissue
     "bold_tissue_volume": 1.0,  # Tissue volume in cm³
     "bold_ignition_spike_factor": 1.075,  # 7.5% energy spike during ignition (5-10% range)
+    # Signed Nonlinear Prediction Error Transform φ(ε) (§6)
+    # α⁺, α⁻ ∈ [0.5, 2.0] — valence-specific amplitude gain
+    # γ⁺, γ⁻ ∈ [1.0, 5.0] — saturation steepness
+    # Symmetric defaults (α⁺=α⁻, γ⁺=γ⁻) recover the unsigned |ε| approximation
+    "alpha_plus": 1.0,  # reward/approach gain
+    "alpha_minus": 1.0,  # threat/avoidance gain
+    "gamma_plus": 2.0,  # reward saturation slope
+    "gamma_minus": 2.0,  # avoidance saturation slope
     # Reservoir layer (§10)
     "use_reservoir": False,  # Enable reservoir computing layer
     "reservoir_size": 100,  # Number of reservoir units
@@ -98,4 +109,21 @@ CONFIG = {
     "use_observable_mapping": False,  # Enable neural/behavioral observable extraction
     # Stability analysis (§7)
     "use_stability_analysis": False,  # Enable fixed-point stability analysis
+    # Cross-Level Threshold Resonance — Russian Doll Architecture (§8 / §9)
+    "use_resonance": False,  # Enable per-level S accumulators + live phase modulation
+    "resonance_kappa_down": 0.1,  # Top-down coupling κ_down (threshold + phase entrainment)
+    "resonance_kappa_up": 0.0,  # Bottom-up suppression after level-0 ignition
+    "resonance_phi_noise_std": 0.0,  # Per-step phase jitter (biological noise)
+    # Active Inference Action Loop (§19)
+    "use_active_inference": False,  # Enable perception-action loop
+    "ai_on_ignition_only": True,  # Fire only on Bₜ=1 (True) or every step (False)
+    "ai_n_actions": 3,  # Number of discrete candidate policies K
+    "ai_policy_precision": 2.0,  # Boltzmann sharpness γ_policy
+    "ai_w_epistemic": 1.0,  # Weight on epistemic term of F(a)
+    "ai_w_pragmatic": 1.0,  # Weight on pragmatic term of F(a)
+    "ai_w_metabolic": 0.5,  # Weight on metabolic cost term
+    "ai_sensory_feedback_rate": 0.1,  # Scale of channel-1 Δx̂ₑ (sensory)
+    "ai_metabolic_feedback_rate": 0.1,  # Scale of channel-2 ΔM (interoceptive)
+    "ai_precision_update_rate": 0.05,  # Scale of channel-3 ΔΣ (epistemic)
+    "ai_action_params": None,  # None → use default 3-action table
 }

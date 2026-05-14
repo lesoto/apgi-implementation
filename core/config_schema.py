@@ -226,31 +226,20 @@ class APGIConfig(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def validate_somatic_bias_consistency(self) -> "APGIConfig":
-        """Ensure somatic bias parameters are consistent."""
-        # beta and beta_da should not both be explicitly set to different values
-        if self.beta_da is not None and abs(self.beta_da - self.beta) > 0.01:
-            # beta_da takes precedence (backward compatibility)
-            self.beta = self.beta_da
-        return self
-
-    @model_validator(mode="after")
-    def validate_variance_method_params(self) -> "APGIConfig":
-        """Validate variance estimation parameters."""
-        if self.variance_method == "ema":
-            if not (0 < self.alpha_e <= 1):
-                raise ValueError(f"alpha_e={self.alpha_e} must be in (0, 1] for EMA")
-            if not (0 < self.alpha_i <= 1):
-                raise ValueError(f"alpha_i={self.alpha_i} must be in (0, 1] for EMA")
-        return self
-
-    @model_validator(mode="after")
     def apply_backward_compat(self) -> "APGIConfig":
-        """Apply backward compatibility aliases."""
-        if self.beta_da is not None and self.beta == 1.15:  # Default was used
-            self.beta = self.beta_da
-        if self.tau_sigma is not None and self.ignite_tau == 0.5:  # Default was used
-            self.ignite_tau = self.tau_sigma
+        """Apply backward compatibility aliases and ensure consistency."""
+        # 1. Somatic bias (beta/beta_da)
+        if self.beta_da is not None:
+            # beta_da always takes precedence if provided
+            if abs(self.beta_da - self.beta) > 0.01 or self.beta == 1.15:
+                self.beta = self.beta_da
+
+        # 2. Ignition temperature (tau_sigma/ignite_tau)
+        if self.tau_sigma is not None:
+            # tau_sigma always takes precedence if provided
+            if abs(self.tau_sigma - self.ignite_tau) > 0.01 or self.ignite_tau == 0.5:
+                self.ignite_tau = self.tau_sigma
+
         return self
 
     def to_dict(self) -> dict:

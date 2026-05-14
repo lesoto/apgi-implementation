@@ -93,14 +93,17 @@ class EmpiricalDataLoader:
             self.data = result
             return result
 
-        except ImportError:
+        except (ImportError, Exception):
             # Fallback: load NumPy array
             data = np.load(file_path, allow_pickle=True)
             if isinstance(data, np.lib.npyio.NpzFile):
+                sig_key = "signals" if "signals" in data.files else "arr_0"
+                fs_val = float(data["fs"]) if "fs" in data.files else float(self.config.fs)
+                ch_val = list(data["channels"]) if "channels" in data.files else []
                 self.data = {
-                    "signals": data.get("signals", data["arr_0"]),
-                    "fs": float(data.get("fs", self.config.fs)),
-                    "channels": list(data.get("channels", [])),
+                    "signals": data[sig_key],
+                    "fs": fs_val,
+                    "channels": ch_val,
                 }
             else:
                 self.data = {

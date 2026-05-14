@@ -180,7 +180,7 @@ def hierarchical_spectral_superposition(
         raise ValueError("taus and sigma2s must have same length")
 
     # Sum Lorentzian contributions from all levels
-    psd_total = np.zeros_like(freqs)
+    psd_total = np.zeros(len(freqs), dtype=float)
 
     for tau, sigma2 in zip(taus, sigma2s):
         psd_total += lorentzian_spectrum(freqs, tau, sigma2)
@@ -396,6 +396,68 @@ def generate_predicted_spectrum_from_hierarchy(
     psd = hierarchical_spectral_superposition(freqs, taus, sigma2s)
 
     return psd, taus, sigma2s
+
+
+def validate_hurst_dfa(
+    signal: np.ndarray,
+    h_min: float = 0.8,
+    h_max: float = 1.1,
+    scales: np.ndarray | list[int] | None = None,
+    order: int = 1,
+) -> dict:
+    """Validate that a signal's Hurst exponent lies in the APGI-predicted range.
+
+    Spec §22 predicts H ≈ 0.8–1.1 for coupled threshold dynamics exhibiting
+    1/f (pink noise) structure. This function uses DFA — the gold-standard
+    method — to verify that prediction against observed or simulated signals.
+
+    Args:
+        signal: Input time series (threshold fluctuations, salience, etc.)
+        h_min: Lower bound of predicted Hurst range (default: 0.8)
+        h_max: Upper bound of predicted Hurst range (default: 1.1)
+        scales: DFA window sizes (None → automatic log-spaced)
+        order: DFA polynomial detrending order (1 = linear)
+
+    Returns:
+        Dictionary with:
+        - hurst: Estimated Hurst exponent (DFA)
+        - h_min, h_max: Expected range from spec
+        - in_range: bool — whether H falls in [h_min, h_max]
+        - scales: DFA window sizes used
+        - F_values: DFA fluctuation function values
+        - message: Human-readable verdict
+    """
+    from stats.hurst import dfa_analysis
+
+    try:
+        alpha, scales_used, F_values = dfa_analysis(signal, scales=scales, order=order)
+    except ValueError as exc:
+        return {
+            "hurst": float("nan"),
+            "h_min": h_min,
+            "h_max": h_max,
+            "in_range": False,
+            "scales": np.array([], dtype=int),
+            "F_values": np.array([], dtype=float),
+            "message": f"DFA failed: {exc}",
+        }
+
+    in_range = h_min <= alpha <= h_max
+    verdict = (
+        f"H={alpha:.3f} is within predicted range [{h_min}, {h_max}]"
+        if in_range
+        else f"H={alpha:.3f} is OUTSIDE predicted range [{h_min}, {h_max}]"
+    )
+
+    return {
+        "hurst": float(alpha),
+        "h_min": h_min,
+        "h_max": h_max,
+        "in_range": in_range,
+        "scales": scales_used,
+        "F_values": F_values,
+        "message": verdict,
+    }
 
 
 class SpectralValidator:

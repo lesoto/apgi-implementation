@@ -371,6 +371,44 @@ def save_results(results: dict[str, Any], filepath: str) -> None:
     logger.info("results_saved", filepath=filepath)
 
 
+def show_info() -> None:
+    """Display system information and configuration."""
+    print("\n" + "=" * 60)
+    print("APGI: Allostatic Precision-Gated Ignition")
+    print("=" * 60)
+    print("\nVersion: 1.0.0")
+    print("Description: Unified computational framework for modeling")
+    print("             allostatic threshold dynamics in biological systems")
+    print("\n" + "-" * 60)
+    print("Default Configuration:")
+    print("-" * 60)
+    for key, value in CONFIG.items():
+        print(f"  {key:25s} = {value}")
+    print("\n" + "-" * 60)
+    print("Available Features:")
+    print("-" * 60)
+    print("  ✅ Signal preprocessing (§1)")
+    print("  ✅ Precision system (§2)")
+    print("  ✅ Signal accumulation (§3)")
+    print("  ✅ Allostatic threshold dynamics (§4)")
+    print("  ✅ Hard and soft ignition (§5)")
+    print("  ✅ Post-ignition reset (§6)")
+    print("  ✅ Continuous-time SDE (§7)")
+    print("  ✅ Hierarchical multi-timescale (§8)")
+    print("  ✅ Kuramoto oscillators (§9)")
+    print("  ✅ Liquid state machine (§10)")
+    print("  ✅ Thermodynamic constraints (§11)")
+    print("  ✅ Observable mapping (§14)")
+    print("  ✅ Fixed-point stability (§7)")
+    print("\n" + "-" * 60)
+    print("Examples:")
+    print("-" * 60)
+    print("  python main.py --demo")
+    print("  python main.py --steps 1000 --output results.json")
+    print("  python main.py --multiscale --levels 5")
+    print("=" * 60 + "\n")
+
+
 def main() -> int:
     """Main entry point."""
 
@@ -379,11 +417,19 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  %(prog)s info                      # Show system information
   %(prog)s --demo                    # Quick demonstration
   %(prog)s --steps 5000 --output out.json   # Long run with save
   %(prog)s --multiscale --levels 7   # Multi-scale hierarchy
   %(prog)s --ne-on-threshold         # Use NE on threshold (not precision)
         """,
+    )
+
+    parser.add_argument(
+        "info",
+        nargs="?",
+        const=True,
+        help="Show system information and configuration",
     )
 
     parser.add_argument("--demo", action="store_true", help="Run quick demonstration")
@@ -477,6 +523,10 @@ Examples:
     )
 
     try:
+        if args.info:
+            show_info()
+            return 0
+
         if args.multiscale:
             results = run_multiscale_pipeline(
                 n_steps=args.steps,
