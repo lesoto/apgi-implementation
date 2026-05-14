@@ -25,6 +25,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from core.phi_transform import phi_transform
+
 # Default K=3 action parameter table: shape (n_actions, 3)
 # Columns: [sensory_shift, epistemic_gain, metabolic_cost]
 #   sensory_shift   — magnitude of Δx̂ₑ shift toward preferred observation
@@ -87,10 +89,13 @@ def compute_expected_free_energy(
     ----------
     Epistemic:  expected residual variance after the action reduces uncertainty.
                 Lower is better (less surprise in future observations).
-    Pragmatic:  expected gain in precision-weighted salience relative to threshold.
-                The action shifts the predicted observation toward preferred states,
-                raising the expected S(t+1) − θ(t).  Higher is better, so it enters
-                with a negative sign.
+    Pragmatic:  signed salience margin S(t) − θ(t).  Because S is built from
+                Σ Π·φ(ε), the margin already lives in φ-space.  Positive margin
+                (approach state) rewards exploitative actions; negative margin
+                (avoidance/threat state, S < θ) penalises them, naturally directing
+                the agent toward epistemic actions under threat.  No clipping is
+                applied — both reward-seeking and threat-avoidance pathways are
+                respected (§6, §12).
     Metabolic:  direct ATP cost of executing the action (§14 cost model).
 
     Returns
@@ -102,11 +107,9 @@ def compute_expected_free_energy(
     # Epistemic term: residual uncertainty after epistemic gain
     sigma2_after = max(total_sigma2 - action_epistemic_gain, 1e-6)
 
-    # Pragmatic term: expected salience relative to threshold
-    # The sensory shift reduces expected |ε| → lowers future S by action_sensory_shift,
-    # but only if current signal already has informational value (S > 0).
+    # Pragmatic term: signed ignition margin (φ-space) — reward-seeking > 0, threat < 0
     ignition_margin = S - theta
-    pragmatic_gain = action_sensory_shift * max(ignition_margin, 0.0)
+    pragmatic_gain = action_sensory_shift * ignition_margin
 
     F = (
         w_epistemic * sigma2_after
@@ -147,6 +150,11 @@ class ActiveInferenceAgent:
         Scale factor for ΔM (channel 2 effect magnitude).
     precision_update_rate : float
         Scale factor for ΔΣ (channel 3 effect magnitude).
+    alpha_pos, alpha_neg : float
+        Valence-specific amplitude gains α⁺, α⁻ ∈ [0.5, 2.0] for φ(ε) (§6).
+        Used in Channel 1 to scale sensory feedback by valence-signed error magnitude.
+    gamma_pos, gamma_neg : float
+        Saturation steepness γ⁺, γ⁻ ∈ [1.0, 5.0] for φ(ε) (§6).
     """
 
     def __init__(
@@ -160,6 +168,10 @@ class ActiveInferenceAgent:
         sensory_feedback_rate: float = 0.1,
         metabolic_feedback_rate: float = 0.1,
         precision_update_rate: float = 0.05,
+        alpha_pos: float = 1.0,
+        alpha_neg: float = 1.0,
+        gamma_pos: float = 2.0,
+        gamma_neg: float = 2.0,
     ) -> None:
         if action_params is None:
             if n_actions == 3:
@@ -187,6 +199,10 @@ class ActiveInferenceAgent:
         self.sensory_feedback_rate = float(sensory_feedback_rate)
         self.metabolic_feedback_rate = float(metabolic_feedback_rate)
         self.precision_update_rate = float(precision_update_rate)
+        self.alpha_pos = float(alpha_pos)
+        self.alpha_neg = float(alpha_neg)
+        self.gamma_pos = float(gamma_pos)
+        self.gamma_neg = float(gamma_neg)
 
         # Running history for diagnostics
         self.action_history: list[int] = []
@@ -263,9 +279,10 @@ class ActiveInferenceAgent:
         """Compute the three feedback-channel deltas for the selected action.
 
         Channel 1 — Sensory consequence (§19 pt 1):
-            Δx̂ₑ = sensory_feedback_rate · action_sensory_shift · sign(z_e)
-            The action shifts the model's prediction toward reducing |ε| by
-            moving x̂ₑ in the direction of the current error.
+            Δx̂ₑ = sensory_feedback_rate · action_sensory_shift · φ(z_e)
+            The action shifts the model's prediction in the valence-signed
+            direction of the current error, scaled by the asymmetric φ(ε)
+            transform (α⁺ for reward-seeking, α⁻ for threat-avoidance).
 
         Channel 2 — Interoceptive / metabolic consequence (§19 pt 2):
             ΔM = −metabolic_feedback_rate · action_metabolic_cost
@@ -283,9 +300,13 @@ class ActiveInferenceAgent:
         epistemic_gain = params[1]
         metabolic_cost = params[2]
 
-        # Channel 1: shift extero- and interoceptive predictions toward error
-        delta_x_hat_e = self.sensory_feedback_rate * sensory_shift * float(np.sign(z_e))
-        delta_x_hat_i = self.sensory_feedback_rate * sensory_shift * float(np.sign(z_i))
+        # Channel 1: shift predictions in the valence-signed φ(ε) direction (§19, §6)
+        # φ(z_e) > 0 for reward-seeking errors; φ(z_e) < 0 for threat-avoidance errors.
+        # α⁺ > α⁻ gives larger approach shifts; α⁻ > α⁺ gives larger avoidance shifts.
+        phi_z_e = phi_transform(z_e, self.alpha_pos, self.alpha_neg, self.gamma_pos, self.gamma_neg)
+        phi_z_i = phi_transform(z_i, self.alpha_pos, self.alpha_neg, self.gamma_pos, self.gamma_neg)
+        delta_x_hat_e = self.sensory_feedback_rate * sensory_shift * phi_z_e
+        delta_x_hat_i = self.sensory_feedback_rate * sensory_shift * phi_z_i
 
         # Channel 2: metabolic state change (negative = depletion)
         delta_M = -self.metabolic_feedback_rate * metabolic_cost

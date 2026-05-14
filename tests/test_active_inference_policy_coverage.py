@@ -18,7 +18,7 @@ def test_default_params():
 def test_expected_free_energy():
     # F = w_epi*sigma2_after - w_prag*pragmatic_gain + w_met*metabolic_cost
     # sigma2_after = max(0.5+0.5 - 0.2, 1e-6) = 0.8
-    # pragmatic_gain = 0.5 * max(1.0-0.5, 0) = 0.25
+    # pragmatic_gain = 0.5 * (1.0 - 0.5) = 0.25   [signed margin, approach state]
     # F = 1.0*0.8 - 1.0*0.25 + 0.5*0.1 = 0.8 - 0.25 + 0.05 = 0.6
     res = compute_expected_free_energy(
         sigma2_e=0.5,
@@ -31,7 +31,9 @@ def test_expected_free_energy():
     )
     assert pytest.approx(res) == 0.6
 
-    # Negative margin -> zero pragmatic gain
+    # Negative margin (avoidance state) → negative pragmatic_gain raises F
+    # pragmatic_gain = 0.5 * (0.1 - 0.5) = -0.2
+    # F = 1.0*0.8 - 1.0*(-0.2) + 0.5*0.1 = 0.8 + 0.2 + 0.05 = 1.05
     res_neg = compute_expected_free_energy(
         sigma2_e=0.5,
         sigma2_i=0.5,
@@ -41,8 +43,7 @@ def test_expected_free_energy():
         action_epistemic_gain=0.2,
         action_metabolic_cost=0.1,
     )
-    # F = 1.0*0.8 - 0 + 0.05 = 0.85
-    assert pytest.approx(res_neg) == 0.85
+    assert pytest.approx(res_neg) == 1.05
 
 
 def test_agent_init():
@@ -83,18 +84,19 @@ def test_select_policy():
 
 
 def test_apply_action_feedback():
+    import numpy as np
+
     agent = ActiveInferenceAgent()
-    # Action 0: [0.10, 0.80, 0.60] (explore)
+    # Action 0: [0.10, 0.80, 0.60] (explore); default α=1, γ=2
     fb = agent.apply_action_feedback(0, z_e=1.0, z_i=-1.0, sigma2_e=1.0, sigma2_i=1.0, M=1.0)
     assert isinstance(fb, ActionFeedback)
-    # delta_x_hat_e = 0.1 * 0.1 * 1.0 = 0.01
-    assert pytest.approx(fb.delta_x_hat_e) == 0.01
-    # delta_x_hat_i = 0.1 * 0.1 * -1.0 = -0.01
-    assert pytest.approx(fb.delta_x_hat_i) == -0.01
-    # delta_M = -0.1 * 0.60 = -0.06
+    # Channel 1: delta_x_hat_e = 0.1 * 0.1 * φ(1.0) = 0.01 * tanh(2)
+    assert pytest.approx(fb.delta_x_hat_e) == 0.01 * np.tanh(2.0)
+    # Channel 1: delta_x_hat_i = 0.1 * 0.1 * φ(-1.0) = 0.01 * tanh(-2)
+    assert pytest.approx(fb.delta_x_hat_i) == 0.01 * np.tanh(-2.0)
+    # Channel 2: delta_M = -0.1 * 0.60 = -0.06
     assert pytest.approx(fb.delta_M) == -0.06
-    # reduction = 0.05 * 0.80 = 0.04
-    # delta_sigma = -0.04 * 1.0 = -0.04
+    # Channel 3: reduction = 0.05 * 0.80 = 0.04; delta_sigma = -0.04 * 1.0 = -0.04
     assert pytest.approx(fb.delta_sigma2_e) == -0.04
     assert pytest.approx(fb.delta_sigma2_i) == -0.04
 

@@ -11,23 +11,25 @@ from core.dynamics import (
 
 
 def test_signal_drift():
-    # S=1.0, z_e=0.5, z_i=0.5, pi_e=2.0, pi_i=2.0, beta=0.0, tau_s=10.0
-    # dS/dt = -1/10 + 2*0.5 + 2*(0.5+0) = -0.1 + 1 + 1 = 1.9
-    drift = signal_drift(1.0, 0.5, 0.5, 2.0, 2.0, 0.0, 10.0)
+    # S=1.0, phi_e=0.5, phi_i=0.5, pi_e=2.0, pi_i=2.0, tau_s=10.0
+    # dS/dt = -1/10 + 2*0.5 + 2*0.5 = -0.1 + 1 + 1 = 1.9
+    drift = signal_drift(1.0, 0.5, 0.5, 2.0, 2.0, 10.0)
     assert drift == 1.9
 
     with pytest.raises(ValueError, match="tau_s must be > 0"):
-        signal_drift(1.0, 0.5, 0.5, 2.0, 2.0, 0.0, 0.0)
+        signal_drift(1.0, 0.5, 0.5, 2.0, 2.0, 0.0)
 
 
 def test_update_signal_ode():
     # No noise case
-    # S=1.0, drift=1.9, dt=0.1 -> S_new = 1.0 + 1.9*0.1 = 1.19
-    s_new = update_signal_ode(1.0, 0.5, 0.5, 2.0, 2.0, 0.0, 10.0, dt=0.1, noise_std=0.0)
+    # S=1.0, phi_e=0.5, phi_i=0.5, pi_e=2.0, pi_i=2.0, tau_s=10.0, dt=0.1
+    # drift = -1/10 + 2*0.5 + 2*0.5 = 1.9
+    # S_new = 1.0 + 1.9*0.1 = 1.19
+    s_new = update_signal_ode(1.0, 0.5, 0.5, 2.0, 2.0, 10.0, dt=0.1, noise_std=0.0)
     assert pytest.approx(s_new) == 1.19
 
     with pytest.raises(ValueError, match="tau_s must be > 0"):
-        update_signal_ode(1.0, 0.5, 0.5, 2.0, 2.0, 0.0, 0.0)
+        update_signal_ode(1.0, 0.5, 0.5, 2.0, 2.0, 0.0)
 
 
 def test_compute_precision_coupled_noise_std():

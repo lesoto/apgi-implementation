@@ -18,7 +18,6 @@ from core.precision import (
     compute_interoceptive_precision_exponential,
     compute_precision,
     update_mean_ema,
-    update_variance_ema,
 )
 from core.preprocessing import RunningStats, compute_prediction_error
 from core.signal import instantaneous_signal_phi, integrate_signal_leaky, stabilize_signal_log
@@ -129,6 +128,7 @@ class APGIPipeline:
             config.update(
                 {
                     "use_hierarchical": True,
+                    "use_resonance": True,
                     "use_hierarchical_precision_ode": False,
                     "use_phase_modulation": False,
                 }
@@ -137,6 +137,7 @@ class APGIPipeline:
             config.update(
                 {
                     "use_hierarchical": True,
+                    "use_resonance": True,
                     "use_hierarchical_precision_ode": True,
                     "use_phase_modulation": False,
                 }
@@ -145,6 +146,7 @@ class APGIPipeline:
             config.update(
                 {
                     "use_hierarchical": True,
+                    "use_resonance": True,
                     "use_hierarchical_precision_ode": True,
                     "use_phase_modulation": True,
                 }
@@ -326,10 +328,12 @@ class APGIPipeline:
             self.sigma2_i_levels = np.ones(1)
 
         # Cross-Level Threshold Resonance (§8/§9) — Russian Doll architecture
-        # Opt-in via use_resonance=True.  When active, per-level S accumulators
-        # and live phase-modulated thresholds replace independent accumulators.
+        # Active by default whenever use_hierarchical=True (spec §8 canonical mode).
+        # Per-level S_l accumulators and live phase-modulated thresholds replace the
+        # single aggregated S of "parallel accumulator" mode.  Disable explicitly
+        # with use_resonance=False to fall back to the aggregated path.
         self.resonance_system: NestedResonanceSystem | None = None
-        if self.use_hierarchical and self.config.get("use_resonance", False):
+        if self.use_hierarchical and self.config.get("use_resonance", True):
             self.resonance_system = build_resonance_system(
                 n_levels=self.n_levels,
                 taus=self.taus,
@@ -407,6 +411,10 @@ class APGIPipeline:
                 sensory_feedback_rate=self.config.get("ai_sensory_feedback_rate", 0.1),
                 metabolic_feedback_rate=self.config.get("ai_metabolic_feedback_rate", 0.1),
                 precision_update_rate=self.config.get("ai_precision_update_rate", 0.05),
+                alpha_pos=self.config.get("alpha_plus", 1.0),
+                alpha_neg=self.config.get("alpha_minus", 1.0),
+                gamma_pos=self.config.get("gamma_plus", 2.0),
+                gamma_neg=self.config.get("gamma_minus", 2.0),
             )
 
         self.history = {
@@ -866,50 +874,6 @@ class APGIPipeline:
         theta_next = apply_refractory_boost(theta_next, B_t, self.config["delta"])
         theta_next = threshold_decay(theta_next, self.config["theta_base"], self.config["kappa"])
 
-        # 9a) Active Inference Action Loop (§19) — fires on ignition (step 17)
-        # or every step depending on ai_on_ignition_only config.
-        # Returns action selection result and applies three feedback channels:
-        #   channel 1: Δx̂ₑ (sensory)  → x_hat_e shifted toward prediction error
-        #   channel 2: ΔM  (metabolic) → somatic marker updated
-        #   channel 3: ΔΣ  (epistemic) → sigma2 reduced, Πₜ raised next step
-        ai_result: dict | None = None
-        if self.active_inference_agent is not None:
-            _ai_on_ignition_only = self.config.get("ai_on_ignition_only", True)
-            _should_run_ai = (not _ai_on_ignition_only) or (B_t == 1)
-            if _should_run_ai:
-                policy = self.active_inference_agent.select_policy(
-                    sigma2_e=self.state.sigma2_e,
-                    sigma2_i=self.state.sigma2_i,
-                    S=self.S,
-                    theta=theta_next,
-                )
-                feedback = self.active_inference_agent.apply_action_feedback(
-                    action_idx=policy.action_idx,
-                    z_e=z_e,
-                    z_i=z_i,
-                    sigma2_e=self.state.sigma2_e,
-                    sigma2_i=self.state.sigma2_i,
-                    M=self.M,
-                )
-                # Apply channel 1: sensory prediction shift
-                self.x_hat_e += feedback.delta_x_hat_e
-                self.x_hat_i += feedback.delta_x_hat_i
-                # Apply channel 2: metabolic state change
-                self.M = float(np.clip(self.M + feedback.delta_M, -2.0, 2.0))
-                # Apply channel 3: epistemic precision update (floor at near-zero)
-                self.state.sigma2_e = max(self.state.sigma2_e + feedback.delta_sigma2_e, 1e-6)
-                self.state.sigma2_i = max(self.state.sigma2_i + feedback.delta_sigma2_i, 1e-6)
-                ai_result = {
-                    "ai_action_idx": policy.action_idx,
-                    "ai_action_label": policy.action_label,
-                    "ai_F_values": policy.F_values,
-                    "ai_p_policies": policy.p_policies,
-                    "ai_expected_free_energy": policy.expected_free_energy,
-                    "ai_delta_x_hat_e": feedback.delta_x_hat_e,
-                    "ai_delta_M": feedback.delta_M,
-                    "ai_delta_sigma2_e": feedback.delta_sigma2_e,
-                }
-
         # 10) Internal Prediction Update per §1.4 Generative Model Dynamics
         # Support both flag names for backward compatibility
         use_generative_update = self.config.get(
@@ -948,6 +912,52 @@ class APGIPipeline:
             S_reservoir = self.reservoir.readout(
                 method=self.config.get("reservoir_readout_method", "linear")
             )
+
+        # 18) Active Inference Action Loop (§19) — Step 18 of APGI Formulation.
+        # Runs AFTER all signal-processing steps (including reservoir readout) so
+        # that policy selection sees the fully updated state.  Fires on ignition
+        # or every step depending on ai_on_ignition_only config.
+        # Closes the perception-action cycle through three feedback channels:
+        #   channel 1: Δx̂ₑ (sensory, φ-weighted)  → prediction shifted by φ(z)
+        #   channel 2: ΔM  (metabolic)             → somatic marker updated
+        #   channel 3: ΔΣ  (epistemic)             → sigma2 reduced, Πₜ raised next step
+        ai_result: dict | None = None
+        if self.active_inference_agent is not None:
+            _ai_on_ignition_only = self.config.get("ai_on_ignition_only", True)
+            _should_run_ai = (not _ai_on_ignition_only) or (B_t == 1)
+            if _should_run_ai:
+                policy = self.active_inference_agent.select_policy(
+                    sigma2_e=self.state.sigma2_e,
+                    sigma2_i=self.state.sigma2_i,
+                    S=self.S,
+                    theta=theta_next,
+                )
+                feedback = self.active_inference_agent.apply_action_feedback(
+                    action_idx=policy.action_idx,
+                    z_e=z_e,
+                    z_i=z_i,
+                    sigma2_e=self.state.sigma2_e,
+                    sigma2_i=self.state.sigma2_i,
+                    M=self.M,
+                )
+                # Apply channel 1: sensory prediction shift (φ-weighted, valence-asymmetric)
+                self.x_hat_e += feedback.delta_x_hat_e
+                self.x_hat_i += feedback.delta_x_hat_i
+                # Apply channel 2: metabolic state change
+                self.M = float(np.clip(self.M + feedback.delta_M, -2.0, 2.0))
+                # Apply channel 3: epistemic precision update (floor at near-zero)
+                self.state.sigma2_e = max(self.state.sigma2_e + feedback.delta_sigma2_e, 1e-6)
+                self.state.sigma2_i = max(self.state.sigma2_i + feedback.delta_sigma2_i, 1e-6)
+                ai_result = {
+                    "ai_action_idx": policy.action_idx,
+                    "ai_action_label": policy.action_label,
+                    "ai_F_values": policy.F_values,
+                    "ai_p_policies": policy.p_policies,
+                    "ai_expected_free_energy": policy.expected_free_energy,
+                    "ai_delta_x_hat_e": feedback.delta_x_hat_e,
+                    "ai_delta_M": feedback.delta_M,
+                    "ai_delta_sigma2_e": feedback.delta_sigma2_e,
+                }
 
         self.theta = theta_next
         self.B_prev = B_t

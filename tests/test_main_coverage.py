@@ -4,10 +4,7 @@ import json
 import os
 import subprocess
 import sys
-from unittest.mock import MagicMock, patch
-
-import numpy as np
-import pytest
+from unittest.mock import patch
 
 from main import analyze_signal_statistics, main, show_info
 
@@ -30,7 +27,7 @@ def test_show_info_execution(capsys):
     assert "Version: 1.0.0" in captured.out
 
 
-def test_analyze_signal_statistics_exception(capsys):
+def test_analyze_signal_statistics_exception():
     """Test analyze_signal_statistics exception handling (lines 334-335)."""
     # Create a signal that will cause estimate_hurst_robust to fail
     # We can mock estimate_hurst_robust to raise an exception
@@ -38,7 +35,6 @@ def test_analyze_signal_statistics_exception(capsys):
         signal = [1.0] * 300  # Long enough to trigger Hurst estimation
         stats = analyze_signal_statistics(signal, label="TestFailure")
 
-    captured = capsys.readouterr()
     # Check if warning was logged (it goes to logger, but we can check if it returns stats without hurst_exponent if that's the logic)
     assert "hurst_exponent" not in stats
     # The logger warning is: logger.warning("hurst_estimation_failed", label=label, error=str(e))

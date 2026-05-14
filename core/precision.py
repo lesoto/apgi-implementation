@@ -84,6 +84,22 @@ def apply_dopamine_bias_to_error(z_i: float, beta: float) -> float:
     return float(z_i + beta)
 
 
+def apply_serotonin_threshold_patience(theta: float, beta_5ht: float) -> float:
+    """Serotonergic patience/uncertainty-tolerance offset on θ: θ_eff = θ + β_5HT (§8.4).
+
+    5-HT raises the ignition threshold, implementing 'patience' — the agent
+    waits for stronger evidence before firing.  β_5HT = 0 is the default
+    (no serotonergic modulation).  Positive values model SSRI-like states;
+    negative values model 5-HT depletion or urgency.
+
+    Unlike ACh (precision gain on Π_e) and NE (precision gain on Π_i), 5-HT
+    acts on the threshold node rather than the precision node, but belongs in
+    the neuromodulation layer because it controls the same evidence-gating
+    decision at the ignition step.
+    """
+    return float(theta + beta_5ht)
+
+
 def compute_interoceptive_precision_exponential(
     pi_baseline: float,
     beta_somatic: float,

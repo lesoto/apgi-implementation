@@ -29,14 +29,12 @@ class TestSignalDrift:
         """Should compute deterministic drift correctly."""
         result = signal_drift(
             S=1.0,
-            z_e=0.5,
-            z_i=0.3,
+            phi_e=0.5,
+            phi_i=0.5,
             pi_e=2.0,
             pi_i=1.0,
-            beta=0.2,
             tau_s=5.0,
         )
-        # z_i_eff = 0.3 + 0.2 = 0.5
         # drift = -1.0/5.0 + 2.0*0.5 + 1.0*0.5 = -0.2 + 1.0 + 0.5 = 1.3
         expected = -0.2 + 1.0 + 0.5
         assert pytest.approx(result, rel=1e-7) == expected
@@ -44,26 +42,25 @@ class TestSignalDrift:
     def test_invalid_tau_s(self):
         """Should raise ValueError for non-positive tau_s."""
         with pytest.raises(ValueError, match="tau_s must be > 0"):
-            signal_drift(1.0, 0.5, 0.3, 2.0, 1.0, 0.2, tau_s=0.0)
+            signal_drift(1.0, 0.5, 0.3, 2.0, 1.0, tau_s=0.0)
 
         with pytest.raises(ValueError, match="tau_s must be > 0"):
-            signal_drift(1.0, 0.5, 0.3, 2.0, 1.0, 0.2, tau_s=-1.0)
+            signal_drift(1.0, 0.5, 0.3, 2.0, 1.0, tau_s=-1.0)
 
     def test_zero_dopamine(self):
-        """Should not add bias when beta=0."""
-        result_with = signal_drift(1.0, 0.5, 0.3, 2.0, 1.0, beta=0.2, tau_s=5.0)
-        result_without = signal_drift(1.0, 0.5, 0.5, 2.0, 1.0, beta=0.0, tau_s=5.0)
-        assert result_with == result_without
+        """Should compute drift with different phi_i values."""
+        result1 = signal_drift(1.0, 0.5, 0.3, 2.0, 1.0, tau_s=5.0)
+        result2 = signal_drift(1.0, 0.5, 0.5, 2.0, 1.0, tau_s=5.0)
+        assert result1 != result2
 
     def test_negative_drift(self):
         """Should return negative drift when S is large."""
         result = signal_drift(
             S=100.0,
-            z_e=0.0,
-            z_i=0.0,
+            phi_e=0.0,
+            phi_i=0.0,
             pi_e=1.0,
             pi_i=1.0,
-            beta=0.0,
             tau_s=5.0,
         )
         assert result < 0  # Strong decay term dominates
@@ -77,11 +74,10 @@ class TestUpdateSignalODE:
         np.random.seed(42)
         result = update_signal_ode(
             S=1.0,
-            z_e=0.5,
-            z_i=0.3,
+            phi_e=0.5,
+            phi_i=0.5,
             pi_e=2.0,
             pi_i=1.0,
-            beta=0.2,
             tau_s=5.0,
             dt=1.0,
             noise_std=0.01,
@@ -93,18 +89,17 @@ class TestUpdateSignalODE:
     def test_invalid_tau_s(self):
         """Should raise ValueError for non-positive tau_s."""
         with pytest.raises(ValueError, match="tau_s must be > 0"):
-            update_signal_ode(1.0, 0.5, 0.3, 2.0, 1.0, 0.2, tau_s=0.0)
+            update_signal_ode(1.0, 0.5, 0.3, 2.0, 1.0, tau_s=0.0)
 
     def test_small_time_step(self):
         """Should make smaller changes with smaller dt."""
         np.random.seed(42)
         result_small_dt = update_signal_ode(
             S=1.0,
-            z_e=0.5,
-            z_i=0.3,
+            phi_e=0.5,
+            phi_i=0.5,
             pi_e=2.0,
             pi_i=1.0,
-            beta=0.2,
             tau_s=5.0,
             dt=0.1,
             noise_std=0.01,
@@ -113,11 +108,10 @@ class TestUpdateSignalODE:
         np.random.seed(42)
         result_large_dt = update_signal_ode(
             S=1.0,
-            z_e=0.5,
-            z_i=0.3,
+            phi_e=0.5,
+            phi_i=0.5,
             pi_e=2.0,
             pi_i=1.0,
-            beta=0.2,
             tau_s=5.0,
             dt=1.0,
             noise_std=0.01,
@@ -133,11 +127,10 @@ class TestUpdateSignalODE:
         np.random.seed(42)
         result1 = update_signal_ode(
             S=1.0,
-            z_e=0.5,
-            z_i=0.3,
+            phi_e=0.5,
+            phi_i=0.5,
             pi_e=2.0,
             pi_i=1.0,
-            beta=0.2,
             tau_s=5.0,
             dt=1.0,
             noise_std=0.0,
@@ -146,11 +139,10 @@ class TestUpdateSignalODE:
         np.random.seed(999)  # Different seed
         result2 = update_signal_ode(
             S=1.0,
-            z_e=0.5,
-            z_i=0.3,
+            phi_e=0.5,
+            phi_i=0.5,
             pi_e=2.0,
             pi_i=1.0,
-            beta=0.2,
             tau_s=5.0,
             dt=1.0,
             noise_std=0.0,

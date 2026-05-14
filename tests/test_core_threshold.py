@@ -70,10 +70,10 @@ class TestComputeInformationValue:
     """Tests for compute_information_value function."""
 
     def test_basic_value(self):
-        """Should compute value V(t) = v1|z_e| + v2|z_i_eff|."""
+        """Should compute value V(t) = v1|φ(ε_e)| + v2|φ(ε_i)|."""
         result = compute_information_value(
-            z_e=1.0,
-            z_i_eff=0.5,
+            phi_e=1.0,
+            phi_i=0.5,
             v1=0.5,
             v2=0.5,
         )
@@ -82,8 +82,8 @@ class TestComputeInformationValue:
     def test_negative_errors(self):
         """Should use absolute values."""
         result = compute_information_value(
-            z_e=-1.0,
-            z_i_eff=-0.5,
+            phi_e=-1.0,
+            phi_i=-0.5,
             v1=0.5,
             v2=0.5,
         )
@@ -97,8 +97,8 @@ class TestComputeInformationValue:
     def test_different_v1_v2(self):
         """Should use different weights correctly."""
         result = compute_information_value(
-            z_e=1.0,
-            z_i_eff=0.5,
+            phi_e=1.0,
+            phi_i=0.5,
             v1=0.3,
             v2=0.7,
         )
@@ -291,42 +291,38 @@ class TestComputeInformationValueWithBias:
     """Tests for compute_information_value_with_bias function."""
 
     def test_basic_value_with_bias(self):
-        """Should compute value with dopamine bias."""
+        """Should compute value with bias (now identical to compute_information_value)."""
         result = compute_information_value_with_bias(
-            z_e=1.0,
-            z_i=0.5,
-            beta_da=0.3,  # Dopamine bias
+            phi_e=1.0,
+            phi_i=0.5,
             v1=0.5,
             v2=0.5,
         )
-        # z_i_eff = 0.5 + 0.3 = 0.8
-        # V = 0.5 * 1.0 + 0.5 * 0.8 = 0.5 + 0.4 = 0.9
-        assert result == 0.9
+        # V = 0.5 * 1.0 + 0.5 * 0.5 = 0.5 + 0.25 = 0.75
+        assert result == 0.75
 
     def test_negative_bias(self):
-        """Should handle negative dopamine bias."""
+        """Should handle negative phi_i values."""
         result = compute_information_value_with_bias(
-            z_e=1.0,
-            z_i=0.5,
-            beta_da=-0.2,  # Negative bias
+            phi_e=1.0,
+            phi_i=0.3,
             v1=0.5,
             v2=0.5,
         )
-        # z_i_eff = 0.5 - 0.2 = 0.3
         # V = 0.5 * 1.0 + 0.5 * 0.3 = 0.5 + 0.15 = 0.65
         assert result == 0.65
 
     def test_zero_bias(self):
-        """Should equal regular compute_information_value when bias=0."""
-        z_e = 1.0
-        z_i = 0.5
+        """Should equal regular compute_information_value (identical function)."""
+        phi_e = 1.0
+        phi_i = 0.5
         v1 = 0.5
         v2 = 0.5
 
         result_with_bias = compute_information_value_with_bias(
-            z_e=z_e, z_i=z_i, beta_da=0.0, v1=v1, v2=v2
+            phi_e=phi_e, phi_i=phi_i, v1=v1, v2=v2
         )
-        result_without_bias = compute_information_value(z_e=z_e, z_i_eff=z_i, v1=v1, v2=v2)
+        result_without_bias = compute_information_value(phi_e=phi_e, phi_i=phi_i, v1=v1, v2=v2)
         assert result_with_bias == result_without_bias
 
 

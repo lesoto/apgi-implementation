@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import numpy as np
 
 from stats.maturity_assessment import (
@@ -214,6 +216,8 @@ def test_maturity_scenarios():
                 issues=[],
                 recommendations=["System maturity is moderate"],
             )
+            # Return proper tuple for assess_statistical_validation (6 values)
+            mock_val.return_value = (60.0, 60.0, 60.0, [], [], None)
             with patch(
                 "stats.maturity_assessment.assess_overall_maturity", return_value=mock_score
             ):

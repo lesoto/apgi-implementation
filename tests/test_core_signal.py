@@ -189,10 +189,10 @@ class TestStabilizeSignalLog:
 
 
 class TestComputeApgiSignal:
-    """Tests for compute_apgi_signal function."""
+    """Tests for compute_apgi_signal function using φ(ε) = tanh(2ε) with default params."""
 
     def test_error_bias_mode(self):
-        """Should use error bias mode correctly."""
+        """Should apply φ(ε) transform with error_bias dopamine mode."""
         result = compute_apgi_signal(
             z_e=1.0,
             z_i=0.5,
@@ -202,11 +202,12 @@ class TestComputeApgiSignal:
             dopamine_mode="error_bias",
         )
         # z_i_eff = 0.5 + 0.3 = 0.8
-        # S = 2.0 * |1.0| + 1.0 * |0.8| = 2.0 + 0.8 = 2.8
-        assert result == 2.8
+        # S = 2.0 * φ(1.0) + 1.0 * φ(0.8)  where φ(x) = tanh(2x) at defaults
+        expected = 2.0 * np.tanh(2.0 * 1.0) + 1.0 * np.tanh(2.0 * 0.8)
+        assert pytest.approx(result) == expected
 
     def test_signal_additive_mode(self):
-        """Should use signal additive mode correctly."""
+        """Should apply φ(ε) transform with signal_additive dopamine mode."""
         result = compute_apgi_signal(
             z_e=1.0,
             z_i=0.5,
@@ -215,8 +216,9 @@ class TestComputeApgiSignal:
             beta=0.3,
             dopamine_mode="signal_additive",
         )
-        # S = 2.0 * |1.0| + 1.0 * |0.5| + 0.3 = 2.0 + 0.5 + 0.3 = 2.8
-        assert result == 2.8
+        # S = 2.0 * φ(1.0) + 1.0 * φ(0.5) + β
+        expected = 2.0 * np.tanh(2.0 * 1.0) + 1.0 * np.tanh(2.0 * 0.5) + 0.3
+        assert pytest.approx(result) == expected
 
     def test_invalid_mode(self):
         """Should raise ValueError for invalid mode."""
@@ -231,7 +233,7 @@ class TestComputeApgiSignal:
             )
 
     def test_zero_beta_both_modes(self):
-        """Should give same result when beta=0."""
+        """Should give same result when beta=0 (z_i_eff = z_i in both modes)."""
         result_bias = compute_apgi_signal(
             z_e=1.0,
             z_i=0.5,
@@ -248,4 +250,11 @@ class TestComputeApgiSignal:
             beta=0.0,
             dopamine_mode="signal_additive",
         )
-        assert result_bias == result_additive
+        assert pytest.approx(result_bias) == result_additive
+
+    def test_asymmetric_valence(self):
+        """Positive and negative errors should produce differently-scaled φ outputs."""
+        pos = compute_apgi_signal(1.0, 1.0, 1.0, 1.0, alpha_pos=2.0, alpha_neg=0.5)
+        neg = compute_apgi_signal(-1.0, -1.0, 1.0, 1.0, alpha_pos=2.0, alpha_neg=0.5)
+        # With α⁺=2 > α⁻=0.5, positive errors produce larger magnitude signals
+        assert abs(pos) > abs(neg)

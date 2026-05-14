@@ -86,7 +86,7 @@ class TestComputeExpectedFreeEnergy:
         assert F_costly > F_cheap
 
     def test_positive_ignition_margin_enables_pragmatic_gain(self):
-        """Pragmatic term activates only when S > theta (ignition margin > 0)."""
+        """Signed pragmatic term: positive margin (S > θ) lowers F; negative margin raises it."""
         F_above = compute_expected_free_energy(
             sigma2_e=0.5,
             sigma2_i=0.5,

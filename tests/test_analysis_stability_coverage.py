@@ -45,7 +45,11 @@ def test_check_stability(capsys):
 def test_compute_fixed_point():
     cfg = {"lam": 0.2, "theta_base": 1.0}
     fp = compute_fixed_point(cfg)
-    assert fp["S_star"] == pytest.approx(5.0)
+    # S_star = (pi_typical * phi_z) / lam
+    # With default phi_transform parameters (alpha=1.0, gamma=2.0):
+    # phi_z = tanh(2.0 * 1.0) ≈ 0.964
+    # S_star = 1.0 * 0.964 / 0.2 ≈ 4.82
+    assert fp["S_star"] == pytest.approx(4.82, rel=1e-4)
     assert fp["theta_star"] == 1.0
 
 

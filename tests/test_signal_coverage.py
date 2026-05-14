@@ -40,20 +40,25 @@ def test_instantaneous_signal_phi():
 
 
 def test_compute_apgi_signal():
-    # error_bias: z_i_eff = -0.2 + 0.1 = -0.1. S = 2*0.5 + 3*0.1 = 1.3
+    import numpy as np
+
+    # error_bias: z_i_eff = -0.2 + 0.1 = -0.1
+    # S = 2*φ(0.5) + 3*φ(-0.1)  where φ(x) = tanh(2x) at defaults
+    expected_bias = 2.0 * np.tanh(2.0 * 0.5) + 3.0 * np.tanh(2.0 * -0.1)
     assert (
         pytest.approx(
             compute_apgi_signal(0.5, -0.2, 2.0, 3.0, beta=0.1, dopamine_mode="error_bias")
         )
-        == 1.3
+        == expected_bias
     )
 
-    # signal_additive: S = 2*0.5 + 3*0.2 + 0.1 = 1.7
+    # signal_additive: S = 2*φ(0.5) + 3*φ(-0.2) + β
+    expected_additive = 2.0 * np.tanh(2.0 * 0.5) + 3.0 * np.tanh(2.0 * -0.2) + 0.1
     assert (
         pytest.approx(
             compute_apgi_signal(0.5, -0.2, 2.0, 3.0, beta=0.1, dopamine_mode="signal_additive")
         )
-        == 1.7
+        == expected_additive
     )
 
     with pytest.raises(ValueError, match="unknown dopamine_mode"):

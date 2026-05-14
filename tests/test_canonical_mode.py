@@ -127,18 +127,17 @@ class TestSignalAccumulationFidelity:
         from core.dynamics import signal_drift
 
         S = 1.0
-        z_e = 0.5
-        z_i = 0.5
+        phi_e = 0.5
+        phi_i = 0.5
         pi_e = 1.0
         pi_i = 1.0
-        beta = 0.0
         tau_s = 5.0
 
-        drift = signal_drift(S, z_e, z_i, pi_e, pi_i, beta, tau_s)
+        drift = signal_drift(S, phi_e, phi_i, pi_e, pi_i, tau_s)
 
         # Should include -S/τ_S term
         expected_decay = -S / tau_s
-        expected_drive = pi_e * abs(z_e) + pi_i * abs(z_i)
+        expected_drive = pi_e * phi_e + pi_i * phi_i
         expected = expected_decay + expected_drive
 
         assert np.isclose(drift, expected)

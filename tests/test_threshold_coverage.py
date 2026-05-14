@@ -49,7 +49,9 @@ def test_compute_metabolic_cost_realistic():
 
 def test_information_value():
     assert pytest.approx(compute_information_value(0.5, -0.2, v1=2.0, v2=3.0)) == 1.6
-    assert pytest.approx(compute_information_value_with_bias(0.5, -0.3, 0.1, v1=2.0, v2=3.0)) == 1.6
+    # compute_information_value_with_bias is now identical to compute_information_value
+    # (beta bias is pre-integrated into phi_i)
+    assert pytest.approx(compute_information_value_with_bias(0.5, -0.3, v1=2.0, v2=3.0)) == 1.9
 
 
 def test_modulations():

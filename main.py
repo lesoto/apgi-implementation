@@ -22,6 +22,7 @@ import numpy as np
 
 from config import CONFIG
 from core.logging_config import configure_logging, get_logger
+from core.phi_transform import phi_transform_array
 from hierarchy.multiscale import build_timescales, multiscale_weights
 from pipeline import APGIPipeline
 from stats.hurst import estimate_hurst_robust
@@ -248,8 +249,15 @@ def run_multiscale_pipeline(
         # Vectorized precision computation
         pi_levels = np.clip(1.0 / (sigma2_levels + eps), pi_min, pi_max)
 
-        # Aggregate signal
-        S_multiscale = float(np.sum(weights * pi_levels * np.abs(phi_e + phi_i)))
+        # Aggregate signal using φ(ε) — asymmetric valence-specific transform (§6)
+        _a_pos = float(cfg.get("alpha_plus", 1.0))  # type: ignore[arg-type]
+        _a_neg = float(cfg.get("alpha_minus", 1.0))  # type: ignore[arg-type]
+        _g_pos = float(cfg.get("gamma_plus", 2.0))  # type: ignore[arg-type]
+        _g_neg = float(cfg.get("gamma_minus", 2.0))  # type: ignore[arg-type]
+        phi_combined = phi_transform_array(
+            phi_e, _a_pos, _a_neg, _g_pos, _g_neg
+        ) + phi_transform_array(phi_i, _a_pos, _a_neg, _g_pos, _g_neg)
+        S_multiscale = float(np.sum(weights * pi_levels * phi_combined))
 
         # Run standard pipeline for comparison
         result = pipeline.step(x_e, x_hat_e, x_i, x_hat_i)

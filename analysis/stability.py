@@ -2,9 +2,11 @@
 
 Implements Jacobian computation and eigenvalue analysis per spec §7.5.
 
-Discrete system at no-ignition fixed point:
-    S* = (1-λ)S* + λ·Π|z|  →  S* = Π|z|/(λ)
-    θ* = θ* + η[C - V]      →  C = V at equilibrium
+Discrete system at no-ignition fixed point (affective paradigm):
+    S* = (1-λ)S* + λ·Π·φ(z)  →  S* = Π·φ(z)/(λ)
+    θ* = θ* + η[C - V]        →  C = V at equilibrium
+
+where φ(ε) = α·tanh(γ·ε) is the asymmetric valence-specific transform (§6).
 
 Jacobian: J = [[1-λ, 0], [ηc₁λ, e^{-κ}]]
 
@@ -17,6 +19,8 @@ import warnings
 from typing import Any
 
 import numpy as np
+
+from core.phi_transform import phi_transform
 
 # Suppress LAPACK warnings
 warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*")
@@ -31,7 +35,7 @@ def compute_jacobian_discrete(
     """Compute Jacobian of discrete APGI system.
 
     At the no-ignition fixed point, the system is:
-        S(t+1) = (1-λ)S(t) + λ·Π|z|
+        S(t+1) = (1-λ)S(t) + λ·Π·φ(z)
         θ(t+1) = θ(t) + η[C(t) - V(t)] + e^{-κ}(θ(t) - θ_base)
 
     Linearizing around fixed point:
@@ -173,8 +177,8 @@ def compute_fixed_point(
     """Compute fixed point of the system.
 
     At equilibrium (no ignition):
-        S* = Π|z| / λ  (from S = (1-λ)S + λ·Π|z|)
-        θ* = θ_base    (from θ = θ + η[C - V] with C = V)
+        S* = Π·φ(z) / λ  (from S = (1-λ)S + λ·Π·φ(z), §6)
+        θ* = θ_base      (from θ = θ + η[C - V] with C = V)
 
     Args:
         config: Configuration dictionary
@@ -183,13 +187,19 @@ def compute_fixed_point(
         Dictionary with fixed point values
     """
 
-    # Signal fixed point depends on precision and error magnitude
-    # Use typical values for estimation
-    pi_typical = 1.0  # Typical precision
-    z_typical = 1.0  # Typical z-score magnitude
+    # Signal fixed point depends on precision and φ-transformed error magnitude
+    pi_typical = 1.0
+    z_typical = 1.0
     lam = config.get("lam", 0.2)
 
-    S_star = (pi_typical * z_typical) / (lam + 1e-8)
+    phi_z = phi_transform(
+        z_typical,
+        alpha_pos=config.get("alpha_plus", 1.0),
+        alpha_neg=config.get("alpha_minus", 1.0),
+        gamma_pos=config.get("gamma_plus", 2.0),
+        gamma_neg=config.get("gamma_minus", 2.0),
+    )
+    S_star = (pi_typical * phi_z) / (lam + 1e-8)
 
     # Threshold fixed point
     theta_base = config.get("theta_base", 1.0)
