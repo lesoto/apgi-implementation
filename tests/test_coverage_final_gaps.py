@@ -538,8 +538,10 @@ class TestEnergyBoldCalibrationExtended:
 
     def test_bold_calibration_lines_149_374_401(self):
         """Test bold_calibration.py missing lines."""
-        from energy.bold_calibration import (calibrate_kappa_meta_from_bold,
-                                             compute_landauer_energy_per_bit)
+        from energy.bold_calibration import (
+            calibrate_kappa_meta_from_bold,
+            compute_landauer_energy_per_bit,
+        )
 
         # Line 149: calibrate with zero bold change - returns 0.0
         result = calibrate_kappa_meta_from_bold(
@@ -641,8 +643,7 @@ class TestStatsSpectralExtractionExtended:
 
     def test_spectral_extraction_periodogram_extended(self):
         """Test estimate_spectral_exponent_periodogram edge cases."""
-        from stats.spectral_extraction import \
-            estimate_spectral_exponent_periodogram
+        from stats.spectral_extraction import estimate_spectral_exponent_periodogram
 
         # Test with short signal (lines 165, 167)
         short_signal = np.random.randn(10)

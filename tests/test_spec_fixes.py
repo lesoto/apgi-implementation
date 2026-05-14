@@ -13,12 +13,25 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from analysis.stability import measure_criticality_signatures
+from core.circadian import (
+    T_CIRCADIAN_DEFAULT,
+    T_ULTRADIAN_DEFAULT,
+    CircadianRegulator,
+    apply_biological_rhythm_to_theta,
+    circadian_theta_offset,
+    circadian_theta_offset_array,
+    combined_biological_rhythm_offset,
+    ultradian_theta_offset,
+    ultradian_theta_offset_array,
+)
+from hierarchy.multiscale import MultiscaleWeightScheduler
+from reservoir.liquid_network import LiquidNetwork
 from reservoir.liquid_state_machine import LiquidStateMachine
 
 # ---------------------------------------------------------------------------
 # §9 + §17 — LiquidStateMachine: W_inh and spectral radius bounds
 # ---------------------------------------------------------------------------
-
 
 
 class TestLSMWinh:
@@ -126,17 +139,14 @@ class TestLiquidNetworkSpectralBounds:
     """§17: LiquidNetwork also enforces [0.7, 0.95]."""
 
     def test_valid_accepted(self):
-        from reservoir.liquid_network import LiquidNetwork
         ln = LiquidNetwork(n_units=50, spectral_radius=0.9)
         assert ln is not None
 
     def test_too_low_rejected(self):
-        from reservoir.liquid_network import LiquidNetwork
         with pytest.raises(ValueError, match="0.7"):
             LiquidNetwork(n_units=50, spectral_radius=0.3)
 
     def test_too_high_rejected(self):
-        from reservoir.liquid_network import LiquidNetwork
         with pytest.raises(ValueError, match="0.95"):
             LiquidNetwork(n_units=50, spectral_radius=0.98)
 
@@ -144,8 +154,6 @@ class TestLiquidNetworkSpectralBounds:
 # ---------------------------------------------------------------------------
 # §10 — Three criticality phase-transition signatures
 # ---------------------------------------------------------------------------
-
-from analysis.stability import measure_criticality_signatures
 
 
 class TestCriticalitySignatures:
@@ -156,10 +164,15 @@ class TestCriticalitySignatures:
         S = rng.normal(0.5, 0.2, 200)
         result = measure_criticality_signatures(S, theta=0.5)
         for key in [
-            "cohens_d", "cohens_d_criterion",
-            "susceptibility_ratio", "susceptibility_criterion",
-            "autocorr_increase", "autocorr_criterion",
-            "all_criteria_met", "n_subthreshold", "n_suprathreshold",
+            "cohens_d",
+            "cohens_d_criterion",
+            "susceptibility_ratio",
+            "susceptibility_criterion",
+            "autocorr_increase",
+            "autocorr_criterion",
+            "all_criteria_met",
+            "n_subthreshold",
+            "n_suprathreshold",
         ]:
             assert key in result, f"Missing key: {key}"
 
@@ -212,8 +225,6 @@ class TestCriticalitySignatures:
 # ---------------------------------------------------------------------------
 # §11 — MultiscaleWeightScheduler
 # ---------------------------------------------------------------------------
-
-from hierarchy.multiscale import MultiscaleWeightScheduler
 
 
 class TestMultiscaleWeightScheduler:
@@ -291,15 +302,6 @@ class TestMultiscaleWeightScheduler:
 # §27 — Circadian / ultradian θₜ modulation
 # ---------------------------------------------------------------------------
 
-from core.circadian import (T_CIRCADIAN_DEFAULT, T_ULTRADIAN_DEFAULT,
-                            CircadianRegulator,
-                            apply_biological_rhythm_to_theta,
-                            circadian_theta_offset,
-                            circadian_theta_offset_array,
-                            combined_biological_rhythm_offset,
-                            ultradian_theta_offset,
-                            ultradian_theta_offset_array)
-
 
 class TestCircadianOffset:
     """§27: Circadian cosine offset."""
@@ -361,8 +363,7 @@ class TestCombinedRhythmOffset:
     def test_apply_to_theta_floors_at_theta_min(self):
         # Large negative amplitude can drive θ below zero → floor enforced
         theta_eff = apply_biological_rhythm_to_theta(
-            theta_base=0.05, t=T_CIRCADIAN_DEFAULT / 2,
-            A_circ=0.1, A_ultradian=0.0, theta_min=0.0
+            theta_base=0.05, t=T_CIRCADIAN_DEFAULT / 2, A_circ=0.1, A_ultradian=0.0, theta_min=0.0
         )
         assert theta_eff >= 0.0
 

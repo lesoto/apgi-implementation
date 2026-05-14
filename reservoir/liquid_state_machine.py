@@ -486,7 +486,9 @@ class LiquidStateMachine:
             "W_in_std": float(np.std(self.W_in)),
             "W_out_norm": float(np.linalg.norm(self.W_out)),
             "W_inh_sparsity": inh_sparsity,
-            "W_inh_mean_nonzero": float(np.mean(self.W_inh[self.W_inh > 0])) if inh_sparsity > 0 else 0.0,
+            "W_inh_mean_nonzero": (
+                float(np.mean(self.W_inh[self.W_inh > 0])) if inh_sparsity > 0 else 0.0
+            ),
             "W_inh_norm": float(np.linalg.norm(self.W_inh)),
             "sigma_inh2": self.sigma_inh2,
         }

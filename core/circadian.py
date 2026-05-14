@@ -33,11 +33,12 @@ import numpy as np
 
 # ── Physical / biological constants ──────────────────────────────────────────
 
-T_CIRCADIAN_DEFAULT: float = 86400.0   # 24 h in seconds
-T_ULTRADIAN_DEFAULT: float = 5400.0    # 90 min in seconds
+T_CIRCADIAN_DEFAULT: float = 86400.0  # 24 h in seconds
+T_ULTRADIAN_DEFAULT: float = 5400.0  # 90 min in seconds
 
 
 # ── Scalar offset functions ───────────────────────────────────────────────────
+
 
 def circadian_theta_offset(
     t: float,
@@ -119,8 +120,9 @@ def combined_biological_rhythm_offset(
     Returns:
         Total additive offset Δθ(t) = Δθ_circ + Δθ_ultradian
     """
-    return circadian_theta_offset(t, A_circ, T_circ, phi_circ) + \
-           ultradian_theta_offset(t, A_ultradian, T_ultradian, phi_ultradian)
+    return circadian_theta_offset(t, A_circ, T_circ, phi_circ) + ultradian_theta_offset(
+        t, A_ultradian, T_ultradian, phi_ultradian
+    )
 
 
 def apply_biological_rhythm_to_theta(
@@ -163,6 +165,7 @@ def apply_biological_rhythm_to_theta(
 
 # ── Vectorized variants ───────────────────────────────────────────────────────
 
+
 def circadian_theta_offset_array(
     t_array: np.ndarray,
     A_circ: float = 0.1,
@@ -190,6 +193,7 @@ def ultradian_theta_offset_array(
 
 
 # ── Stateful regulator ────────────────────────────────────────────────────────
+
 
 class CircadianRegulator:
     """Stateful biological rhythm regulator for incremental pipeline integration.
@@ -243,8 +247,12 @@ class CircadianRegulator:
         """Return combined rhythm offset at current time t."""
         return combined_biological_rhythm_offset(
             self.t,
-            self.A_circ, self.T_circ, self.phi_circ,
-            self.A_ultradian, self.T_ultradian, self.phi_ultradian,
+            self.A_circ,
+            self.T_circ,
+            self.phi_circ,
+            self.A_ultradian,
+            self.T_ultradian,
+            self.phi_ultradian,
         )
 
     def tick(self) -> None:
