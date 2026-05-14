@@ -88,6 +88,17 @@ class TestSpectralExponentEstimation:
         assert 0.5 < beta < 1.5  # Pink noise range
         assert r2 > 0.5
 
+    def test_welch_explicit_nperseg(self) -> None:
+        """Test Welch method with explicit nperseg."""
+        n = 1000
+        signal = np.random.randn(n)
+
+        # Test branch where nperseg is not None
+        beta, r2, hurst = estimate_spectral_exponent_welch(signal, fs=1.0, nperseg=128)
+
+        # Should execute successfully
+        assert not np.isnan(beta)
+
     def test_periodogram_pink_noise(self) -> None:
         """Test periodogram method on pink noise."""
         n = 10000
@@ -328,6 +339,30 @@ class TestSpectralSignatureExtraction:
             sig = extract_1f_signature(signal, fs=1.0, methods=methods, n_bootstrap=50)
             assert isinstance(sig, SpectralSignature)
             assert sig.method in methods
+
+    def test_extract_1f_signature_beta_estimator_nan(self) -> None:
+        """Test beta_estimator returning NaN during bootstrap."""
+        import stats.spectral_extraction
+
+        original_welch = stats.spectral_extraction.estimate_spectral_exponent_welch
+
+        try:
+            # Mock welch to return NaN so beta_estimator also returns NaN
+            stats.spectral_extraction.estimate_spectral_exponent_welch = lambda *args, **kwargs: (
+                float("nan"),
+                float("nan"),
+                float("nan"),
+            )
+
+            # Use periodogram so that consensus still works and we reach bootstrap
+            signal = np.random.randn(100)
+            sig = extract_1f_signature(signal, fs=1.0, methods=["periodogram"], n_bootstrap=10)
+
+            # The bootstrap will return NaN for CI, triggering fallback CI
+            assert not np.isnan(sig.beta)
+            # The test confirms that beta_estimator handles NaN correctly
+        finally:
+            stats.spectral_extraction.estimate_spectral_exponent_welch = original_welch
 
 
 class TestHierarchicalSpectralValidation:

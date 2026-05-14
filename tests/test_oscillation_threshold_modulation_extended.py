@@ -117,6 +117,23 @@ class TestHierarchicalPhaseModulatorExtended:
         # Phases should remain unchanged
         np.testing.assert_array_almost_equal(modulator.phases, original_phases)
 
+    def test_reset_phase_valid_level_no_broadcast(self) -> None:
+        """Test reset with valid level but no broadcast (covers line 212 false branch)."""
+        modulator = HierarchicalPhaseModulator(n_levels=3)
+
+        original_phases = np.array([0.0, np.pi / 2, np.pi])
+        modulator.phases = original_phases.copy()
+
+        # Reset level 1 with no broadcast
+        modulator.reset_phase_on_ignition(level=1, reset_amount=np.pi, broadcast=False)
+
+        # Level 1 should change
+        assert modulator.phases[1] == pytest.approx((np.pi / 2 + np.pi) % (2 * np.pi))
+
+        # Other levels should remain unchanged
+        assert modulator.phases[0] == original_phases[0]
+        assert modulator.phases[2] == original_phases[2]
+
 
 class TestPhaseAmplitudeCouplingExtended:
     """Extended tests for phase_amplitude_coupling function."""

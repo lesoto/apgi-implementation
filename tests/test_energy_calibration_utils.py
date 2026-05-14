@@ -255,3 +255,14 @@ class TestDemonstrateCalibrationRange:
         kappa_floats = [float(v) for v in kappa_values]
         for i in range(len(kappa_floats) - 1):
             assert kappa_floats[i] < kappa_floats[i + 1]
+
+    def test_main_execution(self):
+        """Should execute without errors when run as main."""
+        import subprocess
+        import sys
+
+        result = subprocess.run(
+            [sys.executable, "-m", "energy.calibration_utils"], capture_output=True, text=True
+        )
+        assert result.returncode == 0
+        assert "BOLD Calibration for Different Biological Efficiency Levels" in result.stdout

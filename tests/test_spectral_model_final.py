@@ -287,7 +287,7 @@ class TestSpectralValidator:
             fig = validator.plot_comparison(signal, fs=1.0)
             assert fig is None
 
-    def test_plot_comparison_matplotlib_import_error(self):
+    def test_plot_comparison_matplotlib_import_error(self) -> None:
         """Test plot comparison handles ImportError (lines 519-520)."""
         validator = SpectralValidator(n_levels=3)
         signal = np.random.randn(512)
@@ -301,3 +301,37 @@ class TestSpectralValidator:
         except Exception:
             # If any exception, it should be handled gracefully
             pass
+
+    def test_plot_comparison_no_matplotlib(self) -> None:
+        """Explicitly test the ImportError path by mocking sys.modules."""
+        import sys
+        from unittest.mock import patch
+
+        validator = SpectralValidator(n_levels=3)
+        signal = np.random.randn(512)
+
+        # Force ImportError by mocking matplotlib to None
+        with patch.dict("sys.modules", {"matplotlib": None, "matplotlib.pyplot": None}):
+            # We also need to reload or ensure the import inside the function fails
+            # Since the function imports inside, this should work
+            fig = validator.plot_comparison(signal, fs=1.0)
+            assert fig is None
+
+    def test_plot_comparison_generic_exception(self) -> None:
+        """Test the catch-all exception block in plot_comparison."""
+        from unittest.mock import patch
+
+        validator = SpectralValidator(n_levels=3)
+        signal = np.random.randn(512)
+
+        # Mock something to raise a generic exception inside the try block
+        # We can't easily mock the import to raise a non-ImportError,
+        # but we can mock the plt.subplots call if matplotlib IS available.
+        try:
+            import matplotlib.pyplot as plt
+
+            with patch("matplotlib.pyplot.subplots", side_effect=RuntimeError("Generic failure")):
+                fig = validator.plot_comparison(signal, fs=1.0)
+                assert fig is None
+        except ImportError:
+            pytest.skip("matplotlib not available for this specific path test")

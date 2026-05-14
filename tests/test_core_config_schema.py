@@ -557,6 +557,17 @@ class TestAPGIConfigModelValidators:
         config = APGIConfig(tau_sigma=0.7)  # ignite_tau defaults to 0.5
         assert config.ignite_tau == 0.7
 
+    def test_backward_compat_tau_sigma_identical(self):
+        """Should skip applying tau_sigma when it's already identical and not default."""
+        config = APGIConfig(ignite_tau=0.8, tau_sigma=0.805)
+        assert config.ignite_tau == 0.8
+
+    def test_learning_rates_validation_disabled(self):
+        """Should skip validation when use_internal_predictions is False."""
+        config = APGIConfig(use_internal_predictions=False, pi_max=1.0, kappa_e=5.0, kappa_i=5.0)
+        assert config.kappa_e == 5.0
+        assert config.kappa_i == 5.0
+
 
 class TestAPGIConfigConversion:
     """Tests for APGIConfig conversion methods."""

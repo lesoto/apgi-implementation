@@ -1,12 +1,13 @@
-import pytest
 import numpy as np
+import pytest
+
 from active_inference.policy import (
-    ActiveInferenceAgent,
-    compute_expected_free_energy,
-    _softmax,
-    default_action_params,
-    PolicyResult,
     ActionFeedback,
+    ActiveInferenceAgent,
+    PolicyResult,
+    _softmax,
+    compute_expected_free_energy,
+    default_action_params,
 )
 
 

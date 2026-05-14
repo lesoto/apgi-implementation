@@ -1,71 +1,68 @@
-import pytest
 import numpy as np
+import pytest
 from pydantic import ValidationError as PydanticValidationError
+
 from core.config_schema import APGIConfig, create_production_config
 from core.validation import (
-    validate_config,
-    validate_parameter,
+    ValidationError,
     format_constraint_summary,
     print_constraint_summary,
-    ValidationError,
+    validate_config,
+    validate_parameter,
 )
-from energy.bold_calibration import (
-    calibrate_kappa_meta_from_bold,
-    BOLDCalibrator,
-)
+from energy.bold_calibration import BOLDCalibrator, calibrate_kappa_meta_from_bold
 from energy.calibration_utils import demonstrate_calibration_range
 from hierarchy.coupling import (
-    estimate_hierarchy_levels,
-    precision_coupling_ode,
-    phase_locked_threshold,
-    nonlinear_phase_amplitude_coupling,
-    bidirectional_phase_coupling,
-    bottom_up_threshold_cascade,
-    bidirectional_threshold_cascade,
-    update_phase_kuramoto_full,
     HierarchicalPrecisionNetwork,
+    bidirectional_phase_coupling,
+    bidirectional_threshold_cascade,
+    bottom_up_threshold_cascade,
+    estimate_hierarchy_levels,
+    nonlinear_phase_amplitude_coupling,
+    phase_locked_threshold,
+    precision_coupling_ode,
+    update_phase_kuramoto_full,
 )
 from hierarchy.multiscale import (
-    build_timescales,
-    estimate_optimal_timescale_ratio,
-    estimate_hierarchy_levels_from_data,
-    update_multiscale_feature,
-    multiscale_weights,
     aggregate_multiscale_signal,
     aggregate_multiscale_signal_phi,
     apply_reset_rule,
-    phase_signal,
-    modulate_threshold,
     bottom_up_cascade,
+    build_timescales,
+    estimate_hierarchy_levels_from_data,
+    estimate_optimal_timescale_ratio,
+    modulate_threshold,
+    multiscale_weights,
+    phase_signal,
+    update_multiscale_feature,
 )
 from oscillation.kuramoto import HierarchicalKuramotoSystem, KuramotoOscillators
-from stats.spectral_extraction import (
-    robust_log_regression,
-    estimate_spectral_exponent_welch,
-    estimate_spectral_exponent_periodogram,
-    estimate_hurst_dfa as extract_dfa,
-    bootstrap_confidence_interval,
-    compute_aic_bic,
-    extract_1f_signature,
-    validate_hierarchical_spectral_signature,
-)
-from stats.maturity_assessment import (
-    assess_overall_maturity,
-    get_maturity_rating,
-    log_maturity_assessment,
-    format_maturity_assessment,
-    print_maturity_assessment,
-)
 from reservoir.liquid_network import LiquidNetwork
 from reservoir.liquid_state_machine import LiquidStateMachine
 from stats.hurst import (
-    estimate_spectral_beta,
-    estimate_beta_welch,
-    hurst_from_slope,
-    power_spectrum,
     dfa_analysis,
+    estimate_beta_welch,
     estimate_hurst_dfa,
     estimate_hurst_robust,
+    estimate_spectral_beta,
+    hurst_from_slope,
+    power_spectrum,
+)
+from stats.maturity_assessment import (
+    assess_overall_maturity,
+    format_maturity_assessment,
+    get_maturity_rating,
+    log_maturity_assessment,
+    print_maturity_assessment,
+)
+from stats.spectral_extraction import bootstrap_confidence_interval, compute_aic_bic
+from stats.spectral_extraction import estimate_hurst_dfa as extract_dfa
+from stats.spectral_extraction import (
+    estimate_spectral_exponent_periodogram,
+    estimate_spectral_exponent_welch,
+    extract_1f_signature,
+    robust_log_regression,
+    validate_hierarchical_spectral_signature,
 )
 
 

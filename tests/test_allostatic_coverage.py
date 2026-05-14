@@ -1,8 +1,9 @@
 import pytest
+
 from core.allostatic import (
+    AllostaticThresholdController,
     allostatic_threshold_ode,
     update_threshold_euler,
-    AllostaticThresholdController,
 )
 
 

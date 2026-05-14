@@ -1,11 +1,12 @@
-import pytest
 import numpy as np
+import pytest
+
 from active_inference.policy import (
+    ActionFeedback,
     ActiveInferenceAgent,
+    PolicyResult,
     compute_expected_free_energy,
     default_action_params,
-    PolicyResult,
-    ActionFeedback,
 )
 
 

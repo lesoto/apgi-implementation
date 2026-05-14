@@ -134,6 +134,33 @@ class TestEmpiricalDataLoader:
             assert "events" in result
             assert "event_dict" in result
 
+    def test_load_eeg_dataset_with_mock_mne_defaults(self) -> None:
+        """Test EEG loading with mocked MNE using defaults (no channel_names/event_markers)."""
+        config = DatasetConfig(name="test", data_type="eeg", fs=100.0)
+        loader = EmpiricalDataLoader(config)
+
+        # Create mock MNE module
+        mock_raw = MagicMock()
+        mock_raw.get_data.return_value = np.random.randn(2, 1000)
+        mock_raw.info = {"sfreq": 100.0}
+        mock_raw.ch_names = ["ch1", "ch2"]
+        mock_raw.pick_channels = MagicMock()
+
+        with patch.dict("sys.modules", {"mne": MagicMock()}):
+            import sys
+
+            mock_mne = sys.modules["mne"]
+            mock_mne.io.read_raw.return_value = mock_raw
+
+            result = loader.load_eeg_dataset("dummy_file.fif")
+
+            # Should not call pick_channels
+            mock_raw.pick_channels.assert_not_called()
+            # Should not have events
+            assert result["events"] is None
+            assert "event_dict" not in result
+            assert "signals" in result
+
     def test_load_behavioral_dataset_csv(self) -> None:
         """Test behavioral dataset loading from CSV."""
         config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
@@ -490,6 +517,13 @@ class TestBehavioralValidator:
         rts = np.array([0.3, 0.4, 0.5, 0.6, 0.7, 10.0])  # 10.0 is a clear outlier
         result = validator.analyze_rt_distribution(rts, remove_outliers=True, outlier_sd=2.0)
         assert result["n"] < 6  # Should have removed outlier
+
+    def test_analyze_rt_distribution_no_outlier_removal(self) -> None:
+        """Test RT distribution without outlier removal."""
+        validator = BehavioralValidator()
+        rts = np.array([0.3, 0.4, 0.5, 0.6, 0.7, 10.0])
+        result = validator.analyze_rt_distribution(rts, remove_outliers=False)
+        assert result["n"] == 6  # Should not have removed any outlier
 
     def test_compute_skewness(self) -> None:
         """Test skewness computation."""

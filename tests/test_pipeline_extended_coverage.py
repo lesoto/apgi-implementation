@@ -1,9 +1,11 @@
-import pytest
-import numpy as np
 import warnings
 from unittest.mock import patch
-from pipeline import APGIPipeline
+
+import numpy as np
+import pytest
+
 from core.config_schema import APGIConfig
+from pipeline import APGIPipeline
 
 
 def get_base_config():

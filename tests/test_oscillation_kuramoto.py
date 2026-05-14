@@ -114,6 +114,16 @@ class TestKuramotoOscillators:
         phase_diff = min(phase_diff, 2 * np.pi - phase_diff)
         assert pytest.approx(phase_diff, abs=0.1) == np.pi
 
+    def test_reset_phase_on_ignition_out_of_bounds(self):
+        """Should return early if level is out of bounds."""
+        osc = KuramotoOscillators(n_levels=3)
+        initial_phases = osc.phases.copy()
+
+        osc.reset_phase_on_ignition(level=-1)
+        osc.reset_phase_on_ignition(level=3)
+
+        np.testing.assert_array_equal(osc.phases, initial_phases)
+
     def test_get_synchronization_order(self):
         """Should compute synchronization order."""
         osc = KuramotoOscillators(n_levels=3)

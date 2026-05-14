@@ -1,19 +1,20 @@
-import pytest
 import numpy as np
+import pytest
+
 from stats.maturity_assessment import (
+    MaturityScore,
     assess_hierarchical_architecture,
-    assess_statistical_validation,
     assess_overall_maturity,
-    log_maturity_assessment,
+    assess_statistical_validation,
     format_maturity_assessment,
     get_maturity_rating,
-    MaturityScore,
+    log_maturity_assessment,
 )
 from stats.spectral_extraction import (
     extract_1f_signature,
-    validate_hierarchical_spectral_signature,
     print_spectral_signature,
     robust_log_regression,
+    validate_hierarchical_spectral_signature,
 )
 
 

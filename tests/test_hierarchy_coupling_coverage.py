@@ -1,15 +1,16 @@
-import pytest
 import numpy as np
+import pytest
+
 from hierarchy.coupling import (
-    estimate_hierarchy_levels,
-    precision_coupling_ode,
-    phase_locked_threshold,
-    nonlinear_phase_amplitude_coupling,
-    bidirectional_phase_coupling,
-    bottom_up_threshold_cascade,
-    bidirectional_threshold_cascade,
-    update_phase_kuramoto_full,
     HierarchicalPrecisionNetwork,
+    bidirectional_phase_coupling,
+    bidirectional_threshold_cascade,
+    bottom_up_threshold_cascade,
+    estimate_hierarchy_levels,
+    nonlinear_phase_amplitude_coupling,
+    phase_locked_threshold,
+    precision_coupling_ode,
+    update_phase_kuramoto_full,
 )
 
 

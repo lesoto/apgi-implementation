@@ -1,16 +1,17 @@
-import pytest
 import numpy as np
+import pytest
+
 from core.thermodynamics import (
+    K_BOLTZMANN,
+    LN2,
+    T_ENV_DEFAULT,
+    compute_information_bits,
     compute_landauer_cost,
     compute_landauer_cost_batch,
-    validate_thermodynamic_constraint,
-    compute_information_bits,
     compute_metabolic_efficiency,
     estimate_temperature_from_cost,
     thermodynamic_cost_trajectory,
-    K_BOLTZMANN,
-    T_ENV_DEFAULT,
-    LN2,
+    validate_thermodynamic_constraint,
 )
 
 

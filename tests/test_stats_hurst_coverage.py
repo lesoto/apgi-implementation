@@ -1,14 +1,15 @@
-import pytest
 import numpy as np
+import pytest
+
 from stats.hurst import (
-    estimate_spectral_beta,
-    welch_periodogram,
-    estimate_beta_welch,
-    hurst_from_slope,
-    power_spectrum,
     dfa_analysis,
+    estimate_beta_welch,
     estimate_hurst_dfa,
     estimate_hurst_robust,
+    estimate_spectral_beta,
+    hurst_from_slope,
+    power_spectrum,
+    welch_periodogram,
 )
 
 

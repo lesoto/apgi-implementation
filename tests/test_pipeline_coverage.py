@@ -1,7 +1,8 @@
 import pytest
-from pipeline import APGIPipeline, PrecisionState, HierarchicalState
-from core.validation import ValidationError
+
 from core.config_schema import APGIConfig
+from core.validation import ValidationError
+from pipeline import APGIPipeline, HierarchicalState, PrecisionState
 
 
 def get_base_config():

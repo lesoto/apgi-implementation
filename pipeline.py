@@ -21,11 +21,7 @@ from core.precision import (
     update_variance_ema,
 )
 from core.preprocessing import RunningStats, compute_prediction_error
-from core.signal import (
-    instantaneous_signal_phi,
-    integrate_signal_leaky,
-    stabilize_signal_log,
-)
+from core.signal import instantaneous_signal_phi, integrate_signal_leaky, stabilize_signal_log
 from core.thermodynamics import compute_landauer_cost
 from core.threshold import (
     apply_ne_threshold_modulation,
@@ -443,36 +439,37 @@ class APGIPipeline:
         z_e = compute_prediction_error(x_e, _x_hat_e)
         z_i = compute_prediction_error(x_i, _x_hat_i)
 
-        # 2) Online mean + variance update (EMA or sliding-window, centered)
-        variance_method = self.config.get("variance_method", "ema")
-
-        if variance_method == "sliding_window" and self.stats_e is not None:
-            # Use sliding-window statistics
-            assert self.stats_i is not None  # Type guard for mypy
-            self.stats_e.update(z_e)
-            self.stats_i.update(z_i)
-            self.state.mu_e = self.stats_e.mean()
-            self.state.mu_i = self.stats_i.mean()
-            # Use Bessel correction for unbiased estimation with small windows
-            self.state.sigma2_e = self.stats_e.variance(bessel_correction=True)
-            self.state.sigma2_i = self.stats_i.variance(bessel_correction=True)
-        else:
-            # Use EMA (default)
-            self.state.mu_e = update_mean_ema(self.state.mu_e, z_e, self.config["alpha_e"])
-            self.state.mu_i = update_mean_ema(self.state.mu_i, z_i, self.config["alpha_i"])
-            self.state.sigma2_e = update_variance_ema(
-                self.state.sigma2_e, z_e, self.state.mu_e, self.config["alpha_e"]
-            )
-            self.state.sigma2_i = update_variance_ema(
-                self.state.sigma2_i, z_i, self.state.mu_i, self.config["alpha_i"]
-            )
-
-        # 3) Proper z-score normalization: (z - μ) / (σ + ε)
+        # 3) Proper z-score normalization: (z - μ) / (σ + eps)
+        # Using previous stats for the current sample's normalization (standard filtering)
         eps = self.config["eps"]
-        z_e_n = (z_e - self.state.mu_e) / (self.state.sigma2_e**0.5 + eps)
-        z_i_n = (z_i - self.state.mu_i) / (self.state.sigma2_i**0.5 + eps)
+        z_e_n_pre = (z_e - self.state.mu_e) / (self.state.sigma2_e**0.5 + eps)
+        z_i_n_pre = (z_i - self.state.mu_i) / (self.state.sigma2_i**0.5 + eps)
 
-        # 4) Precision with clamping
+        # 3a-φ) Signed nonlinear transform §6 — φ(ε) = α·tanh(γ·ε), valence-asymmetric
+        _a_pos = self.config.get("alpha_plus", 1.0)
+        _a_neg = self.config.get("alpha_minus", 1.0)
+        _g_pos = self.config.get("gamma_plus", 2.0)
+        _g_neg = self.config.get("gamma_minus", 2.0)
+        phi_e_n = phi_transform(z_e_n_pre, _a_pos, _a_neg, _g_pos, _g_neg)
+
+        # Interoceptive z-score includes dopamine bias if configured
+        z_i_eff_pre = apply_dopamine_bias_to_error(z_i_n_pre, self.config["beta"])
+        phi_i_eff = phi_transform(z_i_eff_pre, _a_pos, _a_neg, _g_pos, _g_neg)
+
+        # 4) Online mean + uncertainty update (§7.1, Eq 158)
+        # Spec: Σₜ = β_Σ · Σₜ₋₁ + (1 - β_Σ) · φ(εₜ)²
+        alpha_e = self.config["alpha_e"]
+        alpha_i = self.config["alpha_i"]
+
+        # Update means (raw errors)
+        self.state.mu_e = update_mean_ema(self.state.mu_e, z_e, alpha_e)
+        self.state.mu_i = update_mean_ema(self.state.mu_i, z_i, alpha_i)
+
+        # Update uncertainties (using phi^2 per Spec §7.1)
+        self.state.sigma2_e = (1.0 - alpha_e) * self.state.sigma2_e + alpha_e * (phi_e_n**2)
+        self.state.sigma2_i = (1.0 - alpha_i) * self.state.sigma2_i + alpha_i * (phi_i_eff**2)
+
+        # 5) Precision with clamping (§7.2)
         pi_e = compute_precision(
             self.state.sigma2_e,
             self.config["eps"],
@@ -488,7 +485,12 @@ class APGIPipeline:
         self.state.pi_e = pi_e
         self.state.pi_i = pi_i
 
-        # 5) Neuromodulation (+ dopamine correction)
+        # Final normalized signals for downstream use
+        z_e_n = z_e_n_pre
+        z_i_n = z_i_n_pre
+        z_i_eff = z_i_eff_pre
+
+        # 6) Neuromodulation (§8)
         pi_e_eff = apply_ach_gain(pi_e, self.config["g_ach"])
 
         # Interoceptive precision: exponential somatic form or linear NE gain
@@ -504,16 +506,6 @@ class APGIPipeline:
             pi_i_eff = apply_ne_gain(pi_i, self.config["g_ne"])
         else:
             pi_i_eff = pi_i
-
-        z_i_eff = apply_dopamine_bias_to_error(z_i_n, self.config["beta"])
-
-        # 5a-φ) Signed nonlinear transform §6 — φ(ε) = α·tanh(γ·ε), valence-asymmetric
-        _a_pos = self.config.get("alpha_plus", 1.0)
-        _a_neg = self.config.get("alpha_minus", 1.0)
-        _g_pos = self.config.get("gamma_plus", 2.0)
-        _g_neg = self.config.get("gamma_minus", 2.0)
-        phi_e_n = phi_transform(z_e_n, _a_pos, _a_neg, _g_pos, _g_neg)
-        phi_i_eff = phi_transform(z_i_eff, _a_pos, _a_neg, _g_pos, _g_neg)
 
         # 5b) Hierarchical precision ODE if enabled
         if self.hierarchical_network is not None and self.config.get(
@@ -625,14 +617,13 @@ class APGIPipeline:
             lam = self.config["lam"]
             self.S = integrate_signal_leaky(self.S, S_inst, lam)
         else:
-            # ODE mode: dS/dt = -S/τ_S + Π_e|z_e| + β·Π_i|z_i| + σ·dW
+            # ODE mode: dS/dt = -S/τ_S + Π_e·φ(ε_e) + Π_i·φ(ε_i) + σ·dW
             self.S = update_signal_ode(
                 self.S,
-                z_e_n,
-                z_i_n,
+                phi_e_n,
+                phi_i_eff,
                 pi_e_eff,
                 pi_i_eff,
-                self.config["beta"],
                 tau_s,
                 dt,
                 adaptive_noise_std,
@@ -687,7 +678,7 @@ class APGIPipeline:
             self.history["C_landauer"].append(C_landauer)
             self.history["bits_erased"].append(bits_erased)
 
-        V_t = compute_information_value(z_e_n, z_i_eff, self.config["v1"], self.config["v2"])
+        V_t = compute_information_value(phi_e_n, phi_i_eff, self.config["v1"], self.config["v2"])
 
         # 7b/8) Threshold and Ignition: Standard or Reservoir-as-Threshold mode
         # Spec §10: Reservoir can serve as alternative execution path

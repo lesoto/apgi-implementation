@@ -31,11 +31,34 @@ def update_mean_ema(prev_mean: float, z: float, alpha: float) -> float:
     return float((1.0 - alpha) * prev_mean + alpha * z)
 
 
-def update_variance_ema(prev_sigma2: float, z: float, mu: float, alpha: float) -> float:
-    """Online EMA variance: σ²(t+1) = (1-α)σ²(t) + α·(z-μ)².
+def update_uncertainty_phi(prev_sigma2: float, phi: float, alpha: float) -> float:
+    """Online EMA uncertainty update (§7.1, Eq 158).
 
-    Uses centered squared deviation to avoid overestimation when errors
-    have nonzero mean.
+    Σ(t+1) = (1-α)Σ(t) + α · φ(ε)²
+
+    Uses the squared asymmetric phi transform instead of raw squared deviation.
+    This ensures that the uncertainty tracker (and thus precision) is
+    valence-sensitive.
+
+    Args:
+        prev_sigma2: Previous uncertainty estimate Σ(t)
+        phi: Current phi-transformed prediction error φ(ε)
+        alpha: Learning rate (1/τ_Σ)
+
+    Returns:
+        Updated uncertainty estimate Σ(t+1)
+    """
+
+    if not (0.0 < alpha <= 1.0):
+        raise ValueError("alpha must be in (0,1]")
+    return float((1.0 - alpha) * prev_sigma2 + alpha * phi**2)
+
+
+def update_variance_ema(prev_sigma2: float, z: float, mu: float, alpha: float) -> float:
+    """[LEGACY] Online EMA variance: σ²(t+1) = (1-α)σ²(t) + α·(z-μ)².
+
+    Maintained for backward compatibility. New code should use update_uncertainty_phi
+    to satisfy Spec §7.1.
     """
 
     if not (0.0 < alpha <= 1.0):

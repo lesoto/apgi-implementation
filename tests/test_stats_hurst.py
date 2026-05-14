@@ -66,6 +66,15 @@ class TestWelchPeriodogram:
         freqs, psd = welch_periodogram(signal, fs=100.0)
         assert len(freqs) > 0
 
+    def test_explicit_nperseg(self):
+        """Should use explicitly provided nperseg."""
+        signal = np.random.randn(1000)
+
+        freqs, psd = welch_periodogram(signal, fs=100.0, nperseg=128)
+        # For nperseg=128 with real signal, welch returns nperseg/2 + 1 = 65 frequencies
+        assert len(freqs) == 65
+        assert len(psd) == 65
+
 
 class TestEstimateBetaWelch:
     """Tests for estimate_beta_welch function."""

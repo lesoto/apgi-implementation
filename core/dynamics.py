@@ -5,52 +5,43 @@ import numpy as np
 
 def signal_drift(
     S: float,
-    z_e: float,
-    z_i: float,
+    phi_e: float,
+    phi_i: float,
     pi_e: float,
     pi_i: float,
-    beta: float,
     tau_s: float,
 ) -> float:
-    """Deterministic ODE drift (no noise): dS/dt|_det = -S/τ_S + Π_e|z_e| + Π_i|z_i_eff|.
+    """Deterministic ODE drift using signed valence-specific phi transforms (§6/§12).
 
-    Separates the deterministic component so it can be passed as the drift
-    argument to integrate_euler_maruyama in sde.py.
+    S_inst = Π_e · φ(ε_e) + Π_i · φ(ε_i).
+    The sign is preserved: positive errors drive ignition, negative errors suppress it.
     """
 
     if tau_s <= 0:
         raise ValueError("tau_s must be > 0")
 
-    # z_i_eff includes the dopamine bias: z_i_eff = z_i + beta
-    z_i_eff = z_i + beta
-
-    return float(-S / tau_s + pi_e * abs(z_e) + pi_i * abs(z_i_eff))
+    return float(-S / tau_s + pi_e * phi_e + pi_i * phi_i)
 
 
 def update_signal_ode(
     S: float,
-    z_e: float,
-    z_i: float,
+    phi_e: float,
+    phi_i: float,
     pi_e: float,
     pi_i: float,
-    beta: float,
     tau_s: float,
     dt: float = 1.0,
     noise_std: float = 0.01,
 ) -> float:
-    """dS/dt = -S/τ_S + Π^e|z^e| + Π^i|z^i_eff| + η_S(t).
+    """dS/dt = -S/τ_S + Π^e·φ(ε^e) + Π^i·φ(ε^i) + η_S(t) (§12).
 
-    Implements Euler-Maruyama integration step:
-    S(t+dt) = S(t) + dS/dt * dt + noise_std * sqrt(dt) * N(0,1)
+    Implements Euler-Maruyama integration with signed valence-specific transforms.
     """
 
     if tau_s <= 0:
         raise ValueError("tau_s must be > 0")
 
-    # z_i_eff includes the dopamine bias: z_i_eff = z_i + beta
-    z_i_eff = z_i + beta
-
-    drift = -S / tau_s + pi_e * abs(z_e) + pi_i * abs(z_i_eff)
+    drift = -S / tau_s + pi_e * phi_e + pi_i * phi_i
     noise = float(np.random.normal(0.0, noise_std * np.sqrt(dt)))
 
     return float(S + drift * dt + noise)

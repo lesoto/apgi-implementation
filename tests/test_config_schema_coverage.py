@@ -1,5 +1,6 @@
 import pytest
 from pydantic import ValidationError
+
 from core.config_schema import APGIConfig, create_production_config
 
 

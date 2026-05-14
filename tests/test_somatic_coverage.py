@@ -1,10 +1,11 @@
-import pytest
 import numpy as np
+import pytest
+
 from core.somatic import (
-    somatic_marker_arousal,
-    somatic_marker_valence,
     compute_precision_with_somatic_marker,
     compute_somatic_gain,
+    somatic_marker_arousal,
+    somatic_marker_valence,
     update_somatic_marker_euler,
 )
 

@@ -105,49 +105,28 @@ def compute_metabolic_cost_realistic(
 
 
 def compute_information_value(
-    z_e: float, z_i_eff: float, v1: float = 1.0, v2: float = 1.0
+    phi_e: float, phi_i: float, v1: float = 1.0, v2: float = 1.0
 ) -> float:
-    """V(t)≈v1|z_e|+v2|z_i_eff| (spec §4.3).
+    """V(t) = v1|φ(ε_e)| + v2|φ(ε_i)| (§14).
 
-    Note: z_i_eff should include dopaminergic bias: z_i_eff = z_i + β_DA.
-    This coupling makes ∂θ/∂β_DA = -η·v₂ < 0, implementing the established
-    DA/motivation relationship (Berridge & Kringelbach, 2015).
-
-    Args:
-        z_e: Exteroceptive z-scored error
-        z_i_eff: Interoceptive z-scored error WITH dopamine bias (z_i + β_DA)
-        v1: Value coefficient for exteroceptive errors
-        v2: Value coefficient for interoceptive errors
-
-    Returns:
-        Information value V(t)
+    The absolute value is taken over the transformed errors φ(ε) because
+    information value is unsigned (both positive and negative surprises
+    carry informational value for threshold adaptation).
     """
 
-    return float(v1 * abs(z_e) + v2 * abs(z_i_eff))
+    return float(v1 * abs(phi_e) + v2 * abs(phi_i))
 
 
 def compute_information_value_with_bias(
-    z_e: float, z_i: float, beta_da: float, v1: float = 1.0, v2: float = 1.0
+    phi_e: float, phi_i: float, v1: float = 1.0, v2: float = 1.0
 ) -> float:
-    """V(t) with explicit dopamine bias (spec §4.3).
+    """V(t) using phi-transformed errors (§14).
 
-    V(t) = v₁·|z_e| + v₂·|z_i + β_DA|
-
-    This form makes the dopaminergic coupling explicit.
-
-    Args:
-        z_e: Exteroceptive z-scored error
-        z_i: Interoceptive z-scored error (without bias)
-        beta_da: Dopaminergic additive bias
-        v1: Value coefficient for exteroceptive errors
-        v2: Value coefficient for interoceptive errors
-
-    Returns:
-        Information value V(t)
+    Legacy wrapper maintained for API compatibility, now identical to
+    compute_information_value as dopamine bias is pre-integrated into phi_i.
     """
 
-    z_i_eff = z_i + beta_da
-    return float(v1 * abs(z_e) + v2 * abs(z_i_eff))
+    return compute_information_value(phi_e, phi_i, v1, v2)
 
 
 def apply_ne_threshold_modulation(theta: float, g_ne: float, gamma_ne: float) -> float:

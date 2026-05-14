@@ -1,6 +1,5 @@
-import pytest
-
 import numpy as np
+import pytest
 
 from core.sde import integrate_euler_maruyama
 

@@ -1,10 +1,11 @@
-import pytest
 import numpy as np
+import pytest
+
 from core.dynamics import (
-    signal_drift,
-    update_signal_ode,
     compute_precision_coupled_noise_std,
+    signal_drift,
     update_prediction,
+    update_signal_ode,
     update_threshold_ode,
 )
 

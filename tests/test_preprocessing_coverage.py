@@ -1,11 +1,12 @@
-import pytest
 import numpy as np
+import pytest
+
 from core.preprocessing import (
-    RunningStats,
     EMAStats,
+    RunningStats,
     compute_prediction_error,
-    update_prediction,
     normalize_error,
+    update_prediction,
     z_score,
 )
 

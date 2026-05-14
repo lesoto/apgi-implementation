@@ -1,12 +1,13 @@
 import pytest
+
 from core.validation import (
-    validate_config,
-    validate_reset_factor,
-    validate_parameter,
-    get_constraint_summary,
-    format_constraint_summary,
-    print_constraint_summary,
     ValidationError,
+    format_constraint_summary,
+    get_constraint_summary,
+    print_constraint_summary,
+    validate_config,
+    validate_parameter,
+    validate_reset_factor,
 )
 
 
@@ -160,6 +161,9 @@ def test_validate_parameter():
     validate_parameter("x", 9.0, "< 10")
     with pytest.raises(ValidationError):
         validate_parameter("x", 10.0, "< 10")
+
+    # Unsupported constraint format falls through without error
+    validate_parameter("x", 1.0, "unsupported")
 
 
 def test_warnings():

@@ -1,4 +1,5 @@
 import pytest  # noqa: F401
+
 from energy.calibration_utils import (
     calibrate_for_realistic_kappa,
     create_realistic_calibrator,

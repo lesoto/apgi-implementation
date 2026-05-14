@@ -1,17 +1,18 @@
-import pytest
 import numpy as np
+import pytest
+
 from hierarchy.multiscale import (
-    build_timescales,
-    estimate_optimal_timescale_ratio,
-    estimate_hierarchy_levels_from_data,
-    update_multiscale_feature,
-    multiscale_weights,
     aggregate_multiscale_signal,
     aggregate_multiscale_signal_phi,
     apply_reset_rule,
-    phase_signal,
-    modulate_threshold,
     bottom_up_cascade,
+    build_timescales,
+    estimate_hierarchy_levels_from_data,
+    estimate_optimal_timescale_ratio,
+    modulate_threshold,
+    multiscale_weights,
+    phase_signal,
+    update_multiscale_feature,
 )
 
 

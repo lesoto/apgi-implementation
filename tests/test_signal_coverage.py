@@ -1,12 +1,13 @@
-import pytest
 import numpy as np
+import pytest
+
 from core.signal import (
+    compute_apgi_signal,
     instantaneous_signal,
+    instantaneous_signal_phi,
     instantaneous_signal_with_dopamine,
     integrate_signal_leaky,
     stabilize_signal_log,
-    instantaneous_signal_phi,
-    compute_apgi_signal,
 )
 
 

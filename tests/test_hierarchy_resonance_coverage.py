@@ -1,6 +1,7 @@
-import pytest
 import numpy as np
-from hierarchy.resonance import NestedResonanceSystem, build_resonance_system, LevelState
+import pytest
+
+from hierarchy.resonance import LevelState, NestedResonanceSystem, build_resonance_system
 
 
 def test_level_state():

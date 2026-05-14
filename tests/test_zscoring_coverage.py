@@ -1,5 +1,6 @@
 import pytest
-from core.zscoring import ZScoreWindow, DualZScoreProcessor, create_standard_zscorer
+
+from core.zscoring import DualZScoreProcessor, ZScoreWindow, create_standard_zscorer
 
 
 def test_zscore_window():

@@ -1,16 +1,17 @@
-import pytest
 import numpy as np
+import pytest
+
 from stats.spectral_extraction import (
-    robust_log_regression,
-    estimate_spectral_exponent_welch,
-    estimate_spectral_exponent_periodogram,
-    estimate_hurst_dfa,
+    SpectralSignature,
     bootstrap_confidence_interval,
     compute_aic_bic,
+    estimate_hurst_dfa,
+    estimate_spectral_exponent_periodogram,
+    estimate_spectral_exponent_welch,
     extract_1f_signature,
-    validate_hierarchical_spectral_signature,
     print_spectral_signature,
-    SpectralSignature,
+    robust_log_regression,
+    validate_hierarchical_spectral_signature,
 )
 
 

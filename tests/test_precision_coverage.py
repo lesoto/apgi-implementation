@@ -1,16 +1,17 @@
-import pytest
 import numpy as np
+import pytest
+
 from core.precision import (
-    clamp,
-    compute_precision,
-    update_mean_ema,
-    update_variance_ema,
     apply_ach_gain,
-    apply_ne_gain,
     apply_dopamine_bias_to_error,
+    apply_ne_gain,
+    clamp,
     compute_interoceptive_precision_exponential,
+    compute_precision,
     precision_coupling_ode_core,
+    update_mean_ema,
     update_precision_euler,
+    update_variance_ema,
 )
 
 
