@@ -342,6 +342,132 @@ def validate_system_dynamics(
     }
 
 
+def measure_criticality_signatures(
+    S_history: np.ndarray,
+    theta: float,
+    baseline_window: int = 50,
+    min_samples: int = 100,
+) -> dict[str, Any]:
+    """Measure the three simultaneous phase-transition signatures required by §10.
+
+    Per APGI spec §10, ignition near ρ_crit ≈ 1 must produce all three:
+
+    1. Φ-discontinuity (Cohen's d > 0.8):
+       Signal variance jumps discontinuously at threshold crossing.
+       Proxy for integrated information Φ — variance is used because
+       direct Φ computation scales exponentially with system size (§24.3).
+
+    2. Elevated susceptibility (variance ratio > 1.5):
+       Current-window variance exceeds baseline by factor > 1.5.
+       Near criticality, susceptibility (order-parameter variance) diverges —
+       a signature of second-order phase transitions.
+
+    3. Critical slowing (autocorrelation increase > 20%):
+       Lag-1 autocorrelation of S(t) increases relative to baseline.
+       Systems near a bifurcation point recover slowly from perturbations
+       (critical slowing down, Scheffer et al., 2009).
+
+    All three must co-occur; failure on any single signature across two
+    independent datasets constitutes partial falsification (§10).
+
+    Args:
+        S_history: Time series of signal values S(t)
+        theta: Ignition threshold for sub/supra-threshold split
+        baseline_window: Samples to use for baseline statistics
+        min_samples: Minimum samples required for reliable estimation
+
+    Returns:
+        Dictionary with keys:
+            cohens_d, cohens_d_criterion (> 0.8),
+            susceptibility_ratio, susceptibility_criterion (> 1.5),
+            autocorr_increase, autocorr_criterion (> 0.20),
+            all_criteria_met (all three co-occur — spec §10 requirement),
+            n_subthreshold, n_suprathreshold, plus intermediate statistics
+    """
+    S = np.asarray(S_history, dtype=float)
+
+    if len(S) < min_samples:
+        return {
+            "cohens_d": float("nan"),
+            "cohens_d_criterion": False,
+            "susceptibility_ratio": None,
+            "susceptibility_criterion": False,
+            "autocorr_increase": None,
+            "autocorr_criterion": False,
+            "all_criteria_met": False,
+            "n_subthreshold": 0,
+            "n_suprathreshold": 0,
+            "error": f"Insufficient samples: need {min_samples}, got {len(S)}",
+        }
+
+    sub_mask = S < theta
+    S_sub = S[sub_mask]
+    S_supra = S[~sub_mask]
+    n_sub, n_supra = len(S_sub), len(S_supra)
+
+    # --- Signature 1: Cohen's d on sub/supra mean difference (Φ discontinuity proxy) ---
+    if n_sub >= 2 and n_supra >= 2:
+        var_sub = float(np.var(S_sub, ddof=1))
+        var_supra = float(np.var(S_supra, ddof=1))
+        pooled_sd = float(
+            np.sqrt(((n_sub - 1) * var_sub + (n_supra - 1) * var_supra) / (n_sub + n_supra - 2))
+        )
+        cohens_d = abs(float(np.mean(S_supra)) - float(np.mean(S_sub))) / (pooled_sd + 1e-10)
+    else:
+        cohens_d = float("nan")
+
+    # --- Signature 2: Susceptibility — variance ratio current/baseline ---
+    half = max(2, len(S) // 4)
+    win = min(baseline_window, half)
+    baseline_arr = S[:win]
+    current_arr = S[-win:]
+    var_baseline = float(np.var(baseline_arr, ddof=1)) if len(baseline_arr) >= 2 else float("nan")
+    var_current = float(np.var(current_arr, ddof=1)) if len(current_arr) >= 2 else float("nan")
+    susceptibility_ratio: float | None
+    if not np.isnan(var_baseline) and var_baseline > 1e-12:
+        susceptibility_ratio = float(var_current / var_baseline)
+    else:
+        susceptibility_ratio = None
+
+    # --- Signature 3: Critical slowing — lag-1 autocorrelation increase ---
+    def _lag1_ac(x: np.ndarray) -> float:
+        if len(x) < 3:
+            return float("nan")
+        xc = x - x.mean()
+        denom = float(np.dot(xc, xc))
+        return float(np.dot(xc[:-1], xc[1:]) / denom) if denom > 1e-12 else float("nan")
+
+    ac_baseline = _lag1_ac(baseline_arr)
+    ac_current = _lag1_ac(current_arr)
+    autocorr_increase: float | None
+    if not np.isnan(ac_baseline) and abs(ac_baseline) > 1e-6:
+        autocorr_increase = float((ac_current - ac_baseline) / abs(ac_baseline))
+    else:
+        autocorr_increase = None
+
+    # --- Evaluate all three criteria ---
+    cohens_d_criterion = (not np.isnan(cohens_d)) and bool(cohens_d > 0.8)
+    susceptibility_criterion = susceptibility_ratio is not None and bool(susceptibility_ratio > 1.5)
+    autocorr_criterion = autocorr_increase is not None and bool(autocorr_increase > 0.20)
+    all_criteria_met = cohens_d_criterion and susceptibility_criterion and autocorr_criterion
+
+    return {
+        "cohens_d": float(cohens_d) if not np.isnan(cohens_d) else None,
+        "cohens_d_criterion": cohens_d_criterion,
+        "susceptibility_ratio": susceptibility_ratio,
+        "susceptibility_criterion": susceptibility_criterion,
+        "autocorr_increase": autocorr_increase,
+        "autocorr_criterion": autocorr_criterion,
+        "all_criteria_met": all_criteria_met,
+        "n_subthreshold": n_sub,
+        "n_suprathreshold": n_supra,
+        "var_baseline": float(var_baseline) if not np.isnan(var_baseline) else None,
+        "var_current": float(var_current) if not np.isnan(var_current) else None,
+        "ac_baseline": float(ac_baseline) if not np.isnan(ac_baseline) else None,
+        "ac_current": float(ac_current) if not np.isnan(ac_current) else None,
+    }
+
+
 class StabilityAnalyzer:
     """Comprehensive stability analysis tool for APGI system."""
 

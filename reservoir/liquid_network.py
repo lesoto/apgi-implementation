@@ -11,8 +11,13 @@ warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*")
 
 class LiquidNetwork:
     def __init__(self, n_units: int = 500, spectral_radius: float = 0.9):
-        if not (0.0 < spectral_radius < 1.0):
-            raise ValueError("spectral_radius must be in (0, 1) for echo state property")
+        if not (0.7 <= spectral_radius <= 0.95):
+            raise ValueError(
+                f"spectral_radius must be in [0.7, 0.95], got {spectral_radius}. "
+                "Spec §17: biologically grounded upper sub-critical regime. "
+                "Values < 0.7 produce insufficient temporal memory; "
+                "values > 0.95 produce non-fading dynamics."
+            )
         self.n = n_units
         W_raw = np.random.randn(n_units, n_units) * 0.1
         # Normalize so ρ(W_res) = spectral_radius, guaranteeing echo state property

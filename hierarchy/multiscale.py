@@ -192,3 +192,79 @@ def bottom_up_cascade(theta: float, S_lower: float, theta_lower: float, k_up: fl
     if S_lower > theta_lower:
         return float(theta * (1.0 - k_up))
     return float(theta)
+
+
+class MultiscaleWeightScheduler:
+    """Adaptive per-level weight scheduler satisfying Σwₗ = 1 (spec §11).
+
+    The spec requires level weights wₗ to:
+    1. Sum to 1 (normalization — hard constraint, §11)
+    2. Reflect per-level informational value from prior trials (adaptive)
+
+    This class tracks per-level information value |φ(εₗ)| via an Exponential
+    Moving Average and updates weights proportionally — the gradient-free
+    Bayesian optimization approach described in §11:
+    "wₗ can be initialized uniformly and updated via gradient-free Bayesian
+    optimization across paradigm runs."
+
+    Update rule (per step):
+        v_ℓ(t+1) = (1 - α) · v_ℓ(t) + α · |φ(ε_ℓ)|
+        w_ℓ(t+1) = v_ℓ(t+1) / Σ_j v_j(t+1)      ← guarantees Σwₗ = 1
+
+    where α ∈ (0,1] is the EMA learning rate.
+    """
+
+    def __init__(self, n_levels: int, alpha: float = 0.05) -> None:
+        """Initialize with uniform weights.
+
+        Args:
+            n_levels: Number of hierarchy levels L
+            alpha: EMA learning rate α ∈ (0, 1] (default: 0.05 — slow adaptation)
+        """
+        if n_levels <= 0:
+            raise ValueError(f"n_levels must be > 0, got {n_levels}")
+        if not (0.0 < alpha <= 1.0):
+            raise ValueError(f"alpha must be in (0, 1], got {alpha}")
+
+        self.n_levels = n_levels
+        self.alpha = alpha
+        self.values = np.ones(n_levels, dtype=float) / n_levels
+        self.weights = np.ones(n_levels, dtype=float) / n_levels
+
+    def update(self, phi_errors: np.ndarray | list[float]) -> np.ndarray:
+        """Update weights from observed per-level φ(ε) magnitudes.
+
+        Args:
+            phi_errors: φ-transformed prediction errors per level, shape (n_levels,).
+                Absolute value taken internally — information value is unsigned.
+
+        Returns:
+            Updated weight array wₗ, shape (n_levels,), guaranteed to sum to 1.
+
+        Raises:
+            ValueError: If phi_errors length does not match n_levels
+        """
+        phi = np.asarray(phi_errors, dtype=float)
+        if len(phi) != self.n_levels:
+            raise ValueError(
+                f"phi_errors length {len(phi)} does not match n_levels {self.n_levels}"
+            )
+
+        self.values = (1.0 - self.alpha) * self.values + self.alpha * np.abs(phi)
+
+        total = float(np.sum(self.values))
+        if total > 1e-12:
+            self.weights = self.values / total
+        else:
+            self.weights = np.ones(self.n_levels, dtype=float) / self.n_levels
+
+        return self.weights.copy()
+
+    def reset(self) -> None:
+        """Reset to uniform weights (call between paradigm runs)."""
+        self.values = np.ones(self.n_levels, dtype=float) / self.n_levels
+        self.weights = np.ones(self.n_levels, dtype=float) / self.n_levels
+
+    def get_weights(self) -> np.ndarray:
+        """Return current weights, always summing to 1."""
+        return self.weights.copy()

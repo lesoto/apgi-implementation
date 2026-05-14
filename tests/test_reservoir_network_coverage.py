@@ -5,7 +5,7 @@ from reservoir.liquid_network import LiquidNetwork
 
 
 def test_liquid_network_init():
-    net = LiquidNetwork(n_units=10, spectral_radius=0.5)
+    net = LiquidNetwork(n_units=10, spectral_radius=0.8)  # §17: must be in [0.7, 0.95]
     assert net.n == 10
     assert net.W_res.shape == (10, 10)
     assert net.W_in.shape == (10,)
