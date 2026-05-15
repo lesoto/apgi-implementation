@@ -183,5 +183,5 @@ def test_thermodynamic_cost_with_calibrated_kappa():
     assert np.isclose(cost_calibrated, expected_cost, rtol=0.01)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     pytest.main([__file__, "-v"])

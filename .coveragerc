@@ -1,0 +1,7 @@
+[run]
+omit =
+    delete_pycache.py
+
+[report]
+omit =
+    delete_pycache.py

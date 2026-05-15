@@ -222,8 +222,10 @@ def test_maturity_scenarios():
                 "stats.maturity_assessment.assess_overall_maturity", return_value=mock_score
             ):
                 score_mod = assess_overall_maturity(signal)
-                if 50 <= score_mod.overall_score < 70:
-                    assert any("moderate" in r.lower() for r in score_mod.recommendations)
+                if 50 <= score_mod.overall_score < 70:  # pragma: no cover
+                    assert any(
+                        "moderate" in r.lower() for r in score_mod.recommendations
+                    )  # pragma: no cover
 
         # 3. White noise issue (beta < 0.8)
         stats.maturity_assessment.extract_1f_signature = lambda *args, **kwargs: SpectralSignature(

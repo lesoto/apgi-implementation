@@ -312,11 +312,27 @@ class APGIPipeline:
             # Initialize HierarchicalPrecisionNetwork for proper per-level error computation
             # Only enable when use_hierarchical_precision_ode is explicitly True
             if self.config.get("use_hierarchical_precision_ode", False):
+                psi_type = self.config.get("psi_type", "identity")
+                if psi_type == "identity" or psi_type is None:
+                    psi_fn = None
+                elif psi_type == "tanh":
+                    psi_fn = np.tanh
+                elif psi_type == "softsign":
+
+                    def psi_fn(x: np.ndarray) -> np.ndarray:  # type: ignore[misc]
+                        return x / (1.0 + np.abs(x))  # type: ignore[no-any-return]
+
+                else:
+                    raise ValueError(
+                        f"Unknown psi_type: {psi_type}. Must be one of: 'identity', 'tanh', 'softsign'"
+                    )
                 self.hierarchical_network = HierarchicalPrecisionNetwork(
                     n_levels=n_levels,
+                    taus=self.taus,
                     tau_pi=self.config.get("tau_pi", 1000.0),
                     C_down=self.config.get("C_down", 0.1),
                     C_up=self.config.get("C_up", 0.05),
+                    psi=psi_fn,
                 )
         else:
             # Single-scale: initialize single z-score pair
@@ -523,16 +539,31 @@ class APGIPipeline:
             # Compute per-level z-scores for both channels via vectorized EMA (§7)
             z_e_levels, z_i_levels = self._compute_per_level_errors(z_e, z_i)
 
-            # Full precision cascade: apply φ transform per level then combine (§6, §7)
-            combined_epsilon = phi_transform_array(
-                z_e_levels, _a_pos, _a_neg, _g_pos, _g_neg
-            ) + phi_transform_array(z_i_levels, _a_pos, _a_neg, _g_pos, _g_neg)
+            # Full precision cascade: apply φ transform per level (§6, §7)
+            epsilon_e_levels = phi_transform_array(z_e_levels, _a_pos, _a_neg, _g_pos, _g_neg)
+            epsilon_i_levels = phi_transform_array(z_i_levels, _a_pos, _a_neg, _g_pos, _g_neg)
+            epsilon_drive = epsilon_e_levels + epsilon_i_levels
+
+            # Bottom-up ψ coupling can use a different channel than the drive term (§8)
+            # Options: combined (default), extero, intero
+            bu_source = self.config.get("precision_bottom_up_source", "combined")
+            if bu_source == "combined":
+                epsilon_bottom_up = epsilon_drive
+            elif bu_source == "extero":
+                epsilon_bottom_up = epsilon_e_levels
+            elif bu_source == "intero":
+                epsilon_bottom_up = epsilon_i_levels
+            else:
+                raise ValueError(
+                    "precision_bottom_up_source must be one of: 'combined', 'extero', 'intero'"
+                )
 
             # Step the hierarchical network using actual combined per-level errors
             pis_new, phi_new = self.hierarchical_network.step(
-                epsilon_new=combined_epsilon,
+                epsilon_new=epsilon_drive,
                 dt=dt,
                 alpha_gain=self.config.get("alpha_gain", 0.1),
+                epsilon_bottom_up=epsilon_bottom_up,
             )
 
             # Update hierarchical state with both precision and phase
@@ -1078,19 +1109,53 @@ class APGIPipeline:
         if len(self.history["theta"]) < 64:
             return {"status": "insufficient_data"}
 
-        # Validate threshold 1/f dynamics
+        # Validate threshold 1/f / fractal dynamics (§12/§22)
         theta_arr = np.array(self.history["theta"])
         fs = 1.0 / self.config.get("dt", 1.0)
 
-        # Estimate Hurst exponent
+        # Estimate Hurst exponent (robust spectral + DFA depending on implementation)
         hurst_val = estimate_hurst_robust(theta_arr, fs=fs)
 
-        # Check for pink noise
-        # Re-compute PSD for validate_pink_noise
+        # Compute PSD once for downstream validators
         from stats.hurst import welch_periodogram
 
         freqs, psd = welch_periodogram(theta_arr, fs=fs)
         pink_stats = validate_pink_noise(freqs, psd)
+
+        # Lorentzian superposition validation (§12)
+        lorentzian_stats: dict | None = None
+        if self.use_hierarchical:
+            try:
+                from stats.spectral_model import fit_lorentzian_superposition
+
+                taus_ms = build_timescales(
+                    self.config.get("tau_0", 10.0), self.config.get("k", 1.6), self.n_levels
+                )
+                # Use seconds for spectral model
+                fit = fit_lorentzian_superposition(freqs, psd, taus_ms / 1000.0)
+                lorentzian_stats = {
+                    "r_squared": fit.get("r_squared", 0.0),
+                    "r_squared_log": fit.get("r_squared_log", 0.0),
+                    "fit_method": fit.get("fit_method", "unknown"),
+                }
+            except Exception as e:
+                lorentzian_stats = {"status": "error", "error": str(e)}
+
+        # Avalanche power-law validation (spec target exponent ~1.5) (§22)
+        avalanche_stats: dict | None = None
+        if "B" in self.history and len(self.history["B"]) >= 64:
+            try:
+                from stats.avalanche import validate_avalanche_power_law
+
+                avalanche_stats = validate_avalanche_power_law(
+                    np.asarray(self.history["B"]),
+                    alpha_target=1.5,
+                    tolerance=float(self.config.get("avalanche_alpha_tolerance", 0.3)),
+                    xmin=int(self.config.get("avalanche_xmin", 1)),
+                    min_avalanches=int(self.config.get("avalanche_min_avalanches", 30)),
+                )
+            except Exception as e:
+                avalanche_stats = {"status": "error", "error": str(e)}
 
         return {
             "status": "success",
@@ -1098,4 +1163,6 @@ class APGIPipeline:
             "is_pink_noise": pink_stats["is_pink_noise"],
             "beta": pink_stats["beta"],
             "data_points": len(theta_arr),
+            "lorentzian_superposition": lorentzian_stats,
+            "avalanche_power_law": avalanche_stats,
         }

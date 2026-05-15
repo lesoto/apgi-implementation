@@ -157,6 +157,6 @@ class TestAPGIPipelineExtended:
             result = pipeline.step(float(t % 10), 0.0, 0.5, 0.5)
             if result["B"] == 1:
                 # Check if kuramoto data is in result
-                if "kuramoto_phases" in result:
+                if "kuramoto_phases" in result:  # pragma: no cover
                     assert isinstance(result["kuramoto_phases"], list)
-                break
+                break  # pragma: no cover

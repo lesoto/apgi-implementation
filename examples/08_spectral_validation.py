@@ -192,10 +192,13 @@ def validate_lorentzian_superposition(
     # Compute observed PSD using Welch's method
     freqs_obs, psd_obs = welch_periodogram(signal_arr, fs=fs)
 
-    # Build hierarchical timescales
+    # Build hierarchical timescales and convert ms → seconds for the spectral model.
+    # taus from build_timescales are in ms (per config comment); the Lorentzian formula
+    # S(f) = σ²τ²/(1+(2πfτ)²) requires τ in seconds when f is in Hz.
     tau_0 = pipeline.config.get("tau_0", 10.0)
     k = pipeline.config.get("k", 1.6)
     taus = build_timescales(tau_0, k, n_levels)
+    taus_s = taus / 1000.0  # ms → s
 
     print(f"\nHierarchical timescales (ms): {taus}")
 
@@ -209,20 +212,38 @@ def validate_lorentzian_superposition(
         sigma2s = np.linspace(0.5, 0.1, n_levels) * np.var(signal_arr)
         print(f"Using estimated variances: {sigma2s}")
 
-    # Generate predicted spectrum from theory
-    psd_predicted = hierarchical_spectral_superposition(freqs_obs, taus / 1000.0, sigma2s)
+    # Generate predicted spectrum from theory (full range kept for visualisation)
+    psd_predicted = hierarchical_spectral_superposition(freqs_obs, taus_s, sigma2s)
 
-    # Fit Lorentzian superposition to observed data
+    # Restrict Lorentzian fitting to the 1/f transition band defined by the corner
+    # frequencies of the slowest and fastest hierarchy levels.  Above fc_max every
+    # Lorentzian collapses to a white-noise floor, so the basis matrix columns become
+    # nearly collinear and linear R² becomes dominated by the flat high-f region.
+    fc_min = 1.0 / (2 * np.pi * taus_s[-1])  # corner freq of slowest level
+    fc_max = 1.0 / (2 * np.pi * taus_s[0])  # corner freq of fastest level
+    ffit_min = max(freqs_obs[1], fc_min * 0.5)
+    ffit_max = min(freqs_obs[-1] * 0.9, fc_max * 2.0)
+    fit_band = (freqs_obs >= ffit_min) & (freqs_obs <= ffit_max)
+
     print("\nFitting Lorentzian superposition model...")
-    fit_results = fit_lorentzian_superposition(freqs_obs, psd_obs, taus / 1000.0)
+    fit_results = fit_lorentzian_superposition(freqs_obs[fit_band], psd_obs[fit_band], taus_s)
+    r_squared_log = fit_results.get("r_squared_log", 0.0)
 
     print(f"Fitted amplitudes: {fit_results['amplitudes']}")
-    print(f"R-squared (goodness of fit): {fit_results['r_squared']:.4f}")
+    print(f"R-squared linear: {fit_results['r_squared']:.4f}  log-domain: {r_squared_log:.4f}")
 
-    # Estimate spectral exponents
-    # Use frequency range appropriate for the sampling rate
-    fmin_fit = max(0.01, freqs_obs[1])  # Avoid DC component
-    fmax_fit = min(20.0, freqs_obs[-1] * 0.9)  # Avoid Nyquist
+    # Rebuild fitted PSD over the full frequency axis for plotting
+    amps = np.asarray(fit_results["amplitudes"])
+    fitted_psd_full = np.zeros_like(freqs_obs, dtype=float)
+    for tau_val, amp in zip(taus_s, amps):
+        omega_tau = 2 * np.pi * freqs_obs * tau_val
+        fitted_psd_full += amp * (tau_val**2 / (1.0 + omega_tau**2))
+
+    # Estimate spectral exponents across the full 1/f transition band.
+    # Using only fc_min–fc_max gives too few Welch bins for a stable log-log fit;
+    # ffit_min–ffit_max provides a wider, numerically stable range.
+    fmin_fit = ffit_min
+    fmax_fit = ffit_max
     beta_observed = estimate_1f_exponent(freqs_obs, psd_obs, fmin=fmin_fit, fmax=fmax_fit)
     beta_predicted = estimate_1f_exponent(freqs_obs, psd_predicted, fmin=fmin_fit, fmax=fmax_fit)
 
@@ -260,10 +281,11 @@ def validate_lorentzian_superposition(
         "hurst": pink_validation["hurst_exponent"],
         "is_pink": pink_validation["is_pink_noise"],
         "r_squared": fit_results["r_squared"],
+        "r_squared_log": r_squared_log,
         "freqs": freqs_obs,
         "psd_observed": psd_obs,
         "psd_predicted": psd_predicted,
-        "psd_fitted": fit_results["fitted_psd"],
+        "psd_fitted": fitted_psd_full,
         "signal_arr": signal_arr,  # Include signal for plotting
     }
 
@@ -341,7 +363,7 @@ def main() -> None:
     # - Pink noise detection is the primary validation (β ≈ 1.0)
     # - Hurst exponent range relaxed to account for variability
     checks = [
-        ("Lorentzian superposition fit (R² > 0.3)", results["r_squared"] > 0.3),
+        ("Lorentzian superposition fit (log R² > 0.3)", results.get("r_squared_log", 0) > 0.3),
         ("Pink noise characteristics (β ≈ 1.0)", results["is_pink"]),
         ("Hurst exponent (H ≈ 0.7-1.3)", 0.6 <= results["hurst"] <= 1.4),
     ]

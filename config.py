@@ -74,6 +74,21 @@ CONFIG = {
     "kappa_i": 0.01,
     # Multi-scale recommendation parameter
     "timescale_k": 1.6,
+    # Hierarchical architecture (§8)
+    # Prefer setting "hierarchical_mode" to one of: off/basic/advanced/full (see pipeline.py).
+    "hierarchical_mode": None,
+    "use_hierarchical": False,
+    "n_levels": 3,
+    "tau_0": 10.0,  # Base timescale for level 0 (ms)
+    "k": 1.6,  # Timescale ratio between levels
+    # Precision coupling ODE (continuous-time Π cascade)
+    "use_hierarchical_precision_ode": False,
+    "tau_pi": 1000.0,
+    "C_down": 0.1,
+    "C_up": 0.05,
+    # Bottom-up nonlinear transfer ψ(ε_{ℓ-1}) in precision coupling ODE
+    # Options: "identity", "tanh", "softsign"
+    "psi_type": "identity",
     # Thermodynamic constraints (§11)
     "use_thermodynamic_cost": False,  # Enable Landauer's principle
     "k_boltzmann": 1.38e-23,  # Boltzmann constant (J/K)

@@ -88,11 +88,12 @@ def assess_hierarchical_architecture(
             if len(phi_levels[ell + 1]) > 0 and len(theta_levels[ell]) > 0:
                 min_len = min(len(phi_levels[ell + 1]), len(theta_levels[ell]))
                 if min_len > 1:
-                    corr = np.corrcoef(phi_levels[ell + 1][:min_len], theta_levels[ell][:min_len])[
-                        0, 1
-                    ]
-                    if not np.isnan(corr):
-                        pac_correlations.append(abs(corr))
+                    a = np.asarray(phi_levels[ell + 1][:min_len], dtype=float)
+                    b = np.asarray(theta_levels[ell][:min_len], dtype=float)
+                    if np.std(a) > 0 and np.std(b) > 0:
+                        corr = np.corrcoef(a, b)[0, 1]
+                        if not np.isnan(corr):
+                            pac_correlations.append(abs(corr))
 
         if pac_correlations:
             pac_score = float(np.mean(pac_correlations) * 100)
@@ -113,12 +114,13 @@ def assess_hierarchical_architecture(
                 min_len = min(len(signal_levels[ell - 1]), len(theta_levels[ell]))
                 if min_len > 1:
                     # Correlation between lower signal and upper threshold
-                    corr = np.corrcoef(
-                        signal_levels[ell - 1][:min_len], theta_levels[ell][:min_len]
-                    )[0, 1]
-                    if not np.isnan(corr):
-                        # Negative correlation indicates suppression
-                        cascade_effects.append(max(0, -corr))
+                    a = np.asarray(signal_levels[ell - 1][:min_len], dtype=float)
+                    b = np.asarray(theta_levels[ell][:min_len], dtype=float)
+                    if np.std(a) > 0 and np.std(b) > 0:
+                        corr = np.corrcoef(a, b)[0, 1]
+                        if not np.isnan(corr):
+                            # Negative correlation indicates suppression
+                            cascade_effects.append(max(0, -corr))
 
         if cascade_effects:
             cascade_score = float(np.mean(cascade_effects) * 100)

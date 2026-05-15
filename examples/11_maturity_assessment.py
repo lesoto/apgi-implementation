@@ -69,8 +69,8 @@ def run_hierarchical_simulation_for_assessment(
     config["tau_theta"] = 1e6  # Very slow decay (essentially fixed)
 
     # Enable threshold cascade with tuned parameters for 100/100 maturity
-    # Balanced cascade strength for detectable suppression without instability
-    config["kappa_up"] = 0.25  # Cascade strength for suppression effect
+    # kappa_up must stay weak: strong values over-drive upper levels into saturation
+    config["kappa_up"] = 0.05  # Cascade strength for suppression effect
     config["kappa_down"] = 0.15  # Top-down PAC coupling
     config["kappa_phase"] = 0.15  # Phase modulation strength
 
@@ -90,8 +90,8 @@ def run_hierarchical_simulation_for_assessment(
     # Run simulation
     for t in range(n_steps):
         # Generate prediction errors with increased amplitude for more ignitions
-        epsilon_e = rng.standard_normal() * 0.3  # Increased from 0.1
-        epsilon_i = rng.standard_normal() * 0.3  # Increased from 0.1
+        epsilon_e = rng.standard_normal() * 0.1
+        epsilon_i = rng.standard_normal() * 0.1
 
         # Step pipeline
         output = pipeline.step(epsilon_e, epsilon_i)
@@ -192,10 +192,15 @@ def assess_system_maturity() -> MaturityScore:
         if len(signal_levels_np[ell - 1]) > 0 and len(theta_levels_np[ell]) > 0:
             min_len = min(len(signal_levels_np[ell - 1]), len(theta_levels_np[ell]))
             if min_len > 1:
-                corr = np.corrcoef(
-                    signal_levels_np[ell - 1][:min_len], theta_levels_np[ell][:min_len]
-                )[0, 1]
-                print(f"Level {ell - 1} signal vs Level {ell} theta: corr = {corr:.4f}")
+                a = signal_levels_np[ell - 1][:min_len]
+                b = theta_levels_np[ell][:min_len]
+                if np.std(a) > 0 and np.std(b) > 0:
+                    corr = np.corrcoef(a, b)[0, 1]
+                    corr_str = f"{corr:.4f}"
+                else:
+                    corr = float("nan")
+                    corr_str = "nan (constant array — check saturation)"
+                print(f"Level {ell - 1} signal vs Level {ell} theta: corr = {corr_str}")
                 # Check superthreshold events
                 superthresh = np.sum(signal_levels_np[ell - 1] > theta_levels_np[ell - 1])
                 print(f"  Level {ell - 1} superthreshold events: {superthresh}/{min_len}")

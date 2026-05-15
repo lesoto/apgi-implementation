@@ -422,6 +422,7 @@ class HierarchicalPrecisionNetwork:
         tau_pi: float = 1000.0,
         C_down: float = 0.1,
         C_up: float = 0.05,
+        psi: Callable[[float], float] | None = None,
     ):
         """Initialize hierarchical precision network.
 
@@ -431,6 +432,7 @@ class HierarchicalPrecisionNetwork:
             tau_pi: Precision decay time constant
             C_down: Top-down coupling strength
             C_up: Bottom-up coupling strength
+            psi: Nonlinear bottom-up transfer ψ for ε_{ℓ-1} (None → identity on |ε|)
         """
 
         self.n_levels = n_levels
@@ -444,6 +446,7 @@ class HierarchicalPrecisionNetwork:
         self.tau_pi = tau_pi
         self.C_down = C_down
         self.C_up = C_up
+        self.psi = psi
 
         # Initialize state
         self.pi = np.ones(n_levels)  # Precision at each level
@@ -456,19 +459,23 @@ class HierarchicalPrecisionNetwork:
         epsilon_new: np.ndarray,
         dt: float = 1.0,
         alpha_gain: float = 0.1,
+        epsilon_bottom_up: np.ndarray | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Update precision and phase dynamics across all levels.
 
         Args:
-            epsilon_new: New prediction errors for each level
+            epsilon_new: New prediction errors for each level (drives α|ε_ℓ|)
             dt: Time step
             alpha_gain: Error-to-precision gain
+            epsilon_bottom_up: Optional separate error series for ψ(ε_{ℓ-1}) coupling.
+                If None, uses epsilon_new shifted by one level.
 
         Returns:
             Updated (precision, phase) arrays
         """
 
         self.epsilon = epsilon_new
+        epsilon_bu = epsilon_bottom_up if epsilon_bottom_up is not None else self.epsilon
         pi_new = np.zeros(self.n_levels)
         phi_new = np.zeros(self.n_levels)
 
@@ -476,7 +483,7 @@ class HierarchicalPrecisionNetwork:
             # Precision coupling ODE
             pi_ell_plus_1 = self.pi[ell + 1] if ell < self.n_levels - 1 else None
             # Spec expects bottom-up coupling from lower level error ψ(ε_{ℓ-1})
-            epsilon_ell_minus_1 = self.epsilon[ell - 1] if ell > 0 else None
+            epsilon_ell_minus_1 = epsilon_bu[ell - 1] if ell > 0 else None
 
             dpi_dt = precision_coupling_ode(
                 pi_ell=self.pi[ell],
@@ -487,6 +494,7 @@ class HierarchicalPrecisionNetwork:
                 epsilon_ell_minus_1=epsilon_ell_minus_1,
                 C_down=self.C_down,
                 C_up=self.C_up,
+                psi=self.psi,
             )
 
             pi_new[ell] = self.pi[ell] + dt * dpi_dt

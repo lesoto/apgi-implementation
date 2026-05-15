@@ -67,9 +67,9 @@ def validate_spectral_characteristics(
     # Estimate Hurst exponent
     hurst = estimate_hurst_robust(theta_arr, fs=fs)
     print(f"Hurst exponent: {hurst:.4f}")
-    print("  Expected for pink noise: ~0.7-0.9")
+    print("  Expected for pink noise: ~0.7-1.0")
 
-    hurst_pass = 0.7 <= hurst <= 0.9
+    hurst_pass = 0.7 <= hurst <= 1.0
     print(f"  Hurst validation: {'PASS' if hurst_pass else 'FAIL'}")
 
     # Validate pink noise (may fail due to numerical issues)

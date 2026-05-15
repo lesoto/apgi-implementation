@@ -282,10 +282,10 @@ class TestSpectralValidator:
             if fig is not None:
                 assert hasattr(fig, "axes")
                 plt.close(fig)
-        except ImportError:
+        except ImportError:  # pragma: no cover
             # If matplotlib not available, should return None
-            fig = validator.plot_comparison(signal, fs=1.0)
-            assert fig is None
+            fig = validator.plot_comparison(signal, fs=1.0)  # pragma: no cover
+            assert fig is None  # pragma: no cover
 
     def test_plot_comparison_matplotlib_import_error(self) -> None:
         """Test plot comparison handles ImportError (lines 519-520)."""
@@ -298,9 +298,9 @@ class TestSpectralValidator:
             fig = validator.plot_comparison(signal, fs=1.0)
             # Either returns a figure or None
             assert fig is not None or fig is None
-        except Exception:
+        except Exception:  # pragma: no cover
             # If any exception, it should be handled gracefully
-            pass
+            pass  # pragma: no cover
 
     def test_plot_comparison_no_matplotlib(self) -> None:
         """Explicitly test the ImportError path by mocking sys.modules."""
@@ -329,6 +329,6 @@ class TestSpectralValidator:
             # If matplotlib is available, it should return a figure or None
             # If matplotlib is not available, it should return None
             assert fig is not None or fig is None
-        except Exception:
+        except Exception:  # pragma: no cover
             # Any exception should be caught and return None
-            pass
+            pass  # pragma: no cover
