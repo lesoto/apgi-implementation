@@ -10,7 +10,10 @@ Main execution pipeline for APGI system.
 class APGIPipeline:
     """APGI unified pipeline per specification.
     
-    Implements all 15 specification sections with optional features.
+    Implements all specification sections with optional features including
+    hierarchical multi-timescale processing (§8), Kuramoto oscillators (§9),
+    reservoir computing (§10), thermodynamic grounding (§11), observable
+    mapping (§14), stability analysis (§7), and active inference (§19).
     
     Spec Reference: §13 Execution Pipeline
     """
@@ -698,6 +701,88 @@ class BehavioralObservableExtractor:
 
 ---
 
+## Statistical Analysis
+
+### `estimate_1f_exponent` — `stats.spectral_model`
+
+Estimate the 1/f spectral exponent from a power spectrum.
+
+```python
+from stats.spectral_model import estimate_1f_exponent
+
+beta = estimate_1f_exponent(freqs, psd)
+# Returns float: spectral exponent β
+```
+
+### `fit_lorentzian_superposition` — `stats.spectral_model`
+
+Fit Lorentzian superposition model to observed PSD. Always restrict to the 1/f
+transition band `[fc_min/2, fc_max*2]` to avoid collinear basis columns.
+
+```python
+from stats.spectral_model import fit_lorentzian_superposition
+
+result = fit_lorentzian_superposition(freqs_band, psd_band, taus_seconds)
+# result keys: amplitudes, r_squared, r_squared_log, beta
+# Use r_squared_log > 0.3 as goodness-of-fit threshold
+```
+
+### `validate_pink_noise` — `stats.spectral_model`
+
+Validate that a PSD matches 1/f (pink noise) characteristics.
+
+```python
+from stats.spectral_model import validate_pink_noise
+
+result = validate_pink_noise(freqs, psd)
+# result keys: is_pink_noise (bool), beta (float), r_squared (float)
+```
+
+### `estimate_hurst_robust` — `stats.hurst`
+
+Estimate Hurst exponent using DFA (Detrended Fluctuation Analysis).
+
+```python
+from stats.hurst import estimate_hurst_robust
+
+H = estimate_hurst_robust(signal, fs=500.0)
+# Returns float: Hurst exponent H ∈ [0.7, 1.0] for pink noise
+```
+
+### `welch_periodogram` — `stats.hurst`
+
+Compute Welch power spectral density estimate.
+
+```python
+from stats.hurst import welch_periodogram
+
+freqs, psd = welch_periodogram(signal, fs=500.0)
+```
+
+### `assess_overall_maturity` — `stats.maturity_assessment`
+
+Comprehensive maturity assessment combining hierarchical (§8) and statistical (§12) scores.
+
+```python
+from stats.maturity_assessment import assess_overall_maturity
+
+score = assess_overall_maturity(
+    signal=S_history,
+    signal_levels=signal_levels,  # list[np.ndarray]
+    theta_levels=theta_levels,
+    phi_levels=phi_levels,
+    pi_levels=pi_levels,
+    fs=1.0,
+)
+# score.overall_score, score.hierarchical_score, score.statistical_score
+# score.pac_score, score.cascade_score, score.spectral_score
+```
+
+> **Cascade saturation warning:** If `kappa_up > 0.05` or input amplitude > 0.1,
+> upper levels saturate causing NaN correlation scores. See `docs/HIERARCHICAL-GUIDE.md`.
+
+---
+
 ## Stability Analysis
 
 ### `StabilityAnalyzer`
@@ -718,14 +803,13 @@ class StabilityAnalyzer:
             config: Configuration dictionary
         """
     
-    def check_stability(self) -> dict:
-        """Check fixed-point stability.
+    def analyze(self, verbose: bool = False) -> dict:
+        """Run full stability analysis.
         
         Returns:
             Dictionary with:
-            - stable: Boolean stability flag
-            - eigenvalues: Eigenvalue array
-            - max_eigenvalue: Maximum eigenvalue magnitude
+            - fixed_point: {'S_star': float, 'theta_star': float}
+            - stability: {'stable': bool, 'max_eigenvalue': float, 'eigenvalues': array}
             - jacobian: Jacobian matrix
         """
     
@@ -916,7 +1000,7 @@ try:
     pipeline = APGIPipeline(invalid_config)
 except ValueError as e:
     print(f"Configuration error: {e}")
-    print("See docs/PARAMETER_CONSTRAINTS.md for valid ranges")
+    print("See docs/PARAMETER-CONSTRAINTS.md for valid ranges")
 ```
 
 ---

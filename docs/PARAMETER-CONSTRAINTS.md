@@ -1212,12 +1212,121 @@ validate_config(config)  # Raises ValueError if invalid
 
 ---
 
+---
+
+## Neuromodulation Parameters
+
+### `beta_5ht` — Serotonergic Threshold Offset
+
+**Type:** Float  
+**Valid Range:** Any real number (typically -1.0 to 2.0)  
+**Default:** 0.0  
+**Physical Meaning:** Serotonin models patience / uncertainty tolerance; positive values raise the effective threshold, negative values lower it.  
+**Formula:** `θ_eff = θ + β_5HT`  
+**Spec Reference:** §8.4
+
+### `g_ach` — Acetylcholine Precision Gain
+
+**Type:** Float  
+**Valid Range:** [0.1, 5.0]  
+**Default:** 1.0  
+**Physical Meaning:** ACh gate on exteroceptive precision: `Π_e^eff = g_ACh · Π_e`
+
+### `g_ne` — Norepinephrine Gain
+
+**Type:** Float  
+**Valid Range:** [0.0, 2.0]  
+**Default:** 1.0  
+**Physical Meaning:** NE modulates either `Π_i` (when `ne_on_precision=True`) or `θ` (when `ne_on_threshold=True`). Cannot modulate both simultaneously.
+
+---
+
+## Asymmetric Valence Transform Parameters
+
+### `alpha_plus`, `alpha_minus` — Valence Gain
+
+**Type:** Float  
+**Valid Range:** [0.5, 2.0]  
+**Default:** 1.0 (symmetric)  
+**Physical Meaning:** Amplitude gain for approach (`α+`) and avoidance (`α-`) errors in `phi_transform()`. Symmetric defaults recover unsigned `|ε|`.
+
+### `gamma_plus`, `gamma_minus` — Saturation Steepness
+
+**Type:** Float  
+**Valid Range:** [1.0, 5.0]  
+**Default:** 2.0  
+**Physical Meaning:** `tanh` saturation slope for approach/avoidance channels.
+
+---
+
+## Cascade and Phase Coupling Parameters
+
+### `kappa_up` — Bottom-Up Cascade Strength
+
+**Type:** Float  
+**Valid Range:** [0.0, 0.1]  
+**Default:** 0.0 (disabled)  
+**Recommended:** ≤ 0.05  
+**Physical Meaning:** Suppression of upper-level threshold when lower level fires.  
+**Warning:** Values > 0.05 with input amplitudes > 0.1 cause cascade saturation (constant arrays, NaN correlation). See `docs/HIERARCHICAL-GUIDE.md`.
+
+### `kappa_down` — Top-Down PAC Coupling Strength
+
+**Type:** Float  
+**Valid Range:** [0.0, 0.5]  
+**Default:** 0.1  
+**Physical Meaning:** Phase-amplitude coupling strength modulating lower-level thresholds.
+
+---
+
+## BOLD Calibration Parameters
+
+### `use_bold_calibration` — Enable BOLD Conversion
+
+**Type:** Bool  
+**Default:** False  
+**Physical Meaning:** Converts thermodynamic cost to Joules using BOLD signal calibration.
+
+### `bold_conversion_factor`
+
+**Type:** Float  
+**Default:** 1.2e-18 J per 1% BOLD per cm³  
+**Physical Meaning:** Energy per unit BOLD signal change (from fMRI calibration literature).
+
+---
+
+## Active Inference Parameters (§19)
+
+### `use_active_inference`
+
+**Type:** Bool  
+**Default:** False
+
+### `ai_n_actions` — Number of Candidate Policies
+
+**Type:** Int  
+**Valid Range:** [2, 20]  
+**Default:** 3
+
+### `ai_policy_precision` — Boltzmann Sharpness
+
+**Type:** Float  
+**Valid Range:** (0, ∞)  
+**Default:** 2.0  
+**Physical Meaning:** Higher values → more deterministic action selection.
+
+### `ai_w_epistemic`, `ai_w_pragmatic`, `ai_w_metabolic` — Free Energy Weights
+
+**Type:** Float  
+**Valid Range:** [0, ∞)  
+**Default:** 1.0, 1.0, 0.5 respectively
+
+---
+
 ## References
 
-- APGI Specification: `APGI-Specs.md`
-
-- API Reference: `docs/API_REFERENCE.md`
-
-- Design Choices: `docs/DESIGN_CHOICES.md`
-
+- APGI Specification: `docs/APGI-Specs.md`
+- API Reference: `docs/API-REFERENCE.md`
+- Design Choices: `docs/DESIGN-CHOICES.md`
 - Troubleshooting: `docs/TROUBLESHOOTING.md`
+- Spectral Validation: `docs/SPECTRAL-VALIDATION.md`

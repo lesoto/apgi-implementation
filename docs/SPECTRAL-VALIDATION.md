@@ -12,7 +12,8 @@ This guide explains how to validate the spectral signature of your APGI system.
 
 ```python
 import numpy as np
-from stats.spectral_model import validate_spectral_signature
+from stats.hurst import estimate_hurst_robust, welch_periodogram
+from stats.spectral_model import estimate_1f_exponent, validate_pink_noise
 
 # Run APGI simulation and collect signal history
 outputs = []
@@ -22,17 +23,22 @@ for t in range(10000):
 
 # Extract signal history
 S_history = np.array([o['S'] for o in outputs])
+fs = 1.0 / pipeline.config.get("dt", 1.0)
 
-# Validate spectral signature
-result = validate_spectral_signature(
-    S_history,
-    taus=pipeline.taus if hasattr(pipeline, 'taus') else None,
-    dt=1.0
-)
+# Estimate spectral exponent
+freqs, psd = welch_periodogram(S_history, fs=fs)
+beta_spec = estimate_1f_exponent(freqs, psd)
+print(f"Spectral exponent: β = {beta_spec:.2f}")
+# Expected for pink noise: β ≈ 1.0
 
-print(result['message'])
-# Output: "Spectral exponent β=1.05 (Hurst H=0.53).
-# Healthy range: [0.8, 1.5]. ✅ Valid"
+# Validate pink noise
+pink_stats = validate_pink_noise(freqs, psd)
+print(f"Pink noise: {'YES' if pink_stats['is_pink_noise'] else 'NO'}")
+
+# Estimate Hurst exponent
+H = estimate_hurst_robust(S_history, fs=fs)
+print(f"Hurst exponent: H = {H:.2f}")
+# Expected for pink noise: H ∈ [0.7, 1.0]
 ```
 
 ---
@@ -80,6 +86,8 @@ H ≈ (β_spec + 1) / 2
 - H ∈ (0.5, 1): Long-range dependence (persistent)
 - H = 1.0: Brownian motion
 
+**Healthy range for APGI:** H ∈ [0.7, 1.0] (pink noise regime per Mandelbrot/Peng DFA literature)
+
 ---
 
 ## Validation Methods
@@ -89,10 +97,12 @@ H ≈ (β_spec + 1) / 2
 Estimate the spectral exponent from the power spectrum:
 
 ```python
+from stats.hurst import welch_periodogram
 from stats.spectral_model import estimate_1f_exponent
 
 # Compute power spectrum
-freqs, power = scipy.signal.welch(S_history, fs=1.0/dt)
+fs = 1.0 / pipeline.config.get("dt", 1.0)
+freqs, power = welch_periodogram(S_history, fs=fs)
 
 # Estimate spectral exponent
 beta_spec = estimate_1f_exponent(freqs, power)
@@ -108,74 +118,82 @@ else:
 
 ### Method 2: Lorentzian Superposition Fitting
 
-Fit the theoretical Lorentzian superposition to the observed spectrum:
+Fit the theoretical Lorentzian superposition to the observed spectrum.
+The fit must be restricted to the 1/f transition band to avoid collinearity
+above the corner frequency `f_c = 1/(2πτ_min)`.
 
 ```python
+import numpy as np
+from stats.hurst import welch_periodogram
 from stats.spectral_model import fit_lorentzian_superposition
-import scipy.signal
 
 # Compute power spectrum
-freqs, power = scipy.signal.welch(S_history, fs=1.0/dt, nperseg=512)
+fs = 1.0 / pipeline.config.get("dt", 1.0)
+freqs, power = welch_periodogram(S_history, fs=fs)
 
-# Get timescales from hierarchical system
-taus = pipeline.taus if hasattr(pipeline, 'taus') else np.array([10, 16, 26, 42])
+# Convert timescales from ms to seconds
+taus_ms = np.array([10, 16, 26, 42])  # ms
+taus_s = taus_ms / 1000.0
 
-# Fit Lorentzian superposition
-result = fit_lorentzian_superposition(freqs, power, taus)
+# Define 1/f transition band
+fc_min = 1.0 / (2 * np.pi * taus_s[-1])  # Hz
+fc_max = 1.0 / (2 * np.pi * taus_s[0])   # Hz
+ffit_min = max(freqs[1], fc_min * 0.5)
+ffit_max = min(freqs[-1] * 0.9, fc_max * 2.0)
+fit_band = (freqs >= ffit_min) & (freqs <= ffit_max)
 
-print(f"R² = {result['r_squared']:.3f}")
+# Fit Lorentzian superposition within transition band
+result = fit_lorentzian_superposition(freqs[fit_band], power[fit_band], taus_s)
+
+print(f"Log R² = {result.get('r_squared_log', 0):.3f}")
 print(f"Amplitudes: {result['amplitudes']}")
 
-# Good fit if R² > 0.8
-if result['r_squared'] > 0.8:
+# Good fit if log R² > 0.3
+if result.get('r_squared_log', 0) > 0.3:
     print("✅ Lorentzian superposition fits well")
 else:
     print("⚠️ Poor fit to Lorentzian model")
 ```
 
+> **Note:** The Lorentzian basis is collinear above `fc_max` (all terms collapse to white
+> noise), so fitting the full Welch spectrum gives artificially low R². Always restrict
+> fitting to the transition band and use log-domain R² as the goodness-of-fit metric.
+
 ### Method 3: Hurst Exponent Estimation
 
-Estimate the Hurst exponent using rescaled range analysis:
+Estimate the Hurst exponent using DFA (Detrended Fluctuation Analysis):
 
 ```python
 from stats.hurst import estimate_hurst_robust
 
-# Estimate Hurst exponent
-H = estimate_hurst_robust(S_history)
+# Estimate Hurst exponent (uses DFA by default)
+fs = 1.0 / pipeline.config.get("dt", 1.0)
+H = estimate_hurst_robust(S_history, fs=fs)
 
 print(f"Hurst exponent: H = {H:.2f}")
 
-# Compute implied spectral exponent
-beta_spec = 2 * H - 1
-
-print(f"Implied spectral exponent: β = {beta_spec:.2f}")
-
-# Check if in healthy range
-if 0.8 <= beta_spec <= 1.5:
-    print("✅ Hurst exponent indicates healthy dynamics")
+# Check healthy range for pink noise
+if 0.7 <= H <= 1.0:
+    print("✅ Hurst exponent indicates pink-noise dynamics")
 else:
-    print("⚠️ Hurst exponent outside healthy range")
+    print("⚠️ Hurst exponent outside pink-noise range [0.7, 1.0]")
 ```
 
-### Method 4: Complete Validation
+### Method 4: Pink Noise Validation
 
-Use the comprehensive validation function:
+Use `validate_pink_noise` for a complete β and H assessment:
 
 ```python
-from stats.spectral_model import validate_spectral_signature
+from stats.hurst import welch_periodogram
+from stats.spectral_model import validate_pink_noise
 
-result = validate_spectral_signature(
-    S_history,
-    taus=pipeline.taus,
-    dt=1.0,
-    tolerance=0.1
-)
+fs = 1.0 / pipeline.config.get("dt", 1.0)
+freqs, psd = welch_periodogram(S_history, fs=fs)
 
-print(result['message'])
-print(f"Valid: {result['valid']}")
-print(f"Spectral exponent: {result['spectral_exponent']:.2f}")
-print(f"Hurst exponent: {result['hurst_exponent']:.2f}")
-print(f"Lorentzian fit R²: {result['lorentzian_fit']['r_squared']:.3f}")
+result = validate_pink_noise(freqs, psd)
+print(f"Is pink noise: {result['is_pink_noise']}")
+print(f"Beta: {result['beta']:.3f}")
+print(f"R²: {result['r_squared']:.3f}")
 ```
 
 ---
@@ -186,8 +204,8 @@ print(f"Lorentzian fit R²: {result['lorentzian_fit']['r_squared']:.3f}")
 
 ```text
 Spectral exponent β ∈ [0.8, 1.5]
-Hurst exponent H ∈ [0.4, 0.75]
-Lorentzian fit R² > 0.8
+Hurst exponent H ∈ [0.7, 1.0]        ← DFA-based pink noise range
+Lorentzian fit log R² > 0.3           ← fit within 1/f transition band
 ```
 
 **Indicates:**
@@ -210,11 +228,11 @@ Lorentzian fit R² > 0.8
 - Cause: Excessive coupling or slow timescales
 - Fix: Reduce coupling strengths or increase timescale ratio k
 
-**Poor Lorentzian fit (R² < 0.8):**
+**Poor Lorentzian fit (log R² < 0.3):**
 
 - Indicates: Dynamics don't match hierarchical model
-- Cause: Non-hierarchical noise or model mismatch
-- Fix: Check configuration; verify hierarchical system is enabled
+- Cause: Fitting outside the 1/f transition band (above `fc_max`), non-hierarchical noise, or model mismatch
+- Fix: Restrict fit to band `[fc_min/2, fc_max*2]`; verify hierarchical system is enabled
 
 ---
 
@@ -276,92 +294,83 @@ config = {'hierarchical_mode': 'advanced', 'C_down': 0.5, 'C_up': 0.3}
 
 ```python
 import numpy as np
-from stats.spectral_model import validate_spectral_signature
+from pipeline import APGIPipeline
+from stats.hurst import estimate_hurst_robust, welch_periodogram
+from stats.spectral_model import estimate_1f_exponent
 
 # Single-scale system
-config = {'hierarchical_mode': 'off'}
+config = {'hierarchical_mode': 'off', 'dt': 0.5}
 pipeline = APGIPipeline(config)
 
-# Run simulation
-outputs = []
-for t in range(10000):
-    output = pipeline.step(x_e_t, x_i_t)
-    outputs.append(output)
+# Run simulation (vary inputs for spectral content)
+rng = np.random.default_rng(42)
+for _ in range(10000):
+    pipeline.step(rng.standard_normal() * 0.5, rng.standard_normal() * 0.2)
 
-S_history = np.array([o['S'] for o in outputs])
+S_history = np.array(pipeline.history['S'])
+fs = 1.0 / pipeline.config.get("dt", 1.0)
 
-# Validate
-result = validate_spectral_signature(S_history, dt=1.0)
-print(result['message'])
-# Expected: β ≈ 0.5 (white noise, no hierarchy)
+freqs, psd = welch_periodogram(S_history, fs=fs)
+beta = estimate_1f_exponent(freqs, psd)
+H = estimate_hurst_robust(S_history, fs=fs)
+print(f"β = {beta:.2f}, H = {H:.2f}")
+# Expected: β < 1.0, H < 0.7 (limited correlations without hierarchy)
 ```
 
 ### Example 2: Validate Hierarchical System
 
 ```python
+from pipeline import APGIPipeline
+from stats.hurst import estimate_hurst_robust, welch_periodogram
+from stats.spectral_model import estimate_1f_exponent, fit_lorentzian_superposition
+
 # Hierarchical system
 config = {
     'hierarchical_mode': 'full',
     'n_levels': 4,
-    'tau_0': 10.0,
+    'tau_0': 10.0,  # ms
     'k': 1.6,
+    'dt': 0.002,    # seconds
 }
 pipeline = APGIPipeline(config)
 
-# Run simulation
-outputs = []
-for t in range(10000):
-    output = pipeline.step(x_e_t, x_i_t)
-    outputs.append(output)
+rng = np.random.default_rng(42)
+for _ in range(5000):
+    pipeline.step(rng.standard_normal() * 0.1, rng.standard_normal() * 0.1)
 
-S_history = np.array([o['S'] for o in outputs])
+S_history = np.array(pipeline.history['S'])
+fs = 1.0 / pipeline.config.get("dt", 1.0)
 
-# Validate
-result = validate_spectral_signature(S_history, taus=pipeline.taus, dt=1.0)
-print(result['message'])
-# Expected: β ≈ 1.0 (pink noise, healthy hierarchy)
+freqs, psd = welch_periodogram(S_history, fs=fs)
+beta = estimate_1f_exponent(freqs, psd)
+H = estimate_hurst_robust(S_history, fs=fs)
+print(f"β = {beta:.2f}, H = {H:.2f}")
+# Expected: β ≈ 1.0 (pink noise), H ∈ [0.7, 1.0]
 ```
 
-### Example 3: Optimize Configuration
+### Example 3: Lorentzian Superposition Fit
 
 ```python
 import numpy as np
-from stats.spectral_model import validate_spectral_signature
+from stats.hurst import welch_periodogram
+from stats.spectral_model import fit_lorentzian_superposition
 
-# Test different configurations
-configs = [
-    {'hierarchical_mode': 'basic', 'n_levels': 3},
-    {'hierarchical_mode': 'basic', 'n_levels': 4},
-    {'hierarchical_mode': 'basic', 'n_levels': 5},
-    {'hierarchical_mode': 'advanced', 'n_levels': 4, 'C_down': 0.05},
-    {'hierarchical_mode': 'advanced', 'n_levels': 4, 'C_down': 0.1},
-    {'hierarchical_mode': 'advanced', 'n_levels': 4, 'C_down': 0.2},
-]
+# Timescales must be in SECONDS
+taus_ms = np.array([10.0, 16.0, 25.6, 40.96])
+taus_s = taus_ms / 1000.0
 
-results = []
-for config in configs:
-    pipeline = APGIPipeline(config)
-    
-    # Run simulation
-    outputs = []
-    for t in range(10000):
-        output = pipeline.step(x_e_t, x_i_t)
-        outputs.append(output)
-    
-    S_history = np.array([o['S'] for o in outputs])
-    
-    # Validate
-    result = validate_spectral_signature(S_history, taus=pipeline.taus, dt=1.0)
-    results.append({
-        'config': config,
-        'beta': result['spectral_exponent'],
-        'valid': result['valid'],
-    })
+freqs, psd = welch_periodogram(S_history, fs=fs)
 
-# Find best configuration
-best = max(results, key=lambda r: r['valid'] and abs(r['beta'] - 1.0))
-print(f"Best configuration: {best['config']}")
-print(f"Spectral exponent: β = {best['beta']:.2f}")
+# Restrict to 1/f transition band
+fc_min = 1.0 / (2 * np.pi * taus_s[-1])
+fc_max = 1.0 / (2 * np.pi * taus_s[0])
+ffit_min = max(freqs[1], fc_min * 0.5)
+ffit_max = min(freqs[-1] * 0.9, fc_max * 2.0)
+fit_band = (freqs >= ffit_min) & (freqs <= ffit_max)
+
+result = fit_lorentzian_superposition(freqs[fit_band], psd[fit_band], taus_s)
+log_r2 = result.get('r_squared_log', 0.0)
+print(f"Log R² = {log_r2:.3f} ({'PASS' if log_r2 > 0.3 else 'FAIL'})")
 ```
 
 ---
@@ -414,28 +423,34 @@ config = {'tau_pi': 500.0}
 config = {'n_levels': 3}
 ```
 
-### Issue: Lorentzian fit is poor (R² < 0.8)
+### Issue: Lorentzian fit is poor (log R² < 0.3)
 
 **Symptoms:** Observed spectrum doesn't match theoretical prediction
 
 **Causes:**
 
-1. Non-hierarchical noise sources
-2. Model mismatch
-3. Insufficient data
+1. Fitting over the full Welch spectrum instead of the 1/f transition band
+2. Timescale unit mismatch (e.g. using ms instead of seconds)
+3. Non-hierarchical noise sources
+4. Insufficient data length
 
 **Solutions:**
 
 ```python
+# ALWAYS restrict fitting to the transition band
+fc_min = 1.0 / (2 * np.pi * taus_s[-1])
+fc_max = 1.0 / (2 * np.pi * taus_s[0])
+ffit_min = max(freqs[1], fc_min * 0.5)
+ffit_max = min(freqs[-1] * 0.9, fc_max * 2.0)
+fit_band = (freqs >= ffit_min) & (freqs <= ffit_max)
+result = fit_lorentzian_superposition(freqs[fit_band], psd[fit_band], taus_s)
+
+# Verify timescales are in SECONDS (not ms)
+taus_s = taus_ms / 1000.0  # explicit conversion
+
 # Increase simulation length
 for t in range(100000):  # 10x longer
     output = pipeline.step(x_e_t, x_i_t)
-
-# Verify hierarchical system is enabled
-config = {'hierarchical_mode': 'full'}
-
-# Check for external noise sources
-# Reduce input noise if present
 ```
 
 ---
@@ -452,12 +467,17 @@ H = (β + 1) / 2
 
 **Conversion table:**
 
-| β  | H    | Type  |
-|----|------|-------|
-| 0.0| 0.5  | White |
-| 0.5| 0.75 | Pink  |
-| 1.0| 1.0  | Brown |
-| 1.5| 1.25 | Brown |
+| β   | H    | Type              |
+|-----|------|-------------------|
+| 0.0 | 0.5  | White noise       |
+| 0.5 | 0.75 | Mild pink noise   |
+| 1.0 | 1.0  | Pink noise (1/f)  |
+| 1.5 | 1.25 | Brown noise       |
+| 2.0 | 1.5  | Strong brown noise|
+
+> The formula H = (β + 1) / 2 applies for fractional Gaussian noise.
+> DFA-based H estimation can give H > 1 for non-stationary signals,
+> which corresponds to β > 1 in spectral terms.
 
 ### Multifractal Analysis
 

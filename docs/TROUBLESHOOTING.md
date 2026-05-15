@@ -17,7 +17,7 @@ config["lam"] = 1.0  # Invalid: must be < 1
 config["lam"] = 0.2  # Valid: between 0 and 1
 ```
 
-**Reference:** `docs/PARAMETER_CONSTRAINTS.md` - Signal Accumulation
+**Reference:** `docs/PARAMETER-CONSTRAINTS.md` - Signal Accumulation
 
 ---
 
@@ -41,7 +41,7 @@ config["ne_on_precision"] = False
 config["ne_on_threshold"] = True
 ```
 
-**Reference:** `docs/PARAMETER_CONSTRAINTS.md` - Precision System
+**Reference:** `docs/PARAMETER-CONSTRAINTS.md` - Precision System
 
 ---
 
@@ -68,7 +68,7 @@ print(f"Max allowed dt: {max_dt}")
 config["dt"] = max_dt * 0.9  # Use 90% of max
 ```
 
-**Reference:** `docs/PARAMETER_CONSTRAINTS.md` - Continuous-Time SDE
+**Reference:** `docs/PARAMETER-CONSTRAINTS.md` - Continuous-Time SDE
 
 ---
 
@@ -87,7 +87,7 @@ config["timescale_k"] = 0.5  # Invalid: must be > 1
 config["timescale_k"] = 1.6  # Valid: typical cortical ratio
 ```
 
-**Reference:** `docs/PARAMETER_CONSTRAINTS.md` - Hierarchical Architecture
+**Reference:** `docs/PARAMETER-CONSTRAINTS.md` - Hierarchical Architecture
 
 ---
 
@@ -106,7 +106,44 @@ config["reset_factor"] = 1.0  # Invalid: must be < 1
 config["reset_factor"] = 0.5  # Valid: 50% signal retention
 ```
 
-**Reference:** `docs/PARAMETER_CONSTRAINTS.md` - Post-Ignition Reset
+**Reference:** `docs/PARAMETER-CONSTRAINTS.md` - Post-Ignition Reset
+
+---
+
+---
+
+### Warning: `RuntimeWarning: invalid value encountered in corrcoef` (NaN in maturity scores)
+
+**Cause:** Upper-level signal arrays have zero variance (std=0) because the cascade
+is saturated — nearly every timestep is superthreshold. `np.corrcoef` returns NaN
+when either input is constant.
+
+**Diagnosis:**
+
+```python
+# Check saturation per level
+for ell in range(n_levels):
+    s = np.array(signal_levels[ell])
+    t = np.array(theta_levels[ell])
+    superthresh_pct = np.mean(s > t) * 100
+    print(f"Level {ell}: {superthresh_pct:.1f}% superthreshold")
+    print(f"  signal std = {np.std(s):.4f}, theta std = {np.std(t):.4f}")
+# Saturation: > 99% superthreshold, std ≈ 0
+```
+
+**Solution:**
+
+```python
+# Reduce cascade strength
+config["kappa_up"] = 0.05      # Keep weak (≤ 0.05)
+config["kappa_phase"] = 0.15   # PAC strength separate
+
+# Reduce input amplitude for simulation
+epsilon_e = rng.standard_normal() * 0.1   # Not 0.3 or higher
+epsilon_i = rng.standard_normal() * 0.1
+```
+
+**Reference:** `docs/HIERARCHICAL-GUIDE.md` - Cascade Saturation section
 
 ---
 
@@ -298,11 +335,7 @@ except ValueError as e:
 
 **Solutions:**
 
-1. **Check parameter ranges:**
-
-```python
-from docs.PARAMETER_CONSTRAINTS import *  # See guide
-```
+1. **Check parameter ranges:** See `docs/PARAMETER-CONSTRAINTS.md` for valid ranges.
 
 1. **Use default configuration:**
 
@@ -494,7 +527,7 @@ except Exception as e:
 
 ### Q: What are typical parameter values?
 
-**A:** See `docs/PARAMETER_CONSTRAINTS.md` for typical values for each parameter.
+**A:** See `docs/PARAMETER-CONSTRAINTS.md` for typical values for each parameter.
 
 ---
 
@@ -596,9 +629,9 @@ python -m pytest tests/ --cov=. --cov-report=html
 ## Getting Help
 
 1. **Check documentation:**
-   - `docs/API_REFERENCE.md` - Function documentation
-   - `docs/DESIGN_CHOICES.md` - Design rationale
-   - `docs/PARAMETER_CONSTRAINTS.md` - Parameter guide
+   - `docs/API-REFERENCE.md` - Function documentation
+   - `docs/DESIGN-CHOICES.md` - Design rationale
+   - `docs/PARAMETER-CONSTRAINTS.md` - Parameter guide
 
 2. **Run tests:**
 
@@ -613,15 +646,5 @@ python -m pytest tests/ --cov=. --cov-report=html
    - `examples/04_thermodynamics.py`
 
 4. **Review specification:**
-   - `APGI-Specs.md` - Full specification
-   - `PHASE_2_IMPLEMENTATION_SUMMARY.md` - Implementation details
-
----
-
-## References
-
-- API Reference: `docs/API_REFERENCE.md`
-- Parameter Constraints: `docs/PARAMETER_CONSTRAINTS.md`
-- Design Choices: `docs/DESIGN_CHOICES.md`
-- Examples: `examples/`
-- Specification: `APGI-Specs.md`
+   - `docs/APGI-Specs.md` - Full specification
+   - `docs/DESIGN-CHOICES.md` - Design rationale and known deviations

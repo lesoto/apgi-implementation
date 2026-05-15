@@ -739,7 +739,7 @@ This document explains the key design decisions made during APGI implementation,
 
 - Enables refactoring
 
-**Coverage:** 164 tests across 9 test files
+**Coverage:** 799 tests across 100+ test files
 
 **Implementation:** `tests/`
 
@@ -825,11 +825,76 @@ This document explains the key design decisions made during APGI implementation,
 
 ## Deviations from Specification
 
-**None.** The implementation follows the specification exactly. All design choices are either:
+The implementation is faithful to the specification. The choices below are explicit
+extensions or parameterizations of under-specified aspects:
 
-1. Clarifications of ambiguous spec sections
-2. Implementation details not specified
-3. Optional features enabled via configuration
+### Deviation D1: Asymmetric Valence Gain in φ(ε)
+
+**Spec §6:** Defines `φ(ε) = |ε|` (unsigned).
+
+**Implementation:** `phi_transform()` in `core/preprocessing.py` uses:
+
+```math
+φ(ε) = α⁺·tanh(γ⁺·ε)   if ε ≥ 0   (reward/approach)
+φ(ε) = α⁻·tanh(γ⁻·ε)   if ε < 0   (threat/avoidance)
+```
+
+**Rationale:** Symmetric defaults `α⁺=α⁻=1.0, γ⁺=γ⁻=2.0` recover the unsigned
+approximation. The asymmetric form allows valence-specific gain tuning consistent
+with approach/avoidance motivational asymmetry (Bradley & Lang, 2000).
+
+**Config:** `alpha_plus`, `alpha_minus`, `gamma_plus`, `gamma_minus`
+
+---
+
+### Deviation D2: Active Inference Policy via Free Energy Argmin
+
+**Spec §19:** Describes action selection as perception-action loop.
+
+**Implementation:** `active_inference/` implements policy selection as:
+
+```math
+a* = argmin_k F(a_k)
+```
+
+where `F(a_k) = w_e·F_e(a_k) + w_p·F_p(a_k) + w_m·F_m(a_k)` combines
+epistemic, pragmatic, and metabolic free energy terms. Boltzmann softmax
+provides stochastic exploration.
+
+**Config:** `use_active_inference`, `ai_n_actions`, `ai_policy_precision`,
+`ai_w_epistemic`, `ai_w_pragmatic`, `ai_w_metabolic`
+
+---
+
+### Deviation D3: Serotonergic Threshold Offset
+
+**Spec §8.4:** Defines neuromodulation via ACh/NE/DA gains.
+
+**Implementation:** 5-HT adds an additive threshold offset:
+
+```math
+θ_eff = θ + β_5HT
+```
+
+This models serotonin's role in patience and uncertainty tolerance
+(Dayan & Huys, 2015). Applied via `apply_serotonin_threshold_offset()`.
+
+**Config:** `beta_5ht` (default 0.0 = no serotonergic modulation)
+
+---
+
+### Deviation D4: Log-Domain R² for Lorentzian Fitting
+
+**Spec §12:** Describes Lorentzian superposition fit quality via R².
+
+**Implementation:** Fitting is done in log-log space (`r_squared_log`) because
+PSD spans multiple decades. Linear R² is dominated by low-frequency high-power
+bins and gives artificially low scores. Log-domain threshold: R²_log > 0.3.
+
+**Rationale:** The basis matrix becomes collinear above the corner frequency
+`f_c = 1/(2πτ_min)` because all Lorentzians collapse to white noise. Restricting
+the fit to the 1/f transition band and using log R² is both theoretically correct
+and numerically stable.
 
 ---
 

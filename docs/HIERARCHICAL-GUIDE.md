@@ -220,8 +220,11 @@ This creates rhythmic windows of opportunity for ignition at lower levels.
 ```python
 config = {
     'hierarchical_mode': 'full',
-    'kappa_down': 0.1,     # Phase coupling strength
+    'kappa_down': 0.15,    # Phase coupling strength (PAC)
     'kappa_up': 0.05,      # Bottom-up cascade strength
+    # WARNING: kappa_up > 0.1 with large input amplitudes causes upper-level
+    # phi values to saturate (all superthreshold), yielding constant arrays
+    # with std=0, which makes corrcoef return NaN. Keep kappa_up <= 0.05.
 }
 ```
 
@@ -402,21 +405,22 @@ for t in range(1000):
 ### Validate Spectral Signature
 
 ```python
-from stats.spectral_model import validate_spectral_signature
+import numpy as np
+from stats.hurst import estimate_hurst_robust, welch_periodogram
+from stats.spectral_model import estimate_1f_exponent
 
 # Collect signal history
-S_history = [output['S'] for output in outputs]
+S_history = np.array([output['S'] for output in outputs])
+fs = 1.0 / pipeline.config.get("dt", 1.0)
 
-# Validate 1/f spectrum
-result = validate_spectral_signature(
-    np.array(S_history),
-    taus=pipeline.taus,
-    dt=1.0
-)
+# Estimate spectral exponent
+freqs, psd = welch_periodogram(S_history, fs=fs)
+beta = estimate_1f_exponent(freqs, psd)
+H = estimate_hurst_robust(S_history, fs=fs)
 
-print(result['message'])
-# Output: "Spectral exponent β=1.05 (Hurst H=0.53).
-# Healthy range: [0.8, 1.5]. ✅ Valid"
+print(f"Spectral exponent: β = {beta:.2f}")
+print(f"Hurst exponent: H = {H:.2f}")
+# Pink noise: β ∈ [0.8, 1.5], H ∈ [0.7, 1.0]
 ```
 
 ---
@@ -467,6 +471,38 @@ config = {
     'hierarchical_mode': 'advanced',  # Skip 'full' to disable phase modulation
     'kappa_down': 0.05,               # Reduce phase coupling
 }
+```
+
+### Issue: Cascade detection NaN / maturity score 0
+
+**Problem:** Correlation-based cascade scores are NaN or zero. Maturity assessment
+reports "No threshold cascade detected."
+
+**Cause:** Upper-level `phi` values saturate when `kappa_up` is too large or
+input amplitude is too high. This creates constant arrays (std≈0), making
+`np.corrcoef` return NaN.
+
+**Diagnosis:**
+
+```python
+# Check for saturation
+for ell in range(n_levels):
+    s = signal_levels[ell]
+    t = theta_levels[ell]
+    superthresh = np.sum(s > t)
+    print(f"Level {ell}: {superthresh}/{len(s)} superthreshold events")
+# If superthresh/total > 0.99, level is saturated
+```
+
+**Solution:**
+
+```python
+config = {
+    'kappa_up': 0.05,              # Keep weak (≤ 0.05)
+    'kappa_phase': 0.15,           # PAC coupling separate from cascade
+    # Also reduce input amplitude for maturity assessment simulations:
+}
+# Input: rng.standard_normal() * 0.1  (not 0.3 or higher)
 ```
 
 ---
