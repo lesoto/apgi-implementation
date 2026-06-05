@@ -4,7 +4,7 @@
 
 ## **1. Core Theoretical Definition**
 
-In the **Allostatic Precision-Gated Ignition (APGI) Framework**, *allostatic* is not a modifier but the **theoretical claim**: the ignition threshold **θₜ** is **actively regulated**—not fixed—by **metabolic state, interoceptive afference, and circadian dynamics**. This distinguishes APGI from every existing **Global Neuronal Workspace (GNW)** variant and from the **Free Energy Principle's (FEP)** underspecified threshold.
+In the **Allostatic Precision-Gated Ignition (APGI) Framework**, the ignition threshold **θₜ** is **actively regulated** by **metabolic state, interoceptive afference, and circadian dynamics**. This distinguishes APGI from every existing **Global Neuronal Workspace (GNW)** variant and from the **Free Energy Principle's (FEP)** underspecified threshold.
 
 **Conscious access is:**
 
@@ -135,7 +135,6 @@ The four parameters (**α⁺, α⁻, γ⁺, γ⁻**) are constrained by **two bo
   - Below **1.0**, the **tanh** approximates a linear function, losing the **sigmoidal saturation property** required for phase-transition dynamics.
   - Above **5.0**, the function degenerates to a **step**, eliminating graded precision modulation.
 
-**Compatibility Note:**  
 The **symmetric first-order APGI equation** (**Sₜ = Πᵉ·|εᵉ| + Πⁱ·|εⁱ| > θₜ**) is recovered when **α⁺ = α⁻** and **γ⁺ = γ⁻**. All earlier APGI papers remain valid under this symmetric approximation. The **extended signed form** applies specifically to **affective and interoceptive paradigms** where valence asymmetry is operationally relevant.
 
 ### **Preserved Biological Properties**

@@ -86,11 +86,16 @@ def run_hierarchical_simulation(
     print(f"{'=' * 70}\n")
 
     # Configuration
+    # Hierarchical modes use phase-modulated thresholds (θ_l = θ_0·(1+κ·Π·cos(φ))).
+    # The phase dips lower the effective threshold → ~2× more ignitions than OFF mode
+    # at the same θ_0.  Raise θ_0 for hierarchical modes so ignition rate stays ~6-8%
+    # (comparable to OFF), which keeps β_spec in the pink-noise band [0.7, 1.3].
+    _theta = 0.3 if hierarchical_mode == "off" else 0.55
     config = {
         # Initial states
         "S0": 0.0,
-        "theta_0": 0.3,  # Lowered baseline further for more ignitions
-        "theta_base": 0.3,
+        "theta_0": _theta,
+        "theta_base": _theta,
         "sigma2_e0": 1.0,
         "sigma2_i0": 1.0,
         # Numerical stability

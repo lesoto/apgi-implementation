@@ -112,6 +112,7 @@ class NestedResonanceSystem:
         S_inst_levels: np.ndarray,
         pi_levels: np.ndarray,
         dt: float,
+        noise_std: float = 0.0,
     ) -> None:
         """Advance the full resonance system by one timestep.
 
@@ -119,7 +120,7 @@ class NestedResonanceSystem:
           1. Update per-level precisions from the precision pipeline.
           2. Advance oscillatory phases with top-down Kuramoto entrainment.
           3. Recompute per-level thresholds via the spec PAC formula.
-          4. Accumulate per-level ignition signals (leaky integrators).
+          4. Accumulate per-level ignition signals (leaky integrators + SDE noise).
 
         Parameters
         ----------
@@ -130,6 +131,10 @@ class NestedResonanceSystem:
             Per-level precisions from the precision pipeline.
         dt : float
             Integration timestep.
+        noise_std : float
+            Standard deviation of per-level SDE diffusion noise (spec §12).
+            Matches the precision-coupled noise of the single-scale ODE path:
+            σ_S = 1 / sqrt(Π_e^eff + Π_i^eff).  Default 0.0 (deterministic).
         """
         S_inst = np.asarray(S_inst_levels, dtype=float)
         pi = np.asarray(pi_levels, dtype=float)
@@ -142,9 +147,15 @@ class NestedResonanceSystem:
         #     θ_l = θ_{0,l} · (1 + κ_down · Π_{l+1} · cos(φ_{l+1}))
         self.theta = self._compute_thresholds()
 
-        # 3 — Per-level leaky accumulation:
-        #     S_l(t+1) = (1 − λ_l) S_l + λ_l S_inst_l
+        # 3 — Per-level leaky accumulation with optional SDE noise (spec §12):
+        #     S_l(t+1) = max(0, (1 − λ_l)·S_l + λ_l·S_inst_l + σ·√dt·ξ_l)
+        # The non-negativity floor keeps S as an evidence counter — negative accumulated
+        # evidence has no interpretation in the ignition model and would be clipped to 0
+        # by the log stabiliser anyway, so we absorb it here to keep the ODE stable.
         self.S = (1.0 - self.lambda_rates) * self.S + self.lambda_rates * S_inst
+        if noise_std > 0.0:
+            self.S += self.rng.normal(0.0, noise_std * np.sqrt(dt), size=self.n_levels)
+        self.S = np.maximum(0.0, self.S)
 
     def apply_level_ignition(
         self,

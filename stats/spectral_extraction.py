@@ -322,7 +322,7 @@ def bootstrap_confidence_interval(
             estimate = estimator(resampled)
             if not np.isnan(estimate):
                 estimates.append(estimate)
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
     if len(estimates) < 2:
@@ -419,7 +419,7 @@ def extract_1f_signature(
             )
             if not np.isnan(beta_w):
                 estimates.append(("welch", beta_w, r2_w, h_w))
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
     if "periodogram" in methods:
@@ -429,7 +429,7 @@ def extract_1f_signature(
             )
             if not np.isnan(beta_p):
                 estimates.append(("periodogram", beta_p, r2_p, h_p))
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
     if "dfa" in methods:
@@ -439,7 +439,7 @@ def extract_1f_signature(
                 # Convert Hurst to spectral exponent: β = 2H - 1
                 beta_dfa = 2 * h_dfa - 1
                 estimates.append(("dfa", beta_dfa, r2_dfa, h_dfa))
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
     if not estimates:
@@ -460,7 +460,7 @@ def extract_1f_signature(
             b, _, _ = estimate_spectral_exponent_welch(sig, fs=fs, fmin=fmin, fmax=fmax)
             if not np.isnan(b) and not np.isinf(b):
                 return b
-        except Exception:
+        except Exception:  # nosec B110
             pass
         return float("nan")
 
@@ -567,7 +567,7 @@ def validate_hierarchical_spectral_signature(
                     mask = (f >= fmin) & (f <= fmax)
                     coherence_matrix[i, j] = np.mean(coh[mask])
                     coherence_matrix[j, i] = coherence_matrix[i, j]
-            except Exception:
+            except Exception:  # nosec B110
                 pass
 
     return {

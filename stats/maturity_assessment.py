@@ -242,7 +242,7 @@ def assess_statistical_validation(
                 try:
                     sig_extract = extract_1f_signature(sig, fs=fs, n_bootstrap=50)
                     level_betas.append(sig_extract.beta)
-                except Exception:
+                except Exception:  # nosec B110
                     pass
 
             if len(level_betas) > 1:

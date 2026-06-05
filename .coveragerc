@@ -1,7 +1,9 @@
 [run]
 omit =
     delete_pycache.py
+    tests/temp_stderr_test.py
 
 [report]
 omit =
     delete_pycache.py
+    tests/temp_stderr_test.py

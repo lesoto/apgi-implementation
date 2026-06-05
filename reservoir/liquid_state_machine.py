@@ -179,19 +179,22 @@ class LiquidStateMachine:
         theta: Optional[float] = None,
         A_amp: float = 0.0,
         use_divisive_normalization: bool = False,
+        use_subtractive_inhibition: bool = True,
     ) -> np.ndarray:
-        """Update reservoir state via Euler integration with divisive normalization.
+        """Update reservoir state via Euler integration.
 
-        Full dynamics (§9 + §10.1 + §10.3):
-            drive     = W_res·x + W_in·u
-            f_drive   = activation(drive)                         # tanh pre-activation
-            r         = f_drive / (σ_inh² + W_inh·|f_drive|)    # divisive norm (§9)
-            dx/dt     = -x/τ + r + A_amp·x·[S-θ]₊               # leaky + amplification
+        Spec-compliant dynamics (attractor dynamics equation):
+            drive   = W_res·x + W_in·u
+            f_drive = activation(drive)
+            I_t     = W_inh · Σ_k x_k              # subtractive PV+ inhibition (spec)
+            dx/dt   = -x/τ + f_drive − I_t + A_amp·x·[S-θ]₊
 
-        The divisive normalization term W_inh·|f_drive| computes the total
-        inhibitory drive from PV+ interneurons onto each unit, implementing
-        the Carandini-Heeger gain-control mechanism.  Setting
-        use_divisive_normalization=False recovers the pre-§9 dynamics.
+        The spec mandates I_t^(l) = W_inh^(l)·Σ_k x_k^(l) (subtractive),
+        matching PV+ interneuron-mediated lateral inhibition.
+
+        use_divisive_normalization=True switches to Carandini-Heeger gain control
+        (biologically plausible alternative, not the spec-canonical form):
+            r = f_drive / (σ_inh² + W_inh·|f_drive|)
 
         Args:
             u: Input signal (scalar or array of shape (M,))
@@ -202,7 +205,8 @@ class LiquidStateMachine:
             S_target: Current signal for suprathreshold amplification
             theta: Threshold for suprathreshold amplification
             A_amp: Suprathreshold amplification strength (default: 0.0)
-            use_divisive_normalization: Apply W_inh PV+ gain control (default: True)
+            use_divisive_normalization: Use Carandini-Heeger divisive form (non-spec)
+            use_subtractive_inhibition: Use spec-canonical subtractive I_t (default: True)
 
         Returns:
             Updated reservoir state (N,)
@@ -250,17 +254,25 @@ class LiquidStateMachine:
         external_input = self.W_in @ u
         f_drive = activation(recurrent_input + external_input)
 
-        # 2) Divisive normalization — §9 PV+ interneuron gain control
-        #    r_i = f_drive_i / (σ_inh² + Σ_j W_inh[i,j] · |f_drive_j|)
-        #    σ_inh² prevents zero-division and models background inhibitory tone
+        # 2) Inhibitory control — PV+ interneuron-mediated
+        #    Spec-canonical (subtractive): I_t = W_inh · Σ_k x_k
+        #      dx/dt = -x/τ + f_drive − I_t
+        #    Alternative (divisive, Carandini-Heeger): r = f/(σ²+W_inh·|f|)
         if use_divisive_normalization:
+            # Non-spec alternative: divisive Carandini-Heeger gain control
             inh_drive = self.W_inh @ np.abs(f_drive)
             res_drive = f_drive / (self.sigma_inh2 + inh_drive)
+            I_t = np.zeros(self.N)
+        elif use_subtractive_inhibition:
+            # Spec-canonical: I_t^(l) = W_inh^(l) · Σ_k x_k^(l)
+            I_t = self.W_inh @ self.x
+            res_drive = f_drive
         else:
             res_drive = f_drive
+            I_t = np.zeros(self.N)
 
-        # 3) Leaky integrator: dx/dt = -x/τ + r
-        dx_dt = -self.x / tau_eff + res_drive
+        # 3) Leaky integrator: dx/dt = -x/τ + f_drive − I_t
+        dx_dt = -self.x / tau_eff + res_drive - I_t
 
         # 4) Suprathreshold amplification (§10.3): dx/dt += A_amp·x·[S-θ]₊
         if S_target is not None and theta is not None and A_amp > 0:

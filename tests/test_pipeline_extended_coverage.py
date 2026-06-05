@@ -81,13 +81,13 @@ def test_pipeline_resonance_ignition_reset():
     config["use_resonance"] = True
     config["theta_0"] = 0.1  # Low threshold to trigger ignition
     p = APGIPipeline(config)
-    # Force ignition by setting resonance system signal high
+    # Force ignition via pipeline's own S (ODE-accumulated, not resonance.S)
     assert p.resonance_system is not None
-    p.resonance_system.S[0] = 10.0
+    p.S = 10.0  # Pre-load high signal so the ODE step + threshold check fires
     res = p.step(x_e=10.0, x_i=10.0)
     assert res["B"] == 1
-    # Check if reset factor was applied (S should be reduced)
-    assert p.resonance_system.S[0] < 10.0
+    # After ignition, pipeline S should be reset (reset_factor applied)
+    assert p.S < 10.0
 
 
 def test_pipeline_reset_factor_validation():
@@ -95,7 +95,7 @@ def test_pipeline_reset_factor_validation():
     config = get_base_config()
     p = APGIPipeline(config)
     p.config["reset_factor"] = 1.5  # Invalid
-    with pytest.raises(ValueError, match="reset_factor must be in"):
+    with pytest.raises(ValueError, match=r"reset_factor.*must be in"):
         # Force ignition
         p.S = 10.0
         p.step(x_e=1.0, x_i=1.0)

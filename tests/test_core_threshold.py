@@ -32,18 +32,18 @@ class TestComputeMetabolicCost:
     """Tests for compute_metabolic_cost function."""
 
     def test_linear_cost(self):
-        """Should compute linear cost C(t) = c0 + c1*S(t)."""
-        result = compute_metabolic_cost(S=2.0, c0=0.5, c1=0.5)
+        """C(t) = c1·S(t) + c2·B(t-1): with B_prev=1, c2=0.5, c1=0.5, S=2.0 → 1.5."""
+        result = compute_metabolic_cost(S=2.0, B_prev=1, c1=0.5, c2=0.5)
         assert result == 1.5
 
-    def test_zero_c0(self):
-        """Should handle zero baseline cost."""
-        result = compute_metabolic_cost(S=2.0, c0=0.0, c1=0.5)
+    def test_zero_c2(self):
+        """Without prior ignition (B_prev=0), cost is c1·S only."""
+        result = compute_metabolic_cost(S=2.0, B_prev=0, c1=0.5, c2=0.5)
         assert result == 1.0
 
     def test_zero_signal(self):
-        """Should return c0 when signal is zero."""
-        result = compute_metabolic_cost(S=0.0, c0=0.5, c1=0.5)
+        """With zero signal and prior ignition, cost = c2·B_prev."""
+        result = compute_metabolic_cost(S=0.0, B_prev=1, c1=0.5, c2=0.5)
         assert result == 0.5
 
 
@@ -70,20 +70,20 @@ class TestComputeInformationValue:
     """Tests for compute_information_value function."""
 
     def test_basic_value(self):
-        """Should compute value V(t) = v1|φ(ε_e)| + v2|φ(ε_i)|."""
+        """V(t) = v1|z_e| + v2|z_i_eff| uses raw prediction errors per spec."""
         result = compute_information_value(
-            phi_e=1.0,
-            phi_i=0.5,
+            z_e=1.0,
+            z_i_eff=0.5,
             v1=0.5,
             v2=0.5,
         )
         assert result == 0.75  # 0.5*1.0 + 0.5*0.5 = 0.75
 
     def test_negative_errors(self):
-        """Should use absolute values."""
+        """Should use absolute values of raw errors."""
         result = compute_information_value(
-            phi_e=-1.0,
-            phi_i=-0.5,
+            z_e=-1.0,
+            z_i_eff=-0.5,
             v1=0.5,
             v2=0.5,
         )
@@ -97,8 +97,8 @@ class TestComputeInformationValue:
     def test_different_v1_v2(self):
         """Should use different weights correctly."""
         result = compute_information_value(
-            phi_e=1.0,
-            phi_i=0.5,
+            z_e=1.0,
+            z_i_eff=0.5,
             v1=0.3,
             v2=0.7,
         )
@@ -291,38 +291,36 @@ class TestComputeInformationValueWithBias:
     """Tests for compute_information_value_with_bias function."""
 
     def test_basic_value_with_bias(self):
-        """Should compute value with bias (now identical to compute_information_value)."""
+        """Alias for compute_information_value; uses raw errors per spec."""
         result = compute_information_value_with_bias(
-            phi_e=1.0,
-            phi_i=0.5,
+            z_e=1.0,
+            z_i_eff=0.5,
             v1=0.5,
             v2=0.5,
         )
-        # V = 0.5 * 1.0 + 0.5 * 0.5 = 0.5 + 0.25 = 0.75
         assert result == 0.75
 
     def test_negative_bias(self):
-        """Should handle negative phi_i values."""
+        """Should handle negative z_i_eff values."""
         result = compute_information_value_with_bias(
-            phi_e=1.0,
-            phi_i=0.3,
+            z_e=1.0,
+            z_i_eff=0.3,
             v1=0.5,
             v2=0.5,
         )
-        # V = 0.5 * 1.0 + 0.5 * 0.3 = 0.5 + 0.15 = 0.65
         assert result == 0.65
 
     def test_zero_bias(self):
         """Should equal regular compute_information_value (identical function)."""
-        phi_e = 1.0
-        phi_i = 0.5
+        z_e = 1.0
+        z_i_eff = 0.5
         v1 = 0.5
         v2 = 0.5
 
         result_with_bias = compute_information_value_with_bias(
-            phi_e=phi_e, phi_i=phi_i, v1=v1, v2=v2
+            z_e=z_e, z_i_eff=z_i_eff, v1=v1, v2=v2
         )
-        result_without_bias = compute_information_value(phi_e=phi_e, phi_i=phi_i, v1=v1, v2=v2)
+        result_without_bias = compute_information_value(z_e=z_e, z_i_eff=z_i_eff, v1=v1, v2=v2)
         assert result_with_bias == result_without_bias
 
 

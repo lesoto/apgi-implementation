@@ -69,41 +69,44 @@ class TestInstantaneousSignal:
 
 
 class TestInstantaneousSignalWithDopamine:
-    """Tests for instantaneous_signal_with_dopamine function."""
+    """Tests for instantaneous_signal_with_dopamine (deprecated — non-spec DA mode)."""
 
     def test_basic_computation(self):
-        """Should compute signal with dopamine term."""
-        result = instantaneous_signal_with_dopamine(
-            z_e=1.0,
-            z_i=0.5,
-            pi_e_eff=2.0,
-            pi_i_eff=1.0,
-            beta=0.3,
-        )
+        """Deprecated function raises DeprecationWarning; result is still correct."""
+        with pytest.warns(DeprecationWarning, match="contradicts the APGI spec"):
+            result = instantaneous_signal_with_dopamine(
+                z_e=1.0,
+                z_i=0.5,
+                pi_e_eff=2.0,
+                pi_i_eff=1.0,
+                beta=0.3,
+            )
         # S = 2.0 * |1.0| + 1.0 * |0.5| + 0.3 = 2.0 + 0.5 + 0.3 = 2.8
         assert result == 2.8
 
     def test_zero_beta(self):
-        """Should match regular signal when beta is zero."""
-        result = instantaneous_signal_with_dopamine(
-            z_e=1.0,
-            z_i=0.5,
-            pi_e_eff=2.0,
-            pi_i_eff=1.0,
-            beta=0.0,
-        )
+        """Should match regular signal when beta is zero (still warns)."""
+        with pytest.warns(DeprecationWarning):
+            result = instantaneous_signal_with_dopamine(
+                z_e=1.0,
+                z_i=0.5,
+                pi_e_eff=2.0,
+                pi_i_eff=1.0,
+                beta=0.0,
+            )
         expected = instantaneous_signal(1.0, 0.5, 2.0, 1.0)
         assert result == expected
 
     def test_negative_beta(self):
-        """Should handle negative dopamine bias."""
-        result = instantaneous_signal_with_dopamine(
-            z_e=1.0,
-            z_i=0.5,
-            pi_e_eff=2.0,
-            pi_i_eff=1.0,
-            beta=-0.3,
-        )
+        """Should handle negative dopamine bias (still warns)."""
+        with pytest.warns(DeprecationWarning):
+            result = instantaneous_signal_with_dopamine(
+                z_e=1.0,
+                z_i=0.5,
+                pi_e_eff=2.0,
+                pi_i_eff=1.0,
+                beta=-0.3,
+            )
         # S = 2.0 + 0.5 - 0.3 = 2.2
         assert result == 2.2
 
@@ -207,15 +210,16 @@ class TestComputeApgiSignal:
         assert pytest.approx(result) == expected
 
     def test_signal_additive_mode(self):
-        """Should apply φ(ε) transform with signal_additive dopamine mode."""
-        result = compute_apgi_signal(
-            z_e=1.0,
-            z_i=0.5,
-            pi_e=2.0,
-            pi_i_eff=1.0,
-            beta=0.3,
-            dopamine_mode="signal_additive",
-        )
+        """signal_additive raises DeprecationWarning (non-spec); result is still correct."""
+        with pytest.warns(DeprecationWarning, match="contradicts the APGI spec"):
+            result = compute_apgi_signal(
+                z_e=1.0,
+                z_i=0.5,
+                pi_e=2.0,
+                pi_i_eff=1.0,
+                beta=0.3,
+                dopamine_mode="signal_additive",
+            )
         # S = 2.0 * φ(1.0) + 1.0 * φ(0.5) + β
         expected = 2.0 * np.tanh(2.0 * 1.0) + 1.0 * np.tanh(2.0 * 0.5) + 0.3
         assert pytest.approx(result) == expected
@@ -233,7 +237,7 @@ class TestComputeApgiSignal:
             )
 
     def test_zero_beta_both_modes(self):
-        """Should give same result when beta=0 (z_i_eff = z_i in both modes)."""
+        """With β=0, error_bias and signal_additive give the same result (still warns)."""
         result_bias = compute_apgi_signal(
             z_e=1.0,
             z_i=0.5,
@@ -242,14 +246,15 @@ class TestComputeApgiSignal:
             beta=0.0,
             dopamine_mode="error_bias",
         )
-        result_additive = compute_apgi_signal(
-            z_e=1.0,
-            z_i=0.5,
-            pi_e=2.0,
-            pi_i_eff=1.0,
-            beta=0.0,
-            dopamine_mode="signal_additive",
-        )
+        with pytest.warns(DeprecationWarning):
+            result_additive = compute_apgi_signal(
+                z_e=1.0,
+                z_i=0.5,
+                pi_e=2.0,
+                pi_i_eff=1.0,
+                beta=0.0,
+                dopamine_mode="signal_additive",
+            )
         assert pytest.approx(result_bias) == result_additive
 
     def test_asymmetric_valence(self):

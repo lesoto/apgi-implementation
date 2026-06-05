@@ -7,10 +7,14 @@ import numpy as np
 from .thermodynamics import K_BOLTZMANN, T_ENV_DEFAULT, compute_landauer_cost
 
 
-def compute_metabolic_cost(S: float, c0: float = 0.0, c1: float = 1.0) -> float:
-    """C(t)=c0 + c1*S(t)."""
+def compute_metabolic_cost(S: float, B_prev: int = 0, c1: float = 1.0, c2: float = 0.0) -> float:
+    """C(t) = c1·S(t) + c2·B(t-1) per spec.
 
-    return float(c0 + c1 * S)
+    The c2·B(t-1) term captures the metabolic cost of ignition events.
+    c2=0 recovers the minimal single-term form; pass c2>0 to include it.
+    """
+
+    return float(c1 * S + c2 * int(B_prev))
 
 
 def compute_metabolic_cost_realistic(
@@ -105,28 +109,27 @@ def compute_metabolic_cost_realistic(
 
 
 def compute_information_value(
-    phi_e: float, phi_i: float, v1: float = 1.0, v2: float = 1.0
+    z_e: float, z_i_eff: float, v1: float = 1.0, v2: float = 1.0
 ) -> float:
-    """V(t) = v1|φ(ε_e)| + v2|φ(ε_i)| (§14).
+    """V(t) = v1|z_e| + v2|z_i_eff| (spec, using raw prediction errors).
 
-    The absolute value is taken over the transformed errors φ(ε) because
-    information value is unsigned (both positive and negative surprises
-    carry informational value for threshold adaptation).
+    Spec is explicit: V uses unsigned raw magnitudes |z|, not φ-transformed
+    values. Both positive and negative surprises carry equal informational
+    value for threshold adaptation.
     """
 
-    return float(v1 * abs(phi_e) + v2 * abs(phi_i))
+    return float(v1 * abs(z_e) + v2 * abs(z_i_eff))
 
 
 def compute_information_value_with_bias(
-    phi_e: float, phi_i: float, v1: float = 1.0, v2: float = 1.0
+    z_e: float, z_i_eff: float, v1: float = 1.0, v2: float = 1.0
 ) -> float:
-    """V(t) using phi-transformed errors (§14).
+    """V(t) using raw prediction errors (§14).
 
-    Legacy wrapper maintained for API compatibility, now identical to
-    compute_information_value as dopamine bias is pre-integrated into phi_i.
+    Alias for compute_information_value; maintained for API compatibility.
     """
 
-    return compute_information_value(phi_e, phi_i, v1, v2)
+    return compute_information_value(z_e, z_i_eff, v1, v2)
 
 
 def apply_ne_threshold_modulation(theta: float, g_ne: float, gamma_ne: float) -> float:

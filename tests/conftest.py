@@ -57,10 +57,10 @@ def suppress_lapack_stderr_session() -> Generator[None, None, None]:
         chunk = os.read(pipe_read, 65536)
         if not chunk:
             break
-        chunks.append(chunk)
+        chunks.append(chunk)  # pragma: no cover  # only reached when LAPACK writes stderr
     os.close(pipe_read)
 
-    if chunks:
+    if chunks:  # pragma: no cover  # only reached when LAPACK writes stderr
         captured = b"".join(chunks).decode("utf-8", errors="replace")
         # Filter out LAPACK messages and write remaining content
         lines = captured.split("\n")
@@ -107,7 +107,7 @@ def suppress_lapack() -> Generator[None, None, None]:
         os.dup2(original_stderr_fd, 2)
         os.close(original_stderr_fd)
         # Drain and discard the pipe
-        while os.read(pipe_read, 65536):
+        while os.read(pipe_read, 65536):  # pragma: no cover
             pass
         os.close(pipe_read)
 

@@ -86,7 +86,7 @@ class TestPostIgnitionReset:
         config1["stochastic_ignition"] = False
 
         config2 = dict(CONFIG)
-        config2["reset_factor"] = 0.8  # Weak reset (80% retention)
+        config2["reset_factor"] = 0.5  # Weak reset (50% retention, max allowed per spec)
         config2["theta_0"] = 0.1
         config2["stochastic_ignition"] = False
 

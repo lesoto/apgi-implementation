@@ -245,6 +245,16 @@ class APGIPipeline:
                 "Enable only one. See spec Section 2.3-2.4."
             )
 
+        # Spec constraint: γ_NE · g_NE_max ≤ 0.5 (prevents multiplicative instability)
+        gamma_ne = self.config.get("gamma_ne", 0.1)
+        g_ne = self.config.get("g_ne", 1.0)
+        if gamma_ne * g_ne > 0.5:
+            raise ValidationError(
+                f"γ_NE · g_NE = {gamma_ne * g_ne:.3f} > 0.5. "
+                "Spec mandates γ_NE · g_NE_max ≤ 0.5 to prevent multiplicative threshold instability. "
+                f"Reduce gamma_ne (currently {gamma_ne}) or g_ne (currently {g_ne})."
+            )
+
         # Check for threshold instability and auto-adjust in non-strict mode
         if not strict_mode:
             gamma_ne = self.config.get("gamma_ne", 0.1)
@@ -480,18 +490,24 @@ class APGIPipeline:
         z_i_eff_pre = apply_dopamine_bias_to_error(z_i_n_pre, self.config["beta"])
         phi_i_eff = phi_transform(z_i_eff_pre, _a_pos, _a_neg, _g_pos, _g_neg)
 
-        # 4) Online mean + uncertainty update (§7.1, Eq 158)
-        # Spec: Σₜ = β_Σ · Σₜ₋₁ + (1 - β_Σ) · φ(εₜ)²
+        # 4) Online mean + variance update — spec Method A (preferred, two-step EMA)
+        # Step 1: μ_e(t+1) = (1-α)·μ_e(t) + α·ε_e(t)
+        # Step 2: σ²_e(t+1) = (1-α)·σ²_e(t) + α·(ε_e(t) − μ_e(t))²
+        # Using raw errors (not φ-transformed) for unbiased variance estimation.
         alpha_e = self.config["alpha_e"]
         alpha_i = self.config["alpha_i"]
 
-        # Update means (raw errors)
+        # Step 1: update means from raw errors
         self.state.mu_e = update_mean_ema(self.state.mu_e, z_e, alpha_e)
         self.state.mu_i = update_mean_ema(self.state.mu_i, z_i, alpha_i)
 
-        # Update uncertainties (using phi^2 per Spec §7.1)
-        self.state.sigma2_e = (1.0 - alpha_e) * self.state.sigma2_e + alpha_e * (phi_e_n**2)
-        self.state.sigma2_i = (1.0 - alpha_i) * self.state.sigma2_i + alpha_i * (phi_i_eff**2)
+        # Step 2: centered variance (ε − μ)² — omitting this step produces E[ε²], not variance
+        self.state.sigma2_e = (1.0 - alpha_e) * self.state.sigma2_e + alpha_e * (
+            z_e - self.state.mu_e
+        ) ** 2
+        self.state.sigma2_i = (1.0 - alpha_i) * self.state.sigma2_i + alpha_i * (
+            z_i - self.state.mu_i
+        ) ** 2
 
         # 5) Precision with clamping (§7.2)
         pi_e = compute_precision(
@@ -567,7 +583,8 @@ class APGIPipeline:
             )
 
             # Update hierarchical state with both precision and phase
-            assert self.hierarchical is not None  # Type guard for mypy
+            if self.hierarchical is None:  # pragma: no cover  # Type guard for mypy
+                raise RuntimeError("hierarchical is None")
             self.hierarchical.pis = pis_new.tolist()
             self.hierarchical.phases = phi_new.tolist()
 
@@ -601,12 +618,22 @@ class APGIPipeline:
                 self.hierarchical.phases = _phases.tolist()  # type: ignore[union-attr]
 
         # 6) Instantaneous signal (diagnostic) + SDE integration via ODE drift
+        # Resolve tau_s / dt / adaptive_noise_std early — needed in both hierarchical
+        # and single-scale paths.
+        dt = self.config.get("dt", 1.0)
+        tau_s = self.config.get("tau_s", 5.0)
+        adaptive_noise_std = compute_precision_coupled_noise_std(pi_e_eff, pi_i_eff)
+
         # Use hierarchical aggregation if enabled, otherwise single-scale
         if self.use_hierarchical:
-            # Aggregate multi-scale signal: S = Σ_i w_i Π_i φ(Φ_i)  (§12, signed)
-            phi_combined = phi_transform_array(
-                self.phi_e_levels, _a_pos, _a_neg, _g_pos, _g_neg
-            ) + phi_transform_array(self.phi_i_levels, _a_pos, _a_neg, _g_pos, _g_neg)
+            # Spec §12: S_inst^(l) = Π_l · φ(ε_l)
+            # φ(ε_l) is the INSTANTANEOUS phi-transformed prediction error (not the EMA
+            # feature phi_e_levels which converges to ≈0 for zero-mean z-scores).
+            # The multi-scale structure enters through the per-level precision weights Π_l,
+            # not by smoothing the error itself.  phi_e_levels / phi_i_levels are retained
+            # as slow state variables for the threshold-cascade computation (lines below).
+            phi_inst = phi_e_n + phi_i_eff  # current instantaneous combined signal
+            phi_combined = np.full(self.n_levels, phi_inst)  # broadcast across levels
 
             # Use hierarchical precision if available, otherwise compute from per-level variance
             if self.hierarchical_network is not None:
@@ -628,29 +655,49 @@ class APGIPipeline:
 
             S_inst = aggregate_multiscale_signal_phi(phi_combined, pi_levels, self.weights)
 
-            # Cross-Level Threshold Resonance (§8/§9): step per-level accumulators
-            # S_inst_l = Π_l · φ_l(ε)  per-level instantaneous salience
+            # Cross-Level Threshold Resonance (§8/§9): advance phases and thresholds.
+            #
+            # ARCHITECTURE: The resonance system owns two separate concerns:
+            #   (a) Phase dynamics + threshold modulation  ← used here
+            #   (b) Per-level leaky S accumulators         ← NOT used for self.S
+            #
+            # Why (b) is bypassed: lambda_l = dt/tau_l.  For large tau_l (e.g. tau_0=5,
+            # dt=0.002 → lambda=0.0004), the leaky accumulator delivers S_inst×0.0004
+            # per step — 33× slower than the ODE (dt/tau_s = 0.013).  The signal never
+            # reaches threshold within a realistic simulation horizon.
+            # self.S is instead accumulated via the ODE (same as single-scale) directly
+            # below.  The resonance system's theta (phase-modulated) is still used for
+            # the ignition check, preserving the hierarchical threshold architecture.
             if self.resonance_system is not None:
-                _S_inst_levels = pi_levels * phi_combined
-                self.resonance_system.step(_S_inst_levels, pi_levels, dt)
+                # Pass current instantaneous signal × tau_s as S_inst so the resonance
+                # system's per-level S arrays equilibrate at the same amplitude as the ODE
+                # signal (S* = tau_s × Π·φ for both paths).  This keeps resonance_S_levels
+                # meaningful for diagnostic outputs and the maturity cascade metric.
+                # self.S is still accumulated via the ODE below — ignition is independent.
+                _S_inst_diag = np.full(
+                    self.n_levels, (pi_e_eff * phi_e_n + pi_i_eff * phi_i_eff) * tau_s
+                )
+                self.resonance_system.step(_S_inst_diag, pi_levels, dt, noise_std=0.0)
                 # Sync live phases and precisions back to the hierarchical state so
-                # that hierarchical_threshold_modulation uses current resonance phases
-                assert self.hierarchical is not None
+                # that hierarchical_threshold_modulation uses current resonance phases.
+                if self.hierarchical is None:  # pragma: no cover
+                    raise RuntimeError("hierarchical is None")
                 self.hierarchical.phases = self.resonance_system.phi.tolist()
                 self.hierarchical.pis = self.resonance_system.pi.tolist()
         else:
             S_inst = instantaneous_signal_phi(phi_e_n, phi_i_eff, pi_e_eff, pi_i_eff)
 
         # Wire dynamics.py (update_signal_ode) OR discrete leaky accumulation
-        # Spec §7.3: σ_S = 1/sqrt(Π_e^eff + Π_i^eff)
-        adaptive_noise_std = compute_precision_coupled_noise_std(pi_e_eff, pi_i_eff)
-        dt = self.config.get("dt", 1.0)
-        tau_s = self.config.get("tau_s", 5.0)
+        # dt, tau_s, and adaptive_noise_std already resolved above.
 
-        # Choose between resonance accumulator, ODE (continuous), or discrete leaky accumulation
+        # Choose between ODE (continuous) or discrete leaky accumulation.
+        # When resonance is active it handles phases/thresholds only — S is always
+        # accumulated via the ODE so that ignition dynamics are parameter-independent.
         if self.resonance_system is not None:
-            # Resonance system manages per-level leaky S accumulators (§8/§9)
-            self.S = self.resonance_system.primary_signal
+            # ODE accumulation (resonance manages phases+thresholds, not S)
+            self.S = update_signal_ode(
+                self.S, phi_e_n, phi_i_eff, pi_e_eff, pi_i_eff, tau_s, dt, adaptive_noise_std
+            )
         elif self.config.get("use_canonical_discrete_mode", False):
             # Discrete canonical mode: S(t+1) = (1-λ)S(t) + λS_inst(t)
             lam = self.config["lam"]
@@ -697,7 +744,10 @@ class APGIPipeline:
                 bold_calibration=(bold_calibration if bold_calibration is not None else {}),
             )
         else:
-            C_t = compute_metabolic_cost(self.S, self.config["c0"], self.config["c1"])
+            # C(t) = c1·S(t) + c2·B(t-1) per spec (c2=0 if not set)
+            C_t = compute_metabolic_cost(
+                self.S, self.B_prev, self.config["c1"], self.config.get("c2", 0.0)
+            )
 
         # 7a) Thermodynamic cost validation (§11)
         C_landauer = 0.0
@@ -717,7 +767,8 @@ class APGIPipeline:
             self.history["C_landauer"].append(C_landauer)
             self.history["bits_erased"].append(bits_erased)
 
-        V_t = compute_information_value(phi_e_n, phi_i_eff, self.config["v1"], self.config["v2"])
+        # V(t) = v1|z_e| + v2|z_i_eff| — raw prediction errors per spec
+        V_t = compute_information_value(z_e_n, z_i_eff, self.config["v1"], self.config["v2"])
 
         # 7b/8) Threshold and Ignition: Standard or Reservoir-as-Threshold mode
         # Spec §10: Reservoir can serve as alternative execution path
@@ -881,22 +932,26 @@ class APGIPipeline:
         ignition_margin = S_at_ignition - theta_at_ignition
 
         # Post-ignition signal reset (§6)
-        # Spec: S ← ρ·S on ignition
+        # Spec: S ← ρ_S·S on ignition, ρ_S ∈ [0.1, 0.5] (attentional blink bounds)
         if B_t == 1:
-            reset_factor = self.config.get("reset_factor", 0.5)
-            if not (0 < reset_factor < 1):
-                raise ValueError(f"reset_factor must be in (0, 1), got {reset_factor}")
+            reset_factor = self.config.get("reset_factor", 0.1)
+            if not (0.1 <= reset_factor <= 0.5):
+                raise ValueError(
+                    f"reset_factor (ρ_S) must be in [0.1, 0.5] per spec, got {reset_factor}. "
+                    "ρ_S < 0.1: near-complete erasure (incompatible with working memory). "
+                    "ρ_S > 0.5: insufficient reset (attentional blink > 500 ms)."
+                )
             self.S = self.S * reset_factor
-            # Resonance-level ignition reset (§17): refractory boost + partial signal clear
+            # Resonance-level ignition reset (§17): refractory boost on resonance theta.
+            # self.S was already reset via reset_factor above; resonance.primary_signal
+            # is NOT used (S is ODE-accumulated), so only the theta boost is applied.
             if self.resonance_system is not None:
-                rho_s_val = self.config.get("RHO_RETAIN", reset_factor) or reset_factor
                 delta_ref_val = self.config.get("DELTA_RESET", self.config.get("delta", 0.5)) or 0.5
                 self.resonance_system.apply_level_ignition(
                     level=0,
-                    rho_S=float(rho_s_val),
+                    rho_S=float(self.config.get("RHO_RETAIN", reset_factor) or reset_factor),
                     delta_refractory=float(delta_ref_val),
                 )
-                self.S = self.resonance_system.primary_signal
 
         # 9) Post-ignition threshold dynamics (§6)
         # Canonical spec semantics:
@@ -943,6 +998,10 @@ class APGIPipeline:
             S_reservoir = self.reservoir.readout(
                 method=self.config.get("reservoir_readout_method", "linear")
             )
+            # Spec: S_global(t) = Σ_l w_l·S_inst^(l)(t) + w_res·S_res(t)
+            # Integrate reservoir contribution into the main signal accumulator.
+            w_res = self.config.get("reservoir_weight", 0.1)
+            self.S = self.S + w_res * S_reservoir
 
         # 18) Active Inference Action Loop (§19) — Step 18 of APGI Formulation.
         # Runs AFTER all signal-processing steps (including reservoir readout) so
@@ -1044,6 +1103,13 @@ class APGIPipeline:
             kuramoto_result = self.kuramoto.step(dt=dt)
             result["kuramoto_phases"] = kuramoto_result["phases"].tolist()
             result["kuramoto_synchronization"] = kuramoto_result["synchronization"]
+
+            # Apply oscillatory synchrony gate Γ to S per spec §12:
+            # S_inst^(l) = Π · φ(ε) · Γ^(l)(t)
+            # Γ is the mean signed pairwise phase coherence across the oscillator pop.
+            gamma = self.kuramoto.oscillators.compute_gamma()
+            self.S = self.S * gamma
+            result["kuramoto_gamma"] = gamma
 
             # Apply phase reset on ignition
             if B_t == 1:

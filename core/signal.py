@@ -23,14 +23,21 @@ def instantaneous_signal_with_dopamine(
     pi_i_eff: float,
     beta: float,
 ) -> float:
-    """Alternative dopamine formula: S_inst = Π_e_eff |z_e| + Π_i_eff |z_i| + β.
+    """[DEPRECATED — NON-SPEC] DA as additive signal term.
 
-    Symmetric |z| approximation — valid only as a baseline or non-affective
-    context. Per spec Section 3.1: dopamine can act as bias on error
-    (z_i_eff = z_i + β) OR as additive term in signal (S = Π_e|z_e| + Π_i|z_i| + β).
-    For affective paradigms use compute_apgi_signal which applies φ(ε) (§6).
+    Spec is explicit: β_DA must be applied ONLY as an additive bias on the
+    interoceptive error (z_i_eff = z_i + β_DA), not as an independent term
+    in the signal sum. Adding β directly to S double-counts the DA effect.
+    Use compute_apgi_signal with dopamine_mode='error_bias' instead.
     """
+    import warnings
 
+    warnings.warn(
+        "instantaneous_signal_with_dopamine adds β directly to S, which contradicts "
+        "the APGI spec. Use compute_apgi_signal(dopamine_mode='error_bias') instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return float(pi_e_eff * abs(z_e) + pi_i_eff * abs(z_i) + beta)
 
 
@@ -93,11 +100,21 @@ def compute_apgi_signal(
     """
 
     if dopamine_mode == "error_bias":
+        # Spec-canonical: β_DA is additive to interoceptive error only
         z_i_eff = z_i + beta
         phi_e = phi_transform(z_e, alpha_pos, alpha_neg, gamma_pos, gamma_neg)
         phi_i = phi_transform(z_i_eff, alpha_pos, alpha_neg, gamma_pos, gamma_neg)
         return instantaneous_signal_phi(phi_e, phi_i, pi_e, pi_i_eff)
     elif dopamine_mode == "signal_additive":
+        import warnings
+
+        warnings.warn(
+            "dopamine_mode='signal_additive' adds β_DA directly to S — this contradicts "
+            "the APGI spec which mandates β_DA as error bias only (z_i_eff = z_i + β). "
+            "Use dopamine_mode='error_bias' to comply with the spec.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         phi_e = phi_transform(z_e, alpha_pos, alpha_neg, gamma_pos, gamma_neg)
         phi_i = phi_transform(z_i, alpha_pos, alpha_neg, gamma_pos, gamma_neg)
         return float(instantaneous_signal_phi(phi_e, phi_i, pi_e, pi_i_eff) + beta)

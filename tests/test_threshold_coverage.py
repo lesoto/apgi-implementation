@@ -16,7 +16,8 @@ from core.threshold import (
 
 
 def test_compute_metabolic_cost():
-    assert pytest.approx(compute_metabolic_cost(1.0, c0=0.5, c1=2.0)) == 2.5
+    # C(t) = c1·S + c2·B_prev: S=1.0, B_prev=1, c1=2.0, c2=0.5 → 2.5
+    assert pytest.approx(compute_metabolic_cost(1.0, B_prev=1, c1=2.0, c2=0.5)) == 2.5
 
 
 def test_compute_metabolic_cost_realistic():

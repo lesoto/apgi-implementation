@@ -8,7 +8,7 @@ CONFIG = {
     # Numerical stability
     "eps": 1e-8,
     "pi_min": 0.01,
-    "pi_max": 100.0,
+    "pi_max": 10.0,  # Spec-mandated upper bound (§ precision bounds table)
     # EMA variance update
     "alpha_e": 0.05,
     "alpha_i": 0.05,
@@ -29,10 +29,13 @@ CONFIG = {
     "BETA_AWAKE_AVG": 1.15,  # Canonical baseline for alert wakefulness
     "beta": 1.15,  # Alias for BETA_AWAKE_AVG (backward compatibility)
     "beta_da": 1.15,  # Spec-preferred name (alias for backward compatibility)
-    # Prevent NE double-counting (recommended)
+    # NE modulates BOTH Π_sal (precision) AND η_θ (threshold gain) per spec.
+    # Enabling both simultaneously is allowed by the spec but requires γ_NE·g_NE ≤ 0.5.
+    # Default: precision only (ne_on_threshold=False) to avoid accidental instability.
+    # Set ne_on_threshold=True AND lower gamma_ne (≤0.01) to enable both pathways.
     "ne_on_precision": True,
     "ne_on_threshold": False,
-    # NE modulation strength (use gamma_ne<=0.01 when ne_on_threshold=True)
+    # NE modulation strength — spec constraint: γ_NE · g_NE ≤ 0.5
     "gamma_ne": 0.1,
     # Threshold decay rate (use kappa>=0.15 when ne_on_threshold=True)
     "kappa": 0.15,
@@ -117,6 +120,7 @@ CONFIG = {
     "reservoir_readout_method": "linear",  # "linear" or "energy"
     "reservoir_amplification": 0.0,  # Suprathreshold amplification strength
     "reservoir_ridge_alpha": 1e-6,  # Ridge regression regularization
+    "reservoir_weight": 0.1,  # w_res in S_global = Σw_l·S_l + w_res·S_res (spec §10)
     # Kuramoto oscillators (§9)
     "use_kuramoto": False,  # Enable Kuramoto oscillators with phase noise
     "kuramoto_tau_xi": 1.0,  # OU noise correlation timescale (ms)

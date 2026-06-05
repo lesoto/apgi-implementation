@@ -439,6 +439,16 @@ class TestNEConfigurationValidation:
             # Should not have threshold instability warning
             assert not any("threshold instability" in str(w.message) for w in record)
 
+    def test_ne_product_constraint_raises(self, base_config):
+        """γ_NE · g_NE > 0.5 must raise ValidationError at init time (spec constraint)."""
+        config = base_config.copy()
+        config["gamma_ne"] = 1.0  # product = 1.0 * 1.0 = 1.0 > 0.5
+        config["g_ne"] = 1.0
+        config["ne_on_precision"] = False
+        config["ne_on_threshold"] = False
+        with pytest.raises(ValidationError, match=r"γ_NE · g_NE"):
+            APGIPipeline(config)
+
 
 class TestValidationWarning:
     """Tests for configuration validation warnings."""
@@ -1040,7 +1050,7 @@ class TestPostIgnitionDynamics:
             pipeline = APGIPipeline(config)
             pipeline.S = 2.0
             pipeline.theta = 0.5  # Force ignition condition
-            with pytest.raises(ValueError, match="reset_factor must be in"):
+            with pytest.raises(ValueError, match=r"reset_factor.*must be in"):
                 result = pipeline.step(x_e=2.0, x_i=0.5)  # noqa: F841
 
 

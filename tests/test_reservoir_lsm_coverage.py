@@ -126,3 +126,16 @@ def test_lsm_adaptive_tau():
     assert lsm._compute_adaptive_tau(0) == 10.0
     # precision > 0
     assert 0.1 <= lsm._compute_adaptive_tau(1.0) <= 10.0
+
+
+def test_lsm_no_inhibition_branch():
+    """Covers the else-branch in step(): both inhibition flags False → plain f_drive."""
+    lsm = LiquidStateMachine(N=10, M=2, seed=0)
+    u = np.array([0.5, -0.3])
+    # use_divisive_normalization=False, use_subtractive_inhibition=False → pure leaky integrator
+    x = lsm.step(
+        u, tau=1.0, dt=0.1, use_divisive_normalization=False, use_subtractive_inhibition=False
+    )
+    assert x.shape == (10,)
+    # State should change (non-zero input drives the reservoir)
+    assert not np.allclose(x, 0.0)

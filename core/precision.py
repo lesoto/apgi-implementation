@@ -14,10 +14,13 @@ def clamp(value: float, lower: float, upper: float) -> float:
 def compute_precision(
     sigma2: float,
     eps: float = 1e-8,
-    pi_min: float = 1e-4,
-    pi_max: float = 1e4,
+    pi_min: float = 0.01,
+    pi_max: float = 10.0,
 ) -> float:
-    """Precision Π = 1/(σ²+ε), clamped to [Π_min, Π_max]."""
+    """Precision Π = 1/(σ²+ε), clamped to [Π_min, Π_max].
+
+    Spec-mandated bounds: Π_min=0.01, Π_max=10 (applied every step, mandatory).
+    """
 
     raw = 1.0 / (max(float(sigma2), 0.0) + eps)
     return clamp(raw, pi_min, pi_max)

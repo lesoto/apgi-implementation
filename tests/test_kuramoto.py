@@ -90,7 +90,7 @@ class TestKuramotoOscillators:
         assert 0 <= R_final <= 1
 
     def test_phase_coherence(self):
-        """Test phase coherence matrix."""
+        """Test phase coherence matrix G_φ(i,j) = cos(φ_i - φ_j) ∈ [-1, 1] (signed per spec)."""
         osc = KuramotoOscillators(n_levels=5)
 
         coherence = osc.get_phase_coherence()
@@ -98,10 +98,10 @@ class TestKuramotoOscillators:
         # Check shape
         assert coherence.shape == (5, 5)
 
-        # Check values in [0, 1]
-        assert np.all(coherence >= 0) and np.all(coherence <= 1)
+        # Signed: values must be in [-1, 1] (not [0, 1] — spec uses unsigned removed by fix #3)
+        assert np.all(coherence >= -1) and np.all(coherence <= 1)
 
-        # Diagonal should be 1 (phase with itself)
+        # Diagonal should be 1 (phase with itself: cos(0) = 1)
         assert np.allclose(np.diag(coherence), 1.0)
 
     def test_phase_reset_on_ignition(self):

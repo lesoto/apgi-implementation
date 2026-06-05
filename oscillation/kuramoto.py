@@ -233,19 +233,40 @@ class KuramotoOscillators:
         return float(R)
 
     def get_phase_coherence(self) -> np.ndarray:
-        """Compute pairwise phase coherence between all oscillators.
+        """Compute pairwise phase coherence G_φ(i,j,t) = cos(φ_i − φ_j).
+
+        Spec: G_φ(i,j,t) = cos(φᵢ(t) − φⱼ(t)) ∈ [−1, 1] (signed).
+        Anti-phase (G_φ = −1) suppresses ignition; in-phase (G_φ = +1) gates it.
+        The sign must be preserved so that Γ⁽ˡ⁾ captures both constructive and
+        destructive interference across the oscillator population.
 
         Returns:
-            Coherence matrix C[i,j] = |cos(φ_i - φ_j)|
+            Coherence matrix C[i,j] = cos(φ_i − φ_j) ∈ [−1, 1]
         """
 
         coherence = np.zeros((self.n_levels, self.n_levels))
         for i in range(self.n_levels):
             for j in range(self.n_levels):
                 phase_diff = self.phases[i] - self.phases[j]
-                coherence[i, j] = np.abs(np.cos(phase_diff))
+                coherence[i, j] = np.cos(phase_diff)
 
         return coherence
+
+    def compute_gamma(self) -> float:
+        """Compute oscillatory synchrony gate Γ⁽ˡ⁾(t) per spec §12.
+
+        Γ⁽ˡ⁾(t) = (1/N²) · Σᵢ,ⱼ G_φ(i,j,t)
+               = (1/N²) · Σᵢ,ⱼ cos(φᵢ − φⱼ)
+
+        This is the mean pairwise phase coherence (signed), which acts as a
+        multiplicative gate on the instantaneous signal:
+            S_inst^(l) = Π · φ(ε) · Γ^(l)(t)
+
+        Returns:
+            Γ ∈ [−1, 1]; positive = synchronised (gates access), negative = anti-phase
+        """
+        G = self.get_phase_coherence()
+        return float(np.mean(G))
 
     def get_history(self) -> np.ndarray:
         """Get phase history as array (T, n_levels)."""
