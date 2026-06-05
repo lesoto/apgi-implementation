@@ -184,8 +184,8 @@ def main() -> None:
         print(f"  Average Landauer cost (kappa × log2(S/eps)): {avg_cost:.2e} J")
         print(f"  Average bits erased (log2(S/eps)):           {avg_bits:.1f}")
         print(f"  BOLD energy / kappa×bits ratio: {avg_ratio:.3f}×")
-        print(f"  (Ratio < 1 is expected: BOLD 2% = ~0.9 bits vs log2(S/eps) ≈ 27 bits)")
-        print(f"  See Part 3 for the correct Landauer constraint check (ratio=1020×)")
+        print("  (Ratio < 1 is expected: BOLD 2% = ~0.9 bits vs log2(S/eps) ≈ 27 bits)")
+        print("  See Part 3 for the correct Landauer constraint check (ratio=1020×)")
 
         # Validate overall: convert AU → J for the energy sum
         total_energy_au = np.sum(thermodynamic_data["metabolic_cost"])

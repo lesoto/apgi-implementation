@@ -69,28 +69,23 @@ def compute_metabolic_cost_realistic(
 
             # Get BOLD parameters
             bold_change = bold_calibration.get("bold_signal_change", 2.0)  # default 2%
-            conversion_factor = bold_calibration.get("conversion_factor", 1.2e-6)
+            conversion_factor = bold_calibration.get("conversion_factor", 1.2e-18)
             tissue_volume = bold_calibration.get("tissue_volume", 1.0)
             spike_factor = bold_calibration.get("ignition_spike_factor", 1.075)
 
-            # Estimate baseline energy from BOLD
+            # Estimate baseline energy from BOLD (Joules)
             baseline_energy = bold_signal_to_energy(
                 bold_change,
                 conversion_factor=conversion_factor,
                 tissue_volume=tissue_volume,
             )
 
-            # Apply ignition spike factor
+            # Apply ignition spike factor; κ_meta absorbs Joules→AU unit conversion
             e_min = estimate_ignition_energy_spike(baseline_energy, spike_factor)
-
-            # Convert to dimensionless cost units if needed
-            # (assuming base_cost is in AU, e_min is in Joules)
-            # Use scaling factor based on typical neural energy scale
-            scale_factor = 1e20  # Convert Joules to neural-scale AU
-            e_min_scaled = e_min * scale_factor
+            e_min_scaled = e_min * kappa_meta
         else:
-            # Compute Landauer minimum using κ_meta
-            e_min = compute_landauer_cost(
+            # Compute Landauer minimum using κ_meta (already applied inside)
+            e_min_scaled = compute_landauer_cost(
                 S=S,
                 eps=eps_stab,
                 k_b=K_BOLTZMANN,
@@ -98,10 +93,6 @@ def compute_metabolic_cost_realistic(
                 kappa_meta=kappa_meta,
                 kappa_units=kappa_units,
             )
-
-            # compute_landauer_cost always returns Joules, so always apply scaling
-            scale_factor = 1e20  # Convert Joules to neural-scale AU
-            e_min_scaled = e_min * scale_factor
 
         base_cost = max(base_cost, e_min_scaled)
 

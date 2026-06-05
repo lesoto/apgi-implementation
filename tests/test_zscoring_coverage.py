@@ -11,13 +11,15 @@ def test_zscore_window():
     # 1st sample: mean=1.0, var=0.0, std=0.0 -> returns 0.0
     assert zw.update(1.0) == 0.0
 
-    # 2nd sample: [1.0, 3.0] -> mean=2.0, var=(1+9)/2 - 4 = 1.0, std=1.0
-    # (3.0 - 2.0) / (1.0 + eps) ~ 1.0
-    assert pytest.approx(zw.update(3.0)) == 1.0
+    # 2nd sample: [1.0, 3.0] -> mean=2.0, Bessel var=(2^2)/(n-1)=2, std=√2
+    # (3.0 - 2.0) / (√2 + eps) ~ 1/√2 ≈ 0.7071
+    import numpy as np
 
-    # 3rd sample (overflow): [3.0, 5.0] -> mean=4.0, var=(9+25)/2 - 16 = 1.0, std=1.0
-    # (5.0 - 4.0) / (1.0 + eps) ~ 1.0
-    assert pytest.approx(zw.update(5.0)) == 1.0
+    assert pytest.approx(zw.update(3.0), rel=1e-5) == 1.0 / np.sqrt(2.0)
+
+    # 3rd sample (overflow): [3.0, 5.0] -> mean=4.0, Bessel var=2, std=√2
+    # (5.0 - 4.0) / (√2 + eps) ~ 1/√2 ≈ 0.7071
+    assert pytest.approx(zw.update(5.0), rel=1e-5) == 1.0 / np.sqrt(2.0)
 
     # Reset
     zw.reset()

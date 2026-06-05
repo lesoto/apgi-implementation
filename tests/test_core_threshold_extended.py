@@ -111,11 +111,11 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             eps_stab=0.001,
             enforce_landauer=True,
             bold_calibration=None,  # No BOLD calibration
-            kappa_meta=1.0,
+            kappa_meta=1e20,  # κ_meta absorbs J→AU unit conversion
             kappa_units="dimensionless",
         )
-        # Should compute Landauer cost
-        assert result > 0.01  # Landauer minimum should apply
+        # Landauer minimum should dominate small base cost (c1*S = 0.01)
+        assert result > 0.01
 
     def test_landauer_with_joules_per_bit_units(self):
         """Should handle kappa_units='joules_per_bit'."""
@@ -161,10 +161,10 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
         assert result >= 100.0
 
     def test_scale_factor_conversion(self):
-        """Should correctly scale Joules to neural-scale AU."""
+        """κ_meta absorbs J→AU unit conversion; no hardcoded scale factor."""
         bold_calibration = {
             "bold_signal_change": 2.0,
-            "conversion_factor": 1.2e-6,
+            "conversion_factor": 1.2e-18,  # Spec-canonical: J per 1% BOLD per cm³
             "tissue_volume": 1.0,
             "ignition_spike_factor": 1.075,
         }
@@ -176,11 +176,11 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             eps_stab=0.001,
             enforce_landauer=True,
             bold_calibration=bold_calibration,
+            kappa_meta=1e20,  # Canonical unit conversion factor
         )
-        # Result should be scaled appropriately (scale_factor = 1e20)
-        # Baseline energy from BOLD would be around 2.4e-6 Joules
-        # Scaled: ~2.4e14 AU, with spike factor applied
-        assert result > 1e10  # Should be very large after scaling
+        # e_min ≈ 1.2e-18 * 2 * 1 * 1.075 * 1e20 ≈ 258 >> base_cost 0.01
+        assert result > 0.01  # Landauer constraint binds over small base cost
+        assert result < 1e6  # No spurious 1e20 over-scaling
 
     def test_various_bold_signal_changes(self):
         """Should handle different BOLD signal change values."""
@@ -301,6 +301,7 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             eps_stab=0.001,
             enforce_landauer=True,
             bold_calibration=bold_calibration,
+            kappa_meta=1e20,  # κ_meta absorbs J→AU unit conversion
         )
         # Large BOLD signal should result in large cost
         assert result > 1e10
@@ -358,7 +359,7 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
         )
         assert result_high_base == pytest.approx(100.0, rel=0.01)
 
-        # Case 2: Base cost < Landauer minimum
+        # Case 2: Base cost < Landauer minimum (kappa_meta makes Landauer dominate)
         result_low_base = compute_metabolic_cost_realistic(
             S=0.001,
             B_prev=0,
@@ -366,8 +367,9 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             c2=1.0,
             eps_stab=0.0001,
             enforce_landauer=True,
+            kappa_meta=1e20,  # κ_meta absorbs J→AU unit conversion
         )
-        # Should be at least Landauer minimum
+        # Landauer minimum should dominate small base cost (1e-6)
         assert result_low_base > 0.000001
 
     def test_bold_calibration_with_max_comparison(self):
@@ -401,8 +403,9 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             eps_stab=0.001,
             enforce_landauer=True,
             bold_calibration=bold_calibration,
+            kappa_meta=1e20,  # κ_meta absorbs J→AU unit conversion
         )
-        # BOLD calibration cost should dominate
+        # BOLD calibration cost should dominate small base cost
         assert result_low_base > 0.01
 
     def test_return_type_is_float(self):
@@ -507,8 +510,9 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             c2=1.0,
             eps_stab=0.001,
             enforce_landauer=True,
+            kappa_meta=1e20,  # κ_meta absorbs J→AU unit conversion
         )
-        # Should be at least Landauer minimum
+        # Landauer minimum should dominate small base cost (1.1e-6)
         assert result > 0.0000011
 
     def test_very_small_bold_signal(self):
@@ -546,6 +550,7 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             eps_stab=0.001,
             enforce_landauer=True,
             bold_calibration=bold_calibration,
+            kappa_meta=1e20,  # κ_meta absorbs J→AU unit conversion
         )
         # Large tissue volume should increase cost
         assert result > 1e10
@@ -585,6 +590,7 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             eps_stab=0.001,
             enforce_landauer=True,
             bold_calibration=bold_calibration,
+            kappa_meta=1e20,  # κ_meta absorbs J→AU unit conversion
         )
         # Large conversion factor should result in very large cost
         assert result > 1e15
@@ -810,7 +816,7 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
         assert result2 > 0
 
     def test_landauer_cost_scaling(self):
-        """Should scale Landauer cost correctly with scale_factor."""
+        """Higher κ_meta should increase Landauer cost (κ_meta absorbs unit conversion)."""
         result1 = compute_metabolic_cost_realistic(
             S=1.0,
             B_prev=0,
@@ -818,7 +824,7 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             c2=1.0,
             eps_stab=0.0001,
             enforce_landauer=True,
-            kappa_meta=1.0,
+            kappa_meta=1e20,
         )
 
         result2 = compute_metabolic_cost_realistic(
@@ -828,7 +834,7 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             c2=1.0,
             eps_stab=0.0001,
             enforce_landauer=True,
-            kappa_meta=2.0,
+            kappa_meta=2e20,
         )
 
         # Higher kappa_meta should increase Landauer cost

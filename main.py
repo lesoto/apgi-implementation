@@ -180,7 +180,7 @@ def run_multiscale_pipeline(
     cfg = config or CONFIG.copy()
     cfg["timescale_k"] = timescale_k
 
-    tau0 = 1.0
+    tau0 = 10.0  # Spec appendix: τ_0 > 1; canonical default matches CONFIG
     taus = build_timescales(tau0, timescale_k, n_levels)
     weights = multiscale_weights(n_levels, timescale_k)
 
@@ -230,8 +230,8 @@ def run_multiscale_pipeline(
 
     # Pre-extract config values for performance
     eps = float(cfg.get("eps", 1e-8))  # type: ignore[arg-type]
-    pi_min = float(cfg.get("pi_min", 1e-4))  # type: ignore[arg-type]
-    pi_max = float(cfg.get("pi_max", 1e4))  # type: ignore[arg-type]
+    pi_min = float(cfg.get("pi_min", 0.01))  # type: ignore[arg-type]
+    pi_max = float(cfg.get("pi_max", 10.0))  # type: ignore[arg-type]
 
     for t in range(n_steps):
         x_e, x_hat_e, x_i, x_hat_i = generate_synthetic_input(t)

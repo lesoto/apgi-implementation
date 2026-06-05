@@ -25,7 +25,7 @@ class TestAPGIConfigDefaults:
         config = APGIConfig()
         assert config.eps == 1e-8
         assert config.pi_min == 0.01
-        assert config.pi_max == 100.0
+        assert config.pi_max == 10.0
 
     def test_default_ema_rates(self):
         """Should have correct default EMA rates."""
@@ -129,7 +129,7 @@ class TestAPGIConfigDefaults:
         assert config.use_thermodynamic_cost is False
         assert config.k_boltzmann == 1.38e-23
         assert config.T_env == 310.0
-        assert config.kappa_meta == 1.0
+        assert config.kappa_meta == 1e20
         assert config.kappa_units == "dimensionless"
 
     def test_default_bold(self):

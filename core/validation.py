@@ -222,8 +222,8 @@ def _validate_precision_parameters(config: dict) -> None:
     Spec §2.2: Precision bounds Π_min < Π_max
     Spec §2.2: Clamping prevents numerical issues
     """
-    pi_min = config.get("pi_min", 1e-4)
-    pi_max = config.get("pi_max", 1e4)
+    pi_min = config.get("pi_min", 0.01)
+    pi_max = config.get("pi_max", 10.0)
 
     if pi_min <= 0:
         raise ValidationError(
@@ -240,7 +240,7 @@ def _validate_precision_parameters(config: dict) -> None:
     if pi_max / pi_min > 1e8:
         warnings.warn(
             f"Precision range very large: pi_max/pi_min = {pi_max / pi_min:.1e}. "
-            "May cause numerical issues. Spec §2.2 recommends (0.01, 100). "
+            "May cause numerical issues. Spec §2.2 recommends (0.01, 10.0). "
             "Use strict_mode=True to enforce strict validation.",
             RuntimeWarning,
             stacklevel=2,
@@ -258,7 +258,7 @@ def _validate_learning_rates(config: dict) -> None:
 
     kappa_e = config.get("kappa_e", 0.01)
     kappa_i = config.get("kappa_i", 0.01)
-    pi_max = config.get("pi_max", 1e4)
+    pi_max = config.get("pi_max", 10.0)
 
     max_kappa = 2.0 / pi_max
 

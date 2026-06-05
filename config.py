@@ -96,7 +96,7 @@ CONFIG = {
     "use_thermodynamic_cost": False,  # Enable Landauer's principle
     "k_boltzmann": 1.38e-23,  # Boltzmann constant (J/K)
     "T_env": 310.0,  # Environmental temperature (K, body temp)
-    "kappa_meta": 1.0,  # Metabolic efficiency factor
+    "kappa_meta": 1e20,  # Metabolic efficiency factor (absorbs Joules→AU unit conversion)
     "kappa_units": "dimensionless",  # "dimensionless" or "joules_per_bit"
     # BOLD fMRI calibration for energy conversion
     "use_bold_calibration": False,  # Enable BOLD-to-Joule conversion

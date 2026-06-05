@@ -270,18 +270,21 @@ class TestComputeMetabolicCostRealisticExtended:
         assert result >= 0.01
 
     def test_kappa_meta_parameter(self):
-        """Should use kappa_meta parameter."""
+        """Should use kappa_meta to scale Landauer cost (κ_meta absorbs unit conversion)."""
+        # Use kappa_meta values large enough for the Landauer term to dominate
+        # base_cost (c1*S ≈ 1.0).  With the scale_factor removed, κ_meta carries
+        # the J→AU unit conversion; canonical default is 1e20.
         result1 = compute_metabolic_cost_realistic(
             S=1.0,
             B_prev=0,
             enforce_landauer=True,
-            kappa_meta=1.0,
+            kappa_meta=1e20,
         )
         result2 = compute_metabolic_cost_realistic(
             S=1.0,
             B_prev=0,
             enforce_landauer=True,
-            kappa_meta=2.0,
+            kappa_meta=2e20,
         )
         # Higher kappa_meta should increase Landauer cost
         assert result2 > result1

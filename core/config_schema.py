@@ -27,7 +27,7 @@ class APGIConfig(BaseModel):
     # Numerical stability
     eps: float = Field(default=1e-8, gt=0, lt=1, description="Numerical stability threshold")
     pi_min: float = Field(default=0.01, gt=0, description="Minimum precision")
-    pi_max: float = Field(default=100.0, gt=0, description="Maximum precision")
+    pi_max: float = Field(default=10.0, gt=0, description="Maximum precision")
 
     # EMA variance update
     alpha_e: float = Field(default=0.05, gt=0, lt=1, description="Exteroceptive EMA rate")
@@ -113,7 +113,11 @@ class APGIConfig(BaseModel):
     use_thermodynamic_cost: bool = Field(default=False, description="Enable Landauer cost")
     k_boltzmann: float = Field(default=1.38e-23, gt=0, description="Boltzmann constant")
     T_env: float = Field(default=310.0, gt=0, description="Environmental temperature (K)")
-    kappa_meta: float = Field(default=1.0, gt=0, description="Metabolic efficiency factor")
+    kappa_meta: float = Field(
+        default=1e20,
+        gt=0,
+        description="Metabolic efficiency factor (absorbs Joules→AU unit conversion)",
+    )
     kappa_units: Literal["dimensionless", "joules_per_bit"] = Field(
         default="dimensionless", description="Metabolic cost units"
     )

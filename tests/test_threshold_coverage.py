@@ -24,14 +24,14 @@ def test_compute_metabolic_cost_realistic():
     # Basic
     assert pytest.approx(compute_metabolic_cost_realistic(1.0, 1, c1=2.0, c2=0.5)) == 2.5
 
-    # Landauer enforcement
+    # Landauer enforcement (kappa_meta=1e20 absorbs J→AU unit conversion)
     # S=1.0, eps=0.1 -> n_erase = log2(10) ~ 3.32
-    # E_min = 3.32 * k_b * T * ln(2) ~ 1e-20
-    # Scaled = 1e-20 * 1e20 = 1.0
+    # E_phys = 3.32 * k_b * T * ln(2) ~ 1e-20 J
+    # E_scaled = 1e-20 * kappa_meta = 1e-20 * 1e20 = 1.0
     # base_cost = 0.1 * 1.0 + 0 = 0.1
     # max(0.1, 1.0) = 1.0
     cost = compute_metabolic_cost_realistic(
-        1.0, 0, c1=0.1, c2=0.0, eps_stab=0.1, enforce_landauer=True
+        1.0, 0, c1=0.1, c2=0.0, eps_stab=0.1, enforce_landauer=True, kappa_meta=1e20
     )
     assert cost > 0.1
 

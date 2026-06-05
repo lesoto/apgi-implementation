@@ -107,8 +107,8 @@ def compute_interoceptive_precision_exponential(
     pi_baseline: float,
     beta_somatic: float,
     M: float,
-    pi_min: float = 1e-4,
-    pi_max: float = 1e4,
+    pi_min: float = 0.01,
+    pi_max: float = 10.0,
 ) -> float:
     """Compute interoceptive precision with exponential somatic modulation.
 
@@ -193,8 +193,8 @@ def update_precision_euler(
     pi: float,
     dpi_dt: float,
     dt: float,
-    pi_min: float = 1e-4,
-    pi_max: float = 1e4,
+    pi_min: float = 0.01,
+    pi_max: float = 10.0,
 ) -> float:
     """Update precision using Euler integration: Π(t+dt) = Π(t) + dt·dΠ/dt."""
 

@@ -624,16 +624,28 @@ class APGIPipeline:
         tau_s = self.config.get("tau_s", 5.0)
         adaptive_noise_std = compute_precision_coupled_noise_std(pi_e_eff, pi_i_eff)
 
+        # Step Kuramoto oscillators here (before S integration) so Γ gates S_inst
+        # per spec §12 rather than being applied post-hoc to accumulated self.S.
+        # Kuramoto phase dynamics are independent of the within-step APGI state,
+        # so stepping early is safe and produces the correct causal ordering.
+        _kuramoto_gamma = 1.0  # default: no gating
+        _kuramoto_result_cache: dict | None = None
+        if self.kuramoto is not None:
+            _kuramoto_result_cache = self.kuramoto.step(dt=dt)
+            _kuramoto_gamma = self.kuramoto.oscillators.compute_gamma()
+
         # Use hierarchical aggregation if enabled, otherwise single-scale
         if self.use_hierarchical:
-            # Spec §12: S_inst^(l) = Π_l · φ(ε_l)
-            # φ(ε_l) is the INSTANTANEOUS phi-transformed prediction error (not the EMA
-            # feature phi_e_levels which converges to ≈0 for zero-mean z-scores).
-            # The multi-scale structure enters through the per-level precision weights Π_l,
-            # not by smoothing the error itself.  phi_e_levels / phi_i_levels are retained
-            # as slow state variables for the threshold-cascade computation (lines below).
-            phi_inst = phi_e_n + phi_i_eff  # current instantaneous combined signal
-            phi_combined = np.full(self.n_levels, phi_inst)  # broadcast across levels
+            # Spec §12: S_inst^(l) = Π_l · φ(ε_l) · Γ^(l)
+            # Per-level φ(ε_l) is computed from per-level z-scores so that each
+            # hierarchy level contributes its own instantaneous error signal.
+            # phi_e_levels / phi_i_levels are the slow EMA features retained for
+            # threshold-cascade computation; they are not used here.
+            _z_e_lev, _z_i_lev = self._compute_per_level_errors(z_e, z_i)
+            _phi_e_lev = phi_transform_array(_z_e_lev, _a_pos, _a_neg, _g_pos, _g_neg)
+            _phi_i_lev = phi_transform_array(_z_i_lev, _a_pos, _a_neg, _g_pos, _g_neg)
+            # Combine exteroceptive and interoceptive per-level signals, then gate by Γ
+            phi_combined = (_phi_e_lev + _phi_i_lev) * _kuramoto_gamma
 
             # Use hierarchical precision if available, otherwise compute from per-level variance
             if self.hierarchical_network is not None:
@@ -687,6 +699,10 @@ class APGIPipeline:
         else:
             S_inst = instantaneous_signal_phi(phi_e_n, phi_i_eff, pi_e_eff, pi_i_eff)
 
+        # Gate single-scale ODE inputs by Γ so S_inst = Π·φ(ε)·Γ per spec §12.
+        _phi_e_gated = phi_e_n * _kuramoto_gamma
+        _phi_i_gated = phi_i_eff * _kuramoto_gamma
+
         # Wire dynamics.py (update_signal_ode) OR discrete leaky accumulation
         # dt, tau_s, and adaptive_noise_std already resolved above.
 
@@ -696,18 +712,25 @@ class APGIPipeline:
         if self.resonance_system is not None:
             # ODE accumulation (resonance manages phases+thresholds, not S)
             self.S = update_signal_ode(
-                self.S, phi_e_n, phi_i_eff, pi_e_eff, pi_i_eff, tau_s, dt, adaptive_noise_std
+                self.S,
+                _phi_e_gated,
+                _phi_i_gated,
+                pi_e_eff,
+                pi_i_eff,
+                tau_s,
+                dt,
+                adaptive_noise_std,
             )
         elif self.config.get("use_canonical_discrete_mode", False):
-            # Discrete canonical mode: S(t+1) = (1-λ)S(t) + λS_inst(t)
+            # Discrete canonical mode: S(t+1) = (1-λ)S(t) + λ·S_inst(t)·Γ per spec §12
             lam = self.config["lam"]
-            self.S = integrate_signal_leaky(self.S, S_inst, lam)
+            self.S = integrate_signal_leaky(self.S, S_inst * _kuramoto_gamma, lam)
         else:
-            # ODE mode: dS/dt = -S/τ_S + Π_e·φ(ε_e) + Π_i·φ(ε_i) + σ·dW
+            # ODE mode: dS/dt = -S/τ_S + Π_e·φ(ε_e)·Γ + Π_i·φ(ε_i)·Γ + σ·dW
             self.S = update_signal_ode(
                 self.S,
-                phi_e_n,
-                phi_i_eff,
+                _phi_e_gated,
+                _phi_i_gated,
                 pi_e_eff,
                 pi_i_eff,
                 tau_s,
@@ -728,7 +751,7 @@ class APGIPipeline:
             if self.config.get("use_bold_calibration", False):
                 bold_calibration = {
                     "bold_signal_change": 2.0,  # Default 2% BOLD change
-                    "conversion_factor": self.config.get("bold_conversion_factor", 1.2e-6),
+                    "conversion_factor": self.config.get("bold_conversion_factor", 1.2e-18),
                     "tissue_volume": self.config.get("bold_tissue_volume", 1.0),
                     "ignition_spike_factor": self.config.get("bold_ignition_spike_factor", 1.075),
                 }
@@ -739,7 +762,7 @@ class APGIPipeline:
                 self.config["c1"],
                 self.config["c2"],
                 enforce_landauer=self.config.get("use_thermodynamic_cost", False),
-                kappa_meta=self.config.get("kappa_meta", 1.0),
+                kappa_meta=self.config.get("kappa_meta", 1e20),
                 kappa_units=self.config.get("kappa_units", "dimensionless"),
                 bold_calibration=(bold_calibration if bold_calibration is not None else {}),
             )
@@ -760,7 +783,7 @@ class APGIPipeline:
                 self.config["eps"],
                 k_b=self.config.get("k_boltzmann", 1.38e-23),
                 T_env=self.config.get("T_env", 310.0),
-                kappa_meta=self.config.get("kappa_meta", 1.0),
+                kappa_meta=self.config.get("kappa_meta", 1e20),
                 kappa_units=self.config.get("kappa_units", "dimensionless"),
             )
             bits_erased = compute_information_bits(self.S, self.config["eps"])
@@ -1099,17 +1122,12 @@ class APGIPipeline:
             result["reservoir_state_norm"] = float(np.linalg.norm(self.reservoir.x))
 
         # Add Kuramoto oscillator info if enabled (§9)
-        if self.kuramoto is not None:
-            kuramoto_result = self.kuramoto.step(dt=dt)
-            result["kuramoto_phases"] = kuramoto_result["phases"].tolist()
-            result["kuramoto_synchronization"] = kuramoto_result["synchronization"]
-
-            # Apply oscillatory synchrony gate Γ to S per spec §12:
-            # S_inst^(l) = Π · φ(ε) · Γ^(l)(t)
-            # Γ is the mean signed pairwise phase coherence across the oscillator pop.
-            gamma = self.kuramoto.oscillators.compute_gamma()
-            self.S = self.S * gamma
-            result["kuramoto_gamma"] = gamma
+        # Oscillators were already stepped before S integration (above); use cached result.
+        if self.kuramoto is not None and _kuramoto_result_cache is not None:
+            result["kuramoto_phases"] = _kuramoto_result_cache["phases"].tolist()
+            result["kuramoto_synchronization"] = _kuramoto_result_cache["synchronization"]
+            # Γ was already applied inside S_inst (not retroactively on accumulated self.S)
+            result["kuramoto_gamma"] = _kuramoto_gamma
 
             # Apply phase reset on ignition
             if B_t == 1:

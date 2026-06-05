@@ -44,15 +44,15 @@ def test_metabolic_cost_landauer_enforcement():
     cost_no_landauer = compute_metabolic_cost_realistic(S, B_prev, c1, c2, enforce_landauer=False)
     assert cost_no_landauer == pytest.approx(0.5)
 
-    # With landauer enforcement
+    # With landauer enforcement (kappa_meta=1e20 absorbs J→AU unit conversion)
     cost_with_landauer = compute_metabolic_cost_realistic(
-        S, B_prev, c1, c2, enforce_landauer=True, kappa_meta=1.0
+        S, B_prev, c1, c2, enforce_landauer=True, kappa_meta=1e20
     )
 
     # Compute manually:
     # N = log2(5.0 / 1e-6) = 22.25
-    # E = 22.25 * 1.38e-23 * 310 * 0.693 = 6.6e-20
-    # Scaled E = 6.6
+    # E_phys = 22.25 * 1.38e-23 * 310 * 0.693 = 6.6e-20 J
+    # E_scaled = E_phys * kappa_meta = 6.6e-20 * 1e20 = 6.6
     # max(0.5, 6.6) = 6.6
 
     assert cost_with_landauer > cost_no_landauer

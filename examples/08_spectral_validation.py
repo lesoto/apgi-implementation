@@ -378,7 +378,12 @@ def main() -> None:
 
     # Try to generate plot if matplotlib available
     try:
+        import matplotlib
         import matplotlib.pyplot as plt
+
+        # Configure matplotlib to avoid TeX font fallback warnings
+        matplotlib.rcParams["text.usetex"] = False
+        matplotlib.rcParams["font.family"] = "DejaVu Sans"
 
         print("\nGenerating comparison plot...")
 

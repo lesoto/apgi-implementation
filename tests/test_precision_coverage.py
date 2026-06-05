@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 
 from core.precision import (
@@ -52,9 +51,9 @@ def test_gains():
 
 
 def test_interoceptive_precision_exponential():
-    # pi = 10 * exp(0.5 * 2) = 10 * e ~ 27.18
+    # raw = 10 * exp(0.5 * 2) = 10 * e ≈ 27.18, clamped to pi_max=10.0 per spec
     res = compute_interoceptive_precision_exponential(10.0, 0.5, 2.0)
-    assert pytest.approx(res) == 10.0 * np.exp(1.0)
+    assert pytest.approx(res) == 10.0  # spec-mandated Π_max clamp applies
 
 
 def test_precision_coupling_ode_core():

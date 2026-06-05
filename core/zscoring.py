@@ -73,9 +73,12 @@ class ZScoreWindow:
         self._sum_sq += float(epsilon) * float(epsilon)
         self._count += 1
 
-        # Compute statistics
+        # Compute statistics (Bessel-corrected for small-window bias per spec)
         mean = self._sum / self._count if self._count > 0 else 0.0
-        variance = (self._sum_sq / self._count - mean**2) if self._count > 0 else 1.0
+        if self._count > 1:
+            variance = (self._sum_sq - self._count * mean**2) / (self._count - 1)
+        else:
+            variance = 1.0
         std = np.sqrt(max(variance, 0.0))
 
         # Return z-score
@@ -90,7 +93,10 @@ class ZScoreWindow:
             return {"mean": 0.0, "std": 1.0, "n": 0}
 
         mean = self._sum / self._count
-        variance = self._sum_sq / self._count - mean**2
+        if self._count > 1:
+            variance = (self._sum_sq - self._count * mean**2) / (self._count - 1)
+        else:
+            variance = 0.0
         std = np.sqrt(max(variance, 0.0))
 
         return {"mean": float(mean), "std": float(std), "n": self._count}

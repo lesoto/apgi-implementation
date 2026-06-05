@@ -125,10 +125,12 @@ class TestRunMultiscalePipeline:
         results = run_multiscale_pipeline(n_steps=5, n_levels=3, timescale_k=1.6)
         timescales = results["timescales"]
         assert len(timescales) == 3
-        assert timescales[0] == 1.0  # tau0
+        assert timescales[0] == 10.0  # tau0 (spec appendix: τ_0 > 1; canonical default 10)
         # Check geometric progression
-        assert timescales[1] == timescales[0] * 1.6
-        assert timescales[2] == timescales[1] * 1.6
+        import pytest as _pytest
+
+        assert timescales[1] == _pytest.approx(timescales[0] * 1.6)
+        assert timescales[2] == _pytest.approx(timescales[1] * 1.6)
 
     def test_run_multiscale_pipeline_weights(self) -> None:
         """Test that weights are normalized."""
