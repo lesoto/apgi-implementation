@@ -1,5 +1,5 @@
 [run]
-source =
+source_pkgs =
     active_inference
     analysis
     core
@@ -9,9 +9,10 @@ source =
     reservoir
     stats
     validation
+source =
+    examples
 omit =
     tests/*
-    examples/*
     delete_pycache.py
     */__pycache__/*
     */*.pyc
@@ -19,7 +20,6 @@ omit =
 [report]
 omit =
     tests/*
-    examples/*
     delete_pycache.py
     */__pycache__/*
     */*.pyc

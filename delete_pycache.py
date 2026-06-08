@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-APGI Validation Cleanup Script
+APGI Cleanup Script
 
 This script removes temporary files and output directories generated during validation processes.
 

@@ -263,9 +263,7 @@ def validate_lorentzian_superposition(
     # multiscale abs-sum aggregate is biased toward β>1.5 due to rectification.
     s_arr = np.array(pipeline.history["S"])
     freqs_s, psd_s = welch_periodogram(s_arr, fs=fs)
-    pink_validation = validate_pink_noise(
-        freqs_s, psd_s, beta_target=1.0, tolerance=0.5
-    )
+    pink_validation = validate_pink_noise(freqs_s, psd_s, beta_target=1.0, tolerance=0.5)
 
     print(f"\nPink noise validation:")
     print(f"  Is pink noise: {pink_validation['is_pink_noise']}")
