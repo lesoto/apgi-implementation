@@ -1,5 +1,4 @@
 """Tests for Active Inference Action Loop — §19 APGI Full Specs.
-
 Coverage:
 - compute_expected_free_energy: correct component computation
 - ActiveInferenceAgent.select_policy: argmin F, Boltzmann softmax
@@ -30,7 +29,6 @@ from active_inference.policy import (
 
 
 class TestComputeExpectedFreeEnergy:
-
     def test_zero_everything_returns_finite(self):
         F = compute_expected_free_energy(
             sigma2_e=0.0,
@@ -139,7 +137,6 @@ class TestComputeExpectedFreeEnergy:
 
 
 class TestSelectPolicy:
-
     def _agent(self, **kwargs) -> ActiveInferenceAgent:
         return ActiveInferenceAgent(n_actions=3, **kwargs)
 
@@ -206,7 +203,6 @@ class TestSelectPolicy:
 
 
 class TestApplyActionFeedback:
-
     def _agent(self) -> ActiveInferenceAgent:
         return ActiveInferenceAgent(
             n_actions=3,
@@ -277,7 +273,6 @@ class TestApplyActionFeedback:
 
 
 class TestAgentConstruction:
-
     def test_default_params_shape(self):
         params = default_action_params()
         assert params.shape == (3, 3)
@@ -302,7 +297,6 @@ class TestAgentConstruction:
 
 
 class TestPipelineActiveInference:
-
     def _cfg(self, **overrides):
         from config import CONFIG
 

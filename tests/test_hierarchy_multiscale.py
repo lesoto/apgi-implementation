@@ -1,5 +1,4 @@
 """Comprehensive unit tests for hierarchy/multiscale.py module.
-
 Tests cover:
 - build_timescales function
 - update_multiscale_feature function
@@ -47,10 +46,8 @@ class TestBuildTimescales:
         """Should raise ValueError for invalid parameters."""
         with pytest.raises(ValueError, match="tau0 must be > 0"):
             build_timescales(tau0=0, k=2.0, n_levels=3)
-
         with pytest.raises(ValueError, match="k must be > 1"):
             build_timescales(tau0=10.0, k=1.0, n_levels=3)
-
         with pytest.raises(ValueError, match="n_levels must be > 0"):
             build_timescales(tau0=10.0, k=2.0, n_levels=0)
 
@@ -151,7 +148,6 @@ class TestAggregateMultiscaleSignal:
         phi_values = np.array([1.0, 2.0, 3.0])
         pi_values = np.array([1.0, 1.0, 1.0])
         weights = np.array([0.5, 0.3, 0.2])
-
         result = aggregate_multiscale_signal(phi_values, pi_values, weights)
         # S = 0.5*1*1 + 0.3*1*2 + 0.2*1*3 = 0.5 + 0.6 + 0.6 = 1.7
         expected = 1.7
@@ -189,7 +185,6 @@ class TestAggregateMultiscaleSignal:
         phi_values = [1.0, 2.0, 3.0]
         pi_values = [1.0, 1.0, 1.0]
         weights = [0.5, 0.3, 0.2]
-
         result = aggregate_multiscale_signal(phi_values, pi_values, weights)
         expected = 1.7
         assert pytest.approx(result, rel=1e-10) == expected
@@ -199,7 +194,6 @@ class TestAggregateMultiscaleSignal:
         phi_values = np.array([-1.0, -2.0, -3.0])
         pi_values = np.array([1.0, 1.0, 1.0])
         weights = np.array([0.5, 0.3, 0.2])
-
         result = aggregate_multiscale_signal(phi_values, pi_values, weights)
         # abs(phi) makes them positive
         expected = 1.7

@@ -1,5 +1,4 @@
 """Tests for the five spec-compliance fixes.
-
 Covers:
   §9  — W_inh divisive normalization in LiquidStateMachine
   §10 — Three criticality phase-transition signatures
@@ -73,15 +72,12 @@ class TestLSMWinh:
         """Divisive normalization ON vs OFF must produce different state updates."""
         lsm = LiquidStateMachine(N=30, M=2, inh_scale=0.5, sigma_inh2=0.5, seed=7)
         u = np.array([2.0, -1.5])
-
         # Step with normalization on
         x_before = lsm.x.copy()
         x_on = lsm.step(u.copy(), tau=1.0, dt=0.1, use_divisive_normalization=True)
-
         # Reset state and step without normalization
         lsm.x[:] = x_before
         x_off = lsm.step(u.copy(), tau=1.0, dt=0.1, use_divisive_normalization=False)
-
         # The two modes must produce different activations
         assert not np.allclose(x_on, x_off)
 
@@ -93,7 +89,6 @@ class TestLSMWinh:
         # Dense W_inh so every neuron receives inhibitory input
         W_inh = np.abs(rng.standard_normal((N, N))) * 0.3
         sigma_inh2 = 1.0  # ≥ 1 guarantees normalization reduces magnitude
-
         expected = f_drive / (sigma_inh2 + W_inh @ np.abs(f_drive))
         # With σ²=1 and positive W_inh·|f|, denominator > 1 → all elements shrunk
         assert np.all(np.abs(expected) <= np.abs(f_drive) + 1e-12)

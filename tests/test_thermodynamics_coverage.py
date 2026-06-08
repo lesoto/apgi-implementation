@@ -20,13 +20,10 @@ def test_compute_landauer_cost():
     # E_min = 1.0 * 1.0 * k_b * T * ln(2)
     expected = 1.0 * K_BOLTZMANN * T_ENV_DEFAULT * LN2
     assert pytest.approx(compute_landauer_cost(1.0, 0.5)) == expected
-
     # joules_per_bit mode
     assert compute_landauer_cost(1.0, 0.5, kappa_meta=2.0, kappa_units="joules_per_bit") == 2.0
-
     # S <= eps -> 0
     assert compute_landauer_cost(0.4, 0.5) == 0.0
-
     # Errors
     with pytest.raises(ValueError, match="eps must be > 0"):
         compute_landauer_cost(1.0, 0.0)
@@ -45,7 +42,6 @@ def test_compute_landauer_cost_batch():
     costs = compute_landauer_cost_batch(S_vals, eps=0.5)
     assert costs[0] == 0.0
     assert pytest.approx(costs[1]) == K_BOLTZMANN * T_ENV_DEFAULT * LN2
-
     # joules_per_bit batch
     costs_j = compute_landauer_cost_batch(
         S_vals, eps=0.5, kappa_meta=10.0, kappa_units="joules_per_bit"
@@ -58,18 +54,15 @@ def test_validate_thermodynamic_constraint():
     # satisfied
     res = validate_thermodynamic_constraint(1e-10, 1.0, 0.5)
     assert res["satisfied"] is True
-
     # violated
     res_v = validate_thermodynamic_constraint(0.0, 1.0, 0.5)
     assert res_v["satisfied"] is False
     assert res_v["violation"] > 0
-
     # S <= eps case
     res_small = validate_thermodynamic_constraint(1.0, 0.1, 0.5)
     assert res_small["satisfied"] is True
     assert res_small["E_min"] == 0.0
     assert res_small["ratio"] == float("inf")
-
     res_zero = validate_thermodynamic_constraint(0.0, 0.1, 0.5)
     assert res_zero["ratio"] == 1.0
 
@@ -85,12 +78,10 @@ def test_inverse_calculations():
     cost = K_BOLTZMANN * T_ENV_DEFAULT * LN2
     assert pytest.approx(compute_metabolic_efficiency(cost, 1.0, 0.5)) == 1.0
     assert pytest.approx(estimate_temperature_from_cost(cost, 1.0, 0.5)) == T_ENV_DEFAULT
-
     with pytest.raises(ValueError, match="S must be > eps"):
         compute_metabolic_efficiency(1.0, 0.1, 0.5)
     with pytest.raises(ValueError, match="S must be > eps"):
         estimate_temperature_from_cost(1.0, 0.1, 0.5)
-
     # Zero denominator cases
     with pytest.raises(ValueError, match="Denominator is zero"):
         compute_metabolic_efficiency(1.0, 1.0, 0.5, k_b=0.0)

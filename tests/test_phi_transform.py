@@ -1,5 +1,4 @@
 """Unit tests for core/phi_transform.py — §6 Signed Nonlinear Transform.
-
 Covers:
 - Scalar phi_transform: positive/negative branch correctness
 - Vectorized phi_transform_array

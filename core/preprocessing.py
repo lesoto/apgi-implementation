@@ -23,10 +23,8 @@ class RunningStats:
 
     def variance(self, bessel_correction: bool = True) -> float:
         """Compute variance with optional Bessel correction for unbiased estimation.
-
         Args:
             bessel_correction: If True, use N-1 denominator (unbiased). If False, use N (MLE).
-
         Returns:
             Sample variance with Bessel correction if enabled.
         """
@@ -43,7 +41,6 @@ class RunningStats:
 
 class EMAStats:
     """Online EMA stats (Method A in §1.2).
-
     Implements:
     μ(t+1) = (1-α)μ(t) + α·z(t)
     σ²(t+1) = (1-α)σ²(t) + α·(z-μ)²
@@ -78,15 +75,12 @@ def compute_prediction_error(x: float, x_hat: float) -> float:
 
 def update_prediction(x_hat: float, epsilon: float, pi: float, kappa: float) -> float:
     """Update prediction via precision-weighted gradient descent (§1.4).
-
     x̂(t+1) = x̂(t) + κ · Π(t) · ε(t)
-
     Args:
         x_hat: Current prediction
         epsilon: Prediction error
         pi: Precision weight
         kappa: Learning rate (stability: κ < 2/Π_max)
-
     Returns:
         Updated prediction x̂(t+1)
     """
@@ -95,11 +89,9 @@ def update_prediction(x_hat: float, epsilon: float, pi: float, kappa: float) -> 
 
 def normalize_error(z: float, sigma: float, eps: float = 1e-8) -> float:
     """~z = z/(σ+ε)."""
-
     return float(z / (abs(sigma) + eps))
 
 
 def z_score(epsilon: float, stats: RunningStats, eps: float = 1e-8) -> float:
     """Optional standardized form (ε-μ)/σ for stationary pipelines."""
-
     return float((epsilon - stats.mean()) / max(stats.std(), eps))

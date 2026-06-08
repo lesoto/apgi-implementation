@@ -1,5 +1,4 @@
 """Unit tests for thermodynamics module (Landauer's principle).
-
 Tests APGI Spec §11: Thermodynamic Constraints
 """
 
@@ -105,13 +104,10 @@ class TestLandauerCost:
         k_b = K_BOLTZMANN
         T_env = T_ENV_DEFAULT
         kappa_meta = 1.0
-
         cost = compute_landauer_cost(S, eps, k_b, T_env, kappa_meta)
-
         # Manual computation
         n_erase = np.log2(S / eps)
         expected = kappa_meta * n_erase * k_b * T_env * LN2
-
         assert np.isclose(cost, expected, rtol=1e-10)
 
 
@@ -122,7 +118,6 @@ class TestBatchComputation:
         """Batch computation should match scalar computation."""
         S_vals = np.array([0.1, 0.5, 1.0, 2.0])
         costs_batch = compute_landauer_cost_batch(S_vals, eps=0.01)
-
         for i, S in enumerate(S_vals):
             cost_scalar = compute_landauer_cost(S, eps=0.01)
             assert np.isclose(costs_batch[i], cost_scalar)
@@ -172,10 +167,8 @@ class TestMetabolicEfficiency:
         S = 1.0
         eps = 0.01
         kappa_meta_true = 2.0
-
         cost = compute_landauer_cost(S, eps, kappa_meta=kappa_meta_true)
         kappa_meta_est = compute_metabolic_efficiency(cost, S, eps)
-
         assert np.isclose(kappa_meta_est, kappa_meta_true, rtol=1e-6)
 
     def test_invalid_signal(self):
@@ -197,10 +190,8 @@ class TestTemperatureEstimation:
         S = 1.0
         eps = 0.01
         T_env_true = 310.0
-
         cost = compute_landauer_cost(S, eps, T_env=T_env_true)
         T_env_est = estimate_temperature_from_cost(cost, S, eps)
-
         assert np.isclose(T_env_est, T_env_true, rtol=1e-6)
 
     def test_invalid_signal(self):
@@ -223,9 +214,7 @@ class TestThermodynamicConstraintValidation:
         eps = 0.01
         E_min = compute_landauer_cost(S, eps)
         C = 2.0 * E_min  # Twice the minimum
-
         result = validate_thermodynamic_constraint(C, S, eps)
-
         assert result["satisfied"] is True
         assert result["ratio"] >= 1.0
 
@@ -235,9 +224,7 @@ class TestThermodynamicConstraintValidation:
         eps = 0.01
         E_min = compute_landauer_cost(S, eps)
         C = 0.5 * E_min  # Half the minimum
-
         result = validate_thermodynamic_constraint(C, S, eps, tolerance=0.01)
-
         assert result["satisfied"] is False
         assert result["violation"] > 0.0
 
@@ -254,7 +241,6 @@ class TestTrajectoryAnalysis:
         """Trajectory analysis should return correct shapes."""
         S_hist = np.array([0.1, 0.5, 1.0, 0.5, 0.1])
         result = thermodynamic_cost_trajectory(S_hist, eps=0.01)
-
         assert result["costs"].shape == S_hist.shape
         assert result["bits_history"].shape == S_hist.shape
         assert len(result["costs"]) == len(S_hist)
@@ -263,7 +249,6 @@ class TestTrajectoryAnalysis:
         """Trajectory statistics should be computed correctly."""
         S_hist = np.array([0.1, 0.5, 1.0, 0.5, 0.1])
         result = thermodynamic_cost_trajectory(S_hist, eps=0.01)
-
         assert result["total_cost"] == np.sum(result["costs"])
         assert result["mean_cost"] == np.mean(result["costs"])
         assert result["max_cost"] == np.max(result["costs"])
@@ -273,7 +258,6 @@ class TestTrajectoryAnalysis:
         """Cost should increase with signal magnitude."""
         S_hist = np.array([0.1, 0.5, 1.0, 2.0])
         result = thermodynamic_cost_trajectory(S_hist, eps=0.01)
-
         # Costs should be non-decreasing (allowing for numerical precision)
         for i in range(len(result["costs"]) - 1):
             assert result["costs"][i + 1] >= result["costs"][i] - 1e-10

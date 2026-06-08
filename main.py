@@ -1,10 +1,8 @@
 """APGI (Adaptive Precision Gated Ignition) - Main Entry Point
-
 Available Options:
     --demo, --steps, --output, --multiscale, --levels, --k
     --ne-on-threshold, --gamma-ne, --beta, --stochastic, --seed
     --log-level, --json-logs, --max-history, --strict-mode
-
 Example usage:
     python main.py --steps 1000 --output results.json
     python main.py --demo  # Run demonstration with synthetic data
@@ -33,19 +31,15 @@ logger = get_logger("apgi.main")
 
 def generate_synthetic_input(t: int, noise_std: float = 0.1) -> tuple[float, float, float, float]:
     """Generate synthetic exteroceptive and interoceptive signals.
-
     Returns:
         (x_e, x_hat_e, x_i, x_hat_i) - actual and predicted values
     """
-
     # Exteroceptive: external sensory signal with periodic component
     x_e = np.sin(0.05 * t) + 0.5 * np.sin(0.01 * t) + np.random.normal(0, noise_std)
     x_hat_e = np.sin(0.05 * t)  # Predictor sees only fast component
-
     # Interoceptive: internal signal (e.g., heart rate variability)
     x_i = 0.5 + 0.3 * np.cos(0.02 * t) + np.random.normal(0, noise_std * 0.5)
     x_hat_i = 0.5  # Baseline prediction
-
     return float(x_e), float(x_hat_e), float(x_i), float(x_hat_i)
 
 
@@ -56,20 +50,16 @@ def run_standard_pipeline(
     max_history: int | None = None,
 ) -> dict[str, Any]:
     """Run standard single-scale APGI pipeline.
-
     Args:
         n_steps: Number of simulation steps
         config: Optional custom configuration (uses default CONFIG if None)
         progress_interval: Print progress every N steps
         max_history: Maximum history size to prevent unbounded memory growth (None = unlimited)
-
     Returns:
         Dictionary with simulation results and statistics
     """
-
     cfg = config or CONFIG.copy()
     pipeline = APGIPipeline(cfg)
-
     # Pre-allocate history with optional bounded memory
     history: dict[str, list[float] | deque[float]]
     if max_history is None or n_steps <= max_history:
@@ -98,7 +88,6 @@ def run_standard_pipeline(
             "V": deque(maxlen=max_history),
         }
         use_ring_buffer = True
-
     logger.info(
         "starting_standard_pipeline",
         n_steps=n_steps,
@@ -106,19 +95,14 @@ def run_standard_pipeline(
         initial_threshold=pipeline.theta,
         initial_signal=pipeline.S,
     )
-
     ignition_count = 0
-
     for t in range(n_steps):
         x_e, x_hat_e, x_i, x_hat_i = generate_synthetic_input(t)
         result = pipeline.step(x_e, x_hat_e, x_i, x_hat_i)
-
         for key in history:
             history[key].append(result[key])
-
         if result["B"] == 1:
             ignition_count += 1
-
         if (t + 1) % progress_interval == 0:
             logger.debug(
                 "step_progress",
@@ -129,7 +113,6 @@ def run_standard_pipeline(
                 ignite_probability=result["p_ignite"],
                 ignition=result["B"],
             )
-
     logger.info(
         "pipeline_completed",
         ignition_count=ignition_count,
@@ -137,11 +120,9 @@ def run_standard_pipeline(
         final_signal=pipeline.S,
         final_threshold=pipeline.theta,
     )
-
     # Convert deque to list if using ring buffer
     if use_ring_buffer:
         history = {k: list(v) for k, v in history.items()}
-
     return {
         "config": cfg,
         "n_steps": n_steps,
@@ -165,25 +146,20 @@ def run_multiscale_pipeline(
     max_history: int | None = None,
 ) -> dict[str, Any]:
     """Run multi-scale APGI pipeline (hierarchical timescales).
-
     Args:
         n_steps: Number of simulation steps
         n_levels: Number of timescale hierarchy levels
         timescale_k: Timescale expansion factor (recommended: 1.3-2.0)
         config: Optional custom configuration
         max_history: Maximum history size to prevent unbounded memory growth (None = unlimited)
-
     Returns:
         Dictionary with simulation results
     """
-
     cfg = config or CONFIG.copy()
     cfg["timescale_k"] = timescale_k
-
     tau0 = 10.0  # Spec appendix: τ_0 > 1; canonical default matches CONFIG
     taus = build_timescales(tau0, timescale_k, n_levels)
     weights = multiscale_weights(n_levels, timescale_k)
-
     logger.info(
         "starting_multiscale_pipeline",
         n_steps=n_steps,
@@ -193,17 +169,13 @@ def run_multiscale_pipeline(
         weights=weights.tolist(),
         max_history=max_history,
     )
-
     # Initialize multi-scale feature buffers and per-level EMA variances
     phi_e = np.zeros(n_levels)
     phi_i = np.zeros(n_levels)
     sigma2_levels = np.ones(n_levels)
-
     # Pre-compute EMA rates for vectorized updates
     alphas = np.minimum(1.0, 1.0 / taus)
-
     pipeline = APGIPipeline(cfg)
-
     # Pre-allocate history arrays for better memory efficiency
     history: dict[str, list[float] | deque[float]]
     if max_history is None or n_steps <= max_history:
@@ -225,30 +197,23 @@ def run_multiscale_pipeline(
             "theta": deque(maxlen=max_history),
         }
         use_ring_buffer = True
-
     ignition_count = 0
-
     # Pre-extract config values for performance
     eps = float(cfg.get("eps", 1e-8))  # type: ignore[arg-type]
     pi_min = float(cfg.get("pi_min", 0.01))  # type: ignore[arg-type]
     pi_max = float(cfg.get("pi_max", 10.0))  # type: ignore[arg-type]
-
     for t in range(n_steps):
         x_e, x_hat_e, x_i, x_hat_i = generate_synthetic_input(t)
         z_e = x_e - x_hat_e
         z_i = x_i - x_hat_i
-
         # Vectorized multi-scale feature updates (much faster than loop)
         # phi_e[i] = (1 - alphas[i]) * phi_e[i] + alphas[i] * z_e
         phi_e = (1.0 - alphas) * phi_e + alphas * z_e
         phi_i = (1.0 - alphas) * phi_i + alphas * z_i
-
         # Vectorized variance updates
         sigma2_levels = (1.0 - alphas) * sigma2_levels + alphas * (phi_e**2 + phi_i**2)
-
         # Vectorized precision computation
         pi_levels = np.clip(1.0 / (sigma2_levels + eps), pi_min, pi_max)
-
         # Aggregate signal using φ(ε) — asymmetric valence-specific transform (§6)
         _a_pos = float(cfg.get("alpha_plus", 1.0))  # type: ignore[arg-type]
         _a_neg = float(cfg.get("alpha_minus", 1.0))  # type: ignore[arg-type]
@@ -258,27 +223,21 @@ def run_multiscale_pipeline(
             phi_e, _a_pos, _a_neg, _g_pos, _g_neg
         ) + phi_transform_array(phi_i, _a_pos, _a_neg, _g_pos, _g_neg)
         S_multiscale = float(np.sum(weights * pi_levels * phi_combined))
-
         # Run standard pipeline for comparison
         result = pipeline.step(x_e, x_hat_e, x_i, x_hat_i)
-
         # Store results
         history["S_multiscale"].append(S_multiscale)
         history["S_standard"].append(result["S"])
         history["B"].append(result["B"])
         history["theta"].append(result["theta"])
-
         if result["B"] == 1:
             ignition_count += 1
-
         # Periodic progress logging for long runs
         if (t + 1) % 1000 == 0:
             logger.debug("multiscale_progress", step=t + 1, total=n_steps)
-
     # Convert deque to list for output if using ring buffer
     if use_ring_buffer:
         history = {k: list(v) for k, v in history.items()}
-
     logger.info(
         "multiscale_pipeline_completed",
         n_steps=n_steps,
@@ -287,7 +246,6 @@ def run_multiscale_pipeline(
         multiscale_s_range=[min(history["S_multiscale"]), max(history["S_multiscale"])],
         standard_s_range=[min(history["S_standard"]), max(history["S_standard"])],
     )
-
     return {
         "config": cfg,
         "n_steps": n_steps,
@@ -303,17 +261,13 @@ def analyze_signal_statistics(
     signal_history: list[float], label: str = "Signal"
 ) -> dict[str, float]:
     """Compute statistics and estimate Hurst exponent from signal history.
-
     Args:
         signal_history: Time series of signal values
         label: Label for print output
-
     Returns:
         Dictionary with computed statistics
     """
-
     signal = np.array(signal_history)
-
     stats = {
         "mean": float(np.mean(signal)),
         "std": float(np.std(signal)),
@@ -321,7 +275,6 @@ def analyze_signal_statistics(
         "max": float(np.max(signal)),
         "range": float(np.max(signal) - np.min(signal)),
     }
-
     # Estimate Hurst exponent if enough data
     if len(signal) >= 256:
         try:
@@ -349,13 +302,11 @@ def analyze_signal_statistics(
             required_points=256,
             **stats,
         )
-
     return stats
 
 
 def save_results(results: dict[str, Any], filepath: str) -> None:
     """Save simulation results to JSON file.
-
     Args:
         results: Dictionary with simulation results
         filepath: Output file path
@@ -372,10 +323,8 @@ def save_results(results: dict[str, Any], filepath: str) -> None:
         return obj
 
     serializable = convert(results)
-
     with open(filepath, "w") as f:
         json.dump(serializable, f, indent=2)
-
     logger.info("results_saved", filepath=filepath)
 
 
@@ -419,7 +368,6 @@ def show_info() -> None:
 
 def main() -> int:
     """Main entry point."""
-
     parser = argparse.ArgumentParser(
         description="APGI (Adaptive Precision Gated Ignition) Simulation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -432,14 +380,12 @@ Examples:
   %(prog)s --ne-on-threshold         # Use NE on threshold (not precision)
         """,
     )
-
     parser.add_argument(
         "info",
         nargs="?",
         const=True,
         help="Show system information and configuration",
     )
-
     parser.add_argument("--demo", action="store_true", help="Run quick demonstration")
     parser.add_argument("--steps", type=int, default=1000, help="Number of simulation steps")
     parser.add_argument("--output", type=str, help="Save results to JSON file")
@@ -489,22 +435,17 @@ Examples:
         default=True,
         help="Enable strict validation (no auto-adjustments)",
     )
-
     args = parser.parse_args()
-
     # Configure logging
     configure_logging(level=args.log_level, json_output=args.json_logs)
-
     # Set random seed if provided
     if args.seed is not None:
         np.random.seed(args.seed)
-
     # Build custom config from defaults + CLI overrides
     config = CONFIG.copy()
     config["beta"] = args.beta
     config["stochastic_ignition"] = args.stochastic
     config["strict_mode"] = args.strict_mode
-
     if args.ne_on_threshold:
         config["ne_on_precision"] = False
         config["ne_on_threshold"] = True
@@ -519,22 +460,18 @@ Examples:
             )
         else:
             logger.info("configuration", ne_modulation="threshold", gamma_ne=args.gamma_ne)
-
     if args.gamma_ne is not None:
         config["gamma_ne"] = args.gamma_ne
-
     logger.info(
         "apgi_startup",
         version="1.0.0",
         strict_mode=args.strict_mode,
         max_history=args.max_history,
     )
-
     try:
         if args.info:
             show_info()
             return 0
-
         if args.multiscale:
             results = run_multiscale_pipeline(
                 n_steps=args.steps,
@@ -551,13 +488,10 @@ Examples:
                 max_history=args.max_history,
             )
             analyze_signal_statistics(results["history"]["S"], "Standard Signal")
-
         if args.output:
             save_results(results, args.output)
-
         logger.info("simulation_complete", status="success")
         return 0
-
     except KeyboardInterrupt:
         logger.warning("simulation_interrupted", reason="user_interrupt")
         return 130

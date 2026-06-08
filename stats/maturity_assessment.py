@@ -1,11 +1,9 @@
 """Automated maturity assessment system for APGI implementation.
-
 Implements comprehensive maturity scoring combining:
 - Hierarchical Architecture (§8) assessment
 - Statistical Validation (§12) assessment
 - Overall system health scoring
 - Diagnostic recommendations
-
 Spec §15: Design Constraints and Maturity Metrics
 """
 
@@ -29,17 +27,14 @@ class MaturityScore:
     hierarchical_score: float  # §8 maturity (0-100)
     statistical_score: float  # §12 maturity (0-100)
     overall_score: float  # Overall maturity (0-100)
-
     # Component scores
     pac_score: float  # Phase-amplitude coupling quality
     cascade_score: float  # Threshold cascade effectiveness
     spectral_score: float  # 1/f signature quality
     coherence_score: float  # Cross-level coherence
-
     # Diagnostic info
     issues: list[str]  # List of identified issues
     recommendations: list[str]  # Improvement recommendations
-
     # Detailed metrics
     spectral_signature: Optional[SpectralSignature] = None
     hierarchical_coupling_strength: float = 0.0
@@ -54,35 +49,28 @@ def assess_hierarchical_architecture(
     fs: float = 1.0,
 ) -> tuple[float, float, float, list[str], list[str]]:
     """Assess hierarchical architecture maturity (§8).
-
     Evaluates:
     - Phase-amplitude coupling quality
     - Threshold cascade effectiveness
     - Cross-level coherence
     - Timescale separation
-
     Args:
         signal_levels: List of signals at each hierarchy level
         theta_levels: List of threshold trajectories
         phi_levels: List of phase trajectories
         pi_levels: List of precision trajectories
         fs: Sampling frequency (Hz)
-
     Returns:
         (pac_score, cascade_score, coherence_score, issues, recommendations)
     """
-
     issues = []
     recommendations = []
-
     n_levels = len(signal_levels)
-
     # 1. Phase-Amplitude Coupling Quality
     pac_score = 0.0
     if n_levels > 1:
         # Measure correlation between phase and threshold modulation
         pac_correlations = []
-
         for ell in range(n_levels - 1):
             # Correlation between higher level phase and this level's threshold
             if len(phi_levels[ell + 1]) > 0 and len(theta_levels[ell]) > 0:
@@ -94,20 +82,17 @@ def assess_hierarchical_architecture(
                         corr = np.corrcoef(a, b)[0, 1]
                         if not np.isnan(corr):
                             pac_correlations.append(abs(corr))
-
         if pac_correlations:
             pac_score = float(np.mean(pac_correlations) * 100)
         else:
             pac_score = 0.0
             issues.append("No phase-amplitude coupling detected")
             recommendations.append("Increase kappa_down coupling strength")
-
     # 2. Threshold Cascade Effectiveness
     cascade_score = 0.0
     if n_levels > 1:
         # Measure how much lower levels suppress upper levels
         cascade_effects = []
-
         for ell in range(1, n_levels):
             # Check if lower level ignitions suppress upper thresholds
             if len(signal_levels[ell - 1]) > 0 and len(theta_levels[ell]) > 0:
@@ -121,14 +106,12 @@ def assess_hierarchical_architecture(
                         if not np.isnan(corr):
                             # Negative correlation indicates suppression
                             cascade_effects.append(max(0, -corr))
-
         if cascade_effects:
             cascade_score = float(np.mean(cascade_effects) * 100)
         else:
             cascade_score = 0.0
             issues.append("No threshold cascade detected")
             recommendations.append("Increase kappa_up cascade strength")
-
     # 3. Cross-Level Coherence
     coherence_score = 0.0
     if n_levels > 1:
@@ -148,17 +131,14 @@ def assess_hierarchical_architecture(
                     # Average coherence in mid-frequency range
                     mid_idx = len(coh) // 2
                     coherences.append(np.mean(coh[mid_idx - 10 : mid_idx + 10]))
-
             if coherences:
                 coherence_score = float(np.mean(coherences) * 100)
             else:
                 coherence_score = 0.0
         except Exception:
             coherence_score = 0.0
-
     # Compute overall hierarchical score
     _ = float(0.4 * pac_score + 0.3 * cascade_score + 0.3 * coherence_score)
-
     # Check for issues
     if pac_score < 20:
         issues.append("Weak phase-amplitude coupling")
@@ -166,7 +146,6 @@ def assess_hierarchical_architecture(
         issues.append("Weak threshold cascade")
     if coherence_score < 20:
         issues.append("Low cross-level coherence")
-
     return pac_score, cascade_score, coherence_score, issues, recommendations
 
 
@@ -176,45 +155,36 @@ def assess_statistical_validation(
     fs: float = 1.0,
 ) -> tuple[float, float, float, list[str], list[str], Optional[SpectralSignature]]:
     """Assess statistical validation maturity (§12).
-
     Evaluates:
     - 1/f spectral signature quality
     - Spectral exponent confidence
     - Per-level spectral consistency
     - Goodness of fit
-
     Args:
         signal: Main signal time series
         signal_levels: Optional list of per-level signals
         fs: Sampling frequency (Hz)
-
     Returns:
         (spectral_score, confidence_score, consistency_score, issues, recommendations, signature)
     """
-
     issues = []
     recommendations = []
     spectral_signature = None
-
     # Check for very short signals - return 0 scores for unreliable data
     if len(signal) < 100:
         issues.append("Signal too short for reliable spectral analysis")
         recommendations.append("Increase signal length to at least 100 samples")
         return (0.0, 0.0, 0.0, issues, recommendations, None)
-
     # 1. Extract 1/f signature
     try:
         spectral_signature = extract_1f_signature(signal, fs=fs, n_bootstrap=100)
-
         # Spectral score based on pink noise detection and R²
         if spectral_signature.is_pink_noise:
             spectral_score = float(spectral_signature.r_squared * 100)
         else:
             spectral_score = float(spectral_signature.r_squared * 50)
-
         # Confidence score
         confidence_score = float(spectral_signature.confidence * 100)
-
         # Check for issues
         if spectral_signature.beta < 0.8:
             issues.append("Spectral exponent too low (white noise)")
@@ -222,17 +192,14 @@ def assess_statistical_validation(
         elif spectral_signature.beta > 1.5:
             issues.append("Spectral exponent too high (brown noise)")
             recommendations.append("Decrease hierarchical coupling strength")
-
         if spectral_signature.r_squared < 0.7:
             issues.append("Poor spectral fit (R² < 0.7)")
             recommendations.append("Verify signal preprocessing and filtering")
-
     except Exception as e:
         spectral_score = 0.0
         confidence_score = 0.0
         issues.append(f"Spectral extraction failed: {str(e)}")
         recommendations.append("Check signal quality and length")
-
     # 2. Per-level spectral consistency
     consistency_score = 0.0
     if signal_levels is not None and len(signal_levels) > 1:
@@ -244,7 +211,6 @@ def assess_statistical_validation(
                     level_betas.append(sig_extract.beta)
                 except Exception:  # nosec B110
                     pass
-
             if len(level_betas) > 1:
                 # Consistency: low variance in spectral exponents
                 beta_std = np.std(level_betas)
@@ -253,10 +219,8 @@ def assess_statistical_validation(
                 consistency_score = 0.0
         except Exception:
             consistency_score = 0.0
-
     # Compute overall statistical score
     _ = float(0.5 * spectral_score + 0.3 * confidence_score + 0.2 * consistency_score)
-
     return (
         spectral_score,
         confidence_score,
@@ -276,7 +240,6 @@ def assess_overall_maturity(
     fs: float = 1.0,
 ) -> MaturityScore:
     """Comprehensive maturity assessment combining all components.
-
     Args:
         signal: Main signal time series
         signal_levels: Optional list of per-level signals
@@ -284,11 +247,9 @@ def assess_overall_maturity(
         phi_levels: Optional list of phase trajectories
         pi_levels: Optional list of precision trajectories
         fs: Sampling frequency (Hz)
-
     Returns:
         MaturityScore with all metrics and recommendations
     """
-
     # Initialize defaults
     if signal_levels is None:
         signal_levels = [signal]
@@ -298,36 +259,28 @@ def assess_overall_maturity(
         phi_levels = [np.zeros_like(signal)]
     if pi_levels is None:
         pi_levels = [np.ones_like(signal)]
-
     # Assess hierarchical architecture
     pac_score, cascade_score, coherence_score, hier_issues, hier_recs = (
         assess_hierarchical_architecture(signal_levels, theta_levels, phi_levels, pi_levels, fs=fs)
     )
-
     hierarchical_score = float(0.4 * pac_score + 0.3 * cascade_score + 0.3 * coherence_score)
-
     # Assess statistical validation
     spectral_score, confidence_score, consistency_score, stat_issues, stat_recs, sig = (
         assess_statistical_validation(signal, signal_levels, fs=fs)
     )
-
     statistical_score = float(
         0.5 * spectral_score + 0.3 * confidence_score + 0.2 * consistency_score
     )
-
     # Compute overall score
     overall_score = float(0.5 * hierarchical_score + 0.5 * statistical_score)
-
     # Combine issues and recommendations
     all_issues = hier_issues + stat_issues
     all_recommendations = hier_recs + stat_recs
-
     # Add general recommendations based on overall score
     if overall_score < 50:
         all_recommendations.append("System maturity is low; review all parameters")
     elif overall_score < 70:
         all_recommendations.append("System maturity is moderate; focus on weak components")
-
     return MaturityScore(
         hierarchical_score=hierarchical_score,
         statistical_score=statistical_score,
@@ -346,7 +299,6 @@ def assess_overall_maturity(
 
 def log_maturity_assessment(score: MaturityScore) -> None:
     """Log maturity assessment results via structured logging."""
-
     logger.info(
         "maturity_assessment",
         overall_score=score.overall_score,
@@ -357,7 +309,6 @@ def log_maturity_assessment(score: MaturityScore) -> None:
         spectral_score=score.spectral_score,
         coherence_score=score.coherence_score,
     )
-
     if score.spectral_signature:
         logger.info(
             "spectral_analysis",
@@ -366,11 +317,9 @@ def log_maturity_assessment(score: MaturityScore) -> None:
             is_pink_noise=score.spectral_signature.is_pink_noise,
             r_squared=score.spectral_signature.r_squared,
         )
-
     if score.issues:
         for issue in score.issues:
             logger.warning("maturity_issue", issue=issue)
-
     if score.recommendations:
         for i, rec in enumerate(score.recommendations, 1):
             logger.info("maturity_recommendation", number=i, recommendation=rec)
@@ -378,7 +327,6 @@ def log_maturity_assessment(score: MaturityScore) -> None:
 
 def format_maturity_assessment(score: MaturityScore) -> str:
     """Format maturity assessment as human-readable string.
-
     Returns:
         Formatted assessment string for display
     """
@@ -396,7 +344,6 @@ def format_maturity_assessment(score: MaturityScore) -> str:
         f"  Spectral Signature: {score.spectral_score:.1f}/100",
         f"  Cross-Level Coherence: {score.coherence_score:.1f}/100",
     ]
-
     if score.spectral_signature:
         lines.extend(
             [
@@ -407,19 +354,16 @@ def format_maturity_assessment(score: MaturityScore) -> str:
                 f"  Goodness of Fit (R²): {score.spectral_signature.r_squared:.3f}",
             ]
         )
-
     if score.issues:
         lines.append(f"\nISSUES ({len(score.issues)}):")
         for issue in score.issues:
             lines.append(f"  ⚠ {issue}")
     else:
         lines.append("\nISSUES: None detected ✓")
-
     if score.recommendations:
         lines.append(f"\nRECOMMENDATIONS ({len(score.recommendations)}):")
         for i, rec in enumerate(score.recommendations, 1):
             lines.append(f"  {i}. {rec}")
-
     lines.extend(["", "=" * 80, ""])
     return "\n".join(lines)
 
@@ -431,7 +375,6 @@ def print_maturity_assessment(score: MaturityScore) -> None:
 
 def get_maturity_rating(score: float) -> str:
     """Get human-readable maturity rating."""
-
     if score >= 90:
         return "Excellent (90-100)"
     elif score >= 80:

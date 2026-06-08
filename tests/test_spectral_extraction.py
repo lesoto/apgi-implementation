@@ -1,5 +1,4 @@
 """Tests for automated spectral signature extraction (Phase 2 - §12).
-
 Tests cover:
 - Multi-method consensus (Welch, periodogram, DFA)
 - Robust regression with outlier detection
@@ -36,9 +35,7 @@ class TestRobustRegression:
         # Generate clean 1/f data
         x = np.linspace(0, 5, 100)
         y = -1.0 * x + 2.0  # β = 1.0
-
         slope, intercept, r2 = robust_log_regression(x, y)
-
         assert abs(slope - (-1.0)) < 0.01
         assert r2 > 0.99
 
@@ -47,13 +44,10 @@ class TestRobustRegression:
         # Generate data with outliers
         x = np.linspace(0, 5, 100)
         y = -1.0 * x + 2.0
-
         # Add outliers (less severe to allow reasonable R²)
         outlier_indices = np.random.choice(len(x), 10, replace=False)
         y[outlier_indices] += np.random.normal(0, 2, 10)
-
         slope, intercept, r2 = robust_log_regression(x, y)
-
         # Should still recover slope close to -1.0
         assert abs(slope - (-1.0)) < 0.2
         assert r2 > 0.3  # Relaxed threshold for robust regression with outliers
@@ -63,9 +57,7 @@ class TestRobustRegression:
         for beta_true in [0.5, 1.0, 1.5]:
             x = np.linspace(0, 5, 100)
             y = -beta_true * x + 2.0
-
             slope, intercept, r2 = robust_log_regression(x, y)
-
             assert abs(slope - (-beta_true)) < 0.01
 
 
@@ -81,9 +73,7 @@ class TestSpectralExponentEstimation:
         phases = np.random.uniform(0, 2 * np.pi, len(amplitudes))
         fft = amplitudes * np.exp(1j * phases)
         signal = np.fft.irfft(fft, n)
-
         beta, r2, hurst = estimate_spectral_exponent_welch(signal, fs=1.0)
-
         assert not np.isnan(beta)
         assert 0.5 < beta < 1.5  # Pink noise range
         assert r2 > 0.5
@@ -92,10 +82,8 @@ class TestSpectralExponentEstimation:
         """Test Welch method with explicit nperseg."""
         n = 1000
         signal = np.random.randn(n)
-
         # Test branch where nperseg is not None
         beta, r2, hurst = estimate_spectral_exponent_welch(signal, fs=1.0, nperseg=128)
-
         # Should execute successfully
         assert not np.isnan(beta)
 
@@ -107,9 +95,7 @@ class TestSpectralExponentEstimation:
         phases = np.random.uniform(0, 2 * np.pi, len(amplitudes))
         fft = amplitudes * np.exp(1j * phases)
         signal = np.fft.irfft(fft, n)
-
         beta, r2, hurst = estimate_spectral_exponent_periodogram(signal, fs=1.0)
-
         assert not np.isnan(beta)
         assert 0.5 < beta < 1.5
         assert r2 > 0.5
@@ -118,13 +104,10 @@ class TestSpectralExponentEstimation:
         """Test DFA Hurst exponent estimation."""
         # Generate fractional Brownian motion
         n = 5000
-
         # Simple FBM generation
         white = np.random.randn(n)
         fbm = np.cumsum(white)
-
         hurst, r2 = estimate_hurst_dfa(fbm)
-
         assert not np.isnan(hurst)
         assert 0.3 < hurst < 1.6  # Relaxed upper bound for cumulative sum
         assert r2 > 0.5
@@ -143,7 +126,6 @@ class TestBootstrapConfidenceIntervals:
         ci_lower, ci_upper = bootstrap_confidence_interval(
             signal, mean_estimator, n_bootstrap=100, ci=0.95
         )
-
         assert ci_lower < np.mean(signal) < ci_upper
         assert ci_upper - ci_lower > 0
 
@@ -159,14 +141,12 @@ class TestBootstrapConfidenceIntervals:
             signal_small, mean_estimator, n_bootstrap=100
         )
         width_small = ci_upper_s - ci_lower_s
-
         # Large sample
         signal_large = np.random.randn(1000)
         ci_lower_l, ci_upper_l = bootstrap_confidence_interval(
             signal_large, mean_estimator, n_bootstrap=100
         )
         width_large = ci_upper_l - ci_lower_l
-
         # Larger sample should have narrower CI
         assert width_large < width_small
 
@@ -179,9 +159,7 @@ class TestAICBIC:
         n_samples = 100
         n_params = 2
         ss_res = 10.0
-
         aic, bic = compute_aic_bic(n_samples, n_params, ss_res)
-
         # AIC/BIC can be negative, just check they're computed
         assert not np.isnan(aic)
         assert not np.isnan(bic)
@@ -190,13 +168,10 @@ class TestAICBIC:
     def test_aic_bic_comparison(self) -> None:
         """Test AIC/BIC for model comparison."""
         n_samples = 100
-
         # Model 1: better fit
         aic1, bic1 = compute_aic_bic(n_samples, 2, 5.0)
-
         # Model 2: worse fit
         aic2, bic2 = compute_aic_bic(n_samples, 2, 20.0)
-
         assert aic1 < aic2
         assert bic1 < bic2
 
@@ -213,9 +188,7 @@ class TestSpectralSignatureExtraction:
         phases = np.random.uniform(0, 2 * np.pi, len(amplitudes))
         fft = amplitudes * np.exp(1j * phases)
         signal = np.fft.irfft(fft, n)
-
         sig = extract_1f_signature(signal, fs=1.0, n_bootstrap=50)
-
         assert isinstance(sig, SpectralSignature)
         assert 0.5 < sig.beta < 1.5
         assert sig.is_pink_noise
@@ -225,9 +198,7 @@ class TestSpectralSignatureExtraction:
     def test_extract_1f_signature_white_noise(self) -> None:
         """Test extraction on white noise (should not be pink)."""
         signal = np.random.randn(10000)
-
         sig = extract_1f_signature(signal, fs=1.0, n_bootstrap=50)
-
         assert isinstance(sig, SpectralSignature)
         # White noise has β ≈ 0
         assert sig.beta < 0.5 or not sig.is_pink_noise
@@ -237,9 +208,7 @@ class TestSpectralSignatureExtraction:
         # Brown noise is integrated white noise
         white = np.random.randn(10000)
         brown = np.cumsum(white)
-
         sig = extract_1f_signature(brown, fs=1.0, n_bootstrap=50)
-
         assert isinstance(sig, SpectralSignature)
         # Brown noise has β ≈ 2
         assert sig.beta > 1.5 or not sig.is_pink_noise
@@ -247,9 +216,7 @@ class TestSpectralSignatureExtraction:
     def test_extract_1f_signature_confidence_intervals(self) -> None:
         """Test that confidence intervals are reasonable."""
         signal = np.random.randn(5000)
-
         sig = extract_1f_signature(signal, fs=1.0, n_bootstrap=50)
-
         # CI may be NaN if bootstrap fails, check fallback works
         if not np.isnan(sig.beta_ci_lower) and not np.isnan(sig.beta_ci_upper):
             # CI bounds should be valid (lower < upper)
@@ -265,9 +232,7 @@ class TestSpectralSignatureExtraction:
         """Test else branch when CI is computed successfully."""
         # Use a large signal to ensure CI is computed
         signal = np.random.randn(10000)
-
         sig = extract_1f_signature(signal, fs=1.0, n_bootstrap=100)
-
         # This should trigger the if branch (CI computed)
         if not np.isnan(sig.beta_ci_lower) and not np.isnan(sig.beta_ci_upper):
             assert sig.beta_ci_lower < sig.beta_ci_upper
@@ -280,9 +245,7 @@ class TestSpectralSignatureExtraction:
         """Test CI with small signal to trigger else branch."""
         # Use a small signal to potentially trigger else branch
         signal = np.random.randn(50)
-
         sig = extract_1f_signature(signal, fs=1.0, n_bootstrap=5)
-
         # For small signals, CI may be NaN
         if np.isnan(sig.beta_ci_lower) or np.isnan(sig.beta_ci_upper):
             # Else branch equivalent - beta should still be valid
@@ -295,9 +258,7 @@ class TestSpectralSignatureExtraction:
         """Test CI when it is successfully computed."""
         # Use a large signal to ensure CI is computed
         signal = np.random.randn(10000)
-
         sig = extract_1f_signature(signal, fs=1.0, n_bootstrap=100)
-
         # CI should be computed for large signals
         assert not np.isnan(sig.beta_ci_lower)
         assert not np.isnan(sig.beta_ci_upper)
@@ -308,7 +269,6 @@ class TestSpectralSignatureExtraction:
         """Test CI fallback when bootstrap fails and returns NaN."""
         # Create signal that will cause bootstrap to fail
         signal = np.random.randn(10)
-
         sig = extract_1f_signature(signal, fs=1.0, n_bootstrap=2)
         # Check that beta is still computed even if CI fails
         assert not np.isnan(sig.beta)
@@ -324,7 +284,6 @@ class TestSpectralSignatureExtraction:
         """Test CI fallback when bootstrap fails due to small sample size."""
         # Create small signal that may cause bootstrap to fail
         signal = np.random.randn(50)
-
         sig = extract_1f_signature(signal, fs=1.0, n_bootstrap=5)
         # Should still return a valid signature with fallback CI
         assert isinstance(sig, SpectralSignature)
@@ -333,7 +292,6 @@ class TestSpectralSignatureExtraction:
     def test_extract_1f_signature_methods(self) -> None:
         """Test extraction with different methods."""
         signal = np.random.randn(5000)
-
         # Test with different method combinations
         for methods in [["welch"], ["periodogram"], ["dfa"], ["welch", "periodogram"]]:
             sig = extract_1f_signature(signal, fs=1.0, methods=methods, n_bootstrap=50)
@@ -345,7 +303,6 @@ class TestSpectralSignatureExtraction:
         import stats.spectral_extraction
 
         original_welch = stats.spectral_extraction.estimate_spectral_exponent_welch
-
         try:
             # Mock welch to return NaN so beta_estimator also returns NaN
             stats.spectral_extraction.estimate_spectral_exponent_welch = lambda *args, **kwargs: (
@@ -353,11 +310,9 @@ class TestSpectralSignatureExtraction:
                 float("nan"),
                 float("nan"),
             )
-
             # Use periodogram so that consensus still works and we reach bootstrap
             signal = np.random.randn(100)
             sig = extract_1f_signature(signal, fs=1.0, methods=["periodogram"], n_bootstrap=10)
-
             # The bootstrap will return NaN for CI, triggering fallback CI
             assert not np.isnan(sig.beta)
             # The test confirms that beta_estimator handles NaN correctly
@@ -376,9 +331,7 @@ class TestHierarchicalSpectralValidation:
             np.random.randn(5000),
             np.random.randn(5000),
         ]
-
         result = validate_hierarchical_spectral_signature(signals, fs=1.0)
-
         assert "signatures" in result
         assert "coherence_matrix" in result
         assert result["n_levels"] == 3
@@ -391,9 +344,7 @@ class TestHierarchicalSpectralValidation:
             np.random.randn(5000),
             np.random.randn(5000),
         ]
-
         result = validate_hierarchical_spectral_signature(signals, fs=1.0)
-
         coh = result["coherence_matrix"]
         # Check symmetry
         assert np.allclose(coh, coh.T)
@@ -420,9 +371,7 @@ class TestSpectralSignaturePrinting:
             n_samples=10000,
             frequency_range=(0.01, 100.0),
         )
-
         print_spectral_signature(sig)
-
         captured = capsys.readouterr()
         assert "SPECTRAL SIGNATURE" in captured.out
         assert "1.0" in captured.out  # beta value
@@ -435,7 +384,6 @@ class TestEdgeCases:
     def test_extract_1f_signature_short_signal(self) -> None:
         """Test extraction on very short signal."""
         signal = np.random.randn(100)
-
         # Should not crash
         sig = extract_1f_signature(signal, fs=1.0, n_bootstrap=10)
         assert isinstance(sig, SpectralSignature)
@@ -443,7 +391,6 @@ class TestEdgeCases:
     def test_extract_1f_signature_short_signal_edge_case(self) -> None:
         """Test extraction on extremely short signal."""
         signal = np.random.randn(10)
-
         # Should handle gracefully
         sig = extract_1f_signature(signal, fs=1.0, n_bootstrap=5)
         assert isinstance(sig, SpectralSignature)
@@ -451,7 +398,6 @@ class TestEdgeCases:
     def test_extract_1f_signature_constant_signal(self) -> None:
         """Test extraction on constant signal."""
         signal = np.ones(1000)
-
         # Should handle gracefully - constant signals will raise ValueError
         with pytest.raises(ValueError):
             extract_1f_signature(signal, fs=1.0, n_bootstrap=10)
@@ -466,7 +412,6 @@ class TestEdgeCases:
         """Test extraction with NaN values."""
         signal = np.random.randn(1000)
         signal[100:110] = np.nan
-
         # Should handle gracefully - NaN signals will raise ValueError
         with pytest.raises(ValueError):
             extract_1f_signature(signal, fs=1.0, n_bootstrap=10)

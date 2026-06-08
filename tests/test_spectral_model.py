@@ -242,7 +242,6 @@ class TestFitLorentzianSuperposition:
         power = hierarchical_spectral_superposition(freqs, taus, sigma2s)
         # Add small noise
         power += np.random.randn(len(power)) * 0.01
-
         result = fit_lorentzian_superposition(freqs, power, taus)
         assert "amplitudes" in result
         assert "fitted_psd" in result
@@ -332,7 +331,6 @@ class TestSpectralValidator:
         """Test plot comparison functionality."""
         validator = SpectralValidator()
         signal = np.random.randn(1000)
-
         import matplotlib.pyplot as plt  # type: ignore[import-untyped]
 
         fig = validator.plot_comparison(signal, fs=100.0)
@@ -345,7 +343,6 @@ class TestSpectralValidator:
         """Test plot comparison when matplotlib is available."""
         validator = SpectralValidator()
         signal = np.random.randn(1000)
-
         # Force matplotlib to be available
         import matplotlib.pyplot as plt  # type: ignore[import-untyped]
 
@@ -362,7 +359,6 @@ class TestSpectralValidator:
 
         validator = SpectralValidator()
         signal = np.random.randn(1000)
-
         # Mock matplotlib import to raise ImportError
         with patch.dict(sys.modules, {"matplotlib.pyplot": None}):
             result = validator.plot_comparison(signal, fs=100.0)
@@ -375,7 +371,6 @@ class TestSpectralValidator:
         """Test plot comparison handles ImportError gracefully."""
         validator = SpectralValidator()
         signal = np.random.randn(1000)
-
         # This should not raise even if matplotlib is not available
         fig = validator.plot_comparison(signal, fs=100.0)
         # If matplotlib is available, check figure
@@ -389,7 +384,6 @@ class TestSpectralValidator:
 
         validator = SpectralValidator()
         signal = np.random.randn(1000)
-
         # Mock matplotlib import to raise ImportError
         with patch.dict(sys.modules, {"matplotlib.pyplot": None}):
             # This should trigger the ImportError path
@@ -407,7 +401,6 @@ class TestSpectralValidator:
         freqs = np.logspace(-2, 2, 100)
         power = np.abs(np.random.randn(100))  # Use positive data
         taus = np.array([0.1, 1.0, 10.0])
-
         result = fit_lorentzian_superposition(freqs, power, taus)
         # Should still return a result even if fitting fails
         assert "amplitudes" in result

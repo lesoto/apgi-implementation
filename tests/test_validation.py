@@ -1,5 +1,4 @@
 """Unit tests for parameter validation module.
-
 Tests APGI Spec §15: Design Constraints
 """
 

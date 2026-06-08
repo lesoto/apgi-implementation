@@ -1,5 +1,4 @@
 """Unit tests for liquid state machine (reservoir computing) module.
-
 Tests APGI Spec §10: Reservoir Implementation
 """
 
@@ -101,7 +100,6 @@ class TestLiquidStateMachineInit:
         """Same seed should produce same weights."""
         lsm1 = LiquidStateMachine(N=50, M=2, seed=42)
         lsm2 = LiquidStateMachine(N=50, M=2, seed=42)
-
         assert np.allclose(lsm1.W_res, lsm2.W_res)
         assert np.allclose(lsm1.W_in, lsm2.W_in)
 
@@ -150,17 +148,14 @@ class TestLiquidStateMachineStep:
         """Should apply suprathreshold amplification."""
         lsm = LiquidStateMachine(N=100, M=2)
         u = np.array([0.5, -0.3])
-
         # Step without amplification - run multiple steps to accumulate effect
         lsm.reset_state()
         for _ in range(10):
             x1 = lsm.step(u, tau=1.0, dt=0.1, S_target=1.5, theta=1.0, A_amp=0.0)
-
         # Step with amplification - run multiple steps
         lsm.reset_state()
         for _ in range(10):
             x2 = lsm.step(u, tau=1.0, dt=0.1, S_target=1.5, theta=1.0, A_amp=0.1)
-
         # States should differ (amplification should have effect over multiple steps)
         assert not np.allclose(x1, x2, atol=1e-6)
 
@@ -168,7 +163,6 @@ class TestLiquidStateMachineStep:
         """Amplification should be zero when S < θ."""
         lsm = LiquidStateMachine(N=100, M=2)
         u = np.array([0.5, -0.3])
-
         # S < θ, so margin is negative
         x = lsm.step(u, tau=1.0, dt=0.1, S_target=0.5, theta=1.0, A_amp=0.1)
         assert np.all(np.isfinite(x))
@@ -177,10 +171,8 @@ class TestLiquidStateMachineStep:
         """Reservoir state should remain bounded."""
         lsm = LiquidStateMachine(N=100, M=2)
         u = np.array([0.5, -0.3])
-
         for _ in range(100):
             lsm.step(u, tau=1.0, dt=0.1)
-
         assert np.all(np.isfinite(lsm.x))
         assert np.max(np.abs(lsm.x)) < 100.0  # Reasonable bound
 
@@ -224,13 +216,10 @@ class TestLiquidStateMachineTraining:
     def test_train_readout_basic(self):
         """Should train readout weights."""
         lsm = LiquidStateMachine(N=100, M=2)
-
         # Generate training data
         X = np.random.randn(1000, 100)
         y = np.random.randn(1000)
-
         result = lsm.train_readout(X, y, alpha=1e-6)
-
         assert "W_out" in result
         assert "mse" in result
         assert "rmse" in result
@@ -241,33 +230,26 @@ class TestLiquidStateMachineTraining:
     def test_train_readout_shape_mismatch(self):
         """Should raise error for shape mismatch."""
         lsm = LiquidStateMachine(N=100, M=2)
-
         X = np.random.randn(1000, 100)
         y = np.random.randn(500)  # Wrong size
-
         with pytest.raises(ValueError):
             lsm.train_readout(X, y)
 
     def test_train_readout_wrong_columns(self):
         """Should raise error for wrong number of columns."""
         lsm = LiquidStateMachine(N=100, M=2)
-
         X = np.random.randn(1000, 50)  # Wrong number of columns
         y = np.random.randn(1000)
-
         with pytest.raises(ValueError):
             lsm.train_readout(X, y)
 
     def test_train_readout_improves_fit(self):
         """Training should improve fit to target."""
         lsm = LiquidStateMachine(N=100, M=2, seed=42)
-
         # Generate training data with known relationship
         X = np.random.randn(1000, 100)
         y = X[:, 0] + 0.5 * X[:, 1]  # Simple linear relationship
-
         result = lsm.train_readout(X, y, alpha=1e-6)
-
         # R² should be reasonably high
         assert result["r2"] > 0.5
 
@@ -280,18 +262,15 @@ class TestLiquidStateMachineHistory:
         lsm = LiquidStateMachine(N=100, M=2)
         lsm.step(np.array([0.5, -0.3]), tau=1.0, dt=0.1)
         lsm.collect_state(target=1.0)
-
         assert len(lsm.history) == 1
         assert len(lsm.history_targets) == 1
 
     def test_get_training_data(self):
         """Should return collected training data."""
         lsm = LiquidStateMachine(N=100, M=2)
-
         for i in range(10):
             lsm.step(np.array([0.5, -0.3]), tau=1.0, dt=0.1)
             lsm.collect_state(target=float(i))
-
         X, y = lsm.get_training_data()
         assert X.shape == (10, 100)
         assert y.shape == (10,)
@@ -305,11 +284,9 @@ class TestLiquidStateMachineHistory:
     def test_clear_history(self):
         """Should clear collected history."""
         lsm = LiquidStateMachine(N=100, M=2)
-
         for i in range(10):
             lsm.step(np.array([0.5, -0.3]), tau=1.0, dt=0.1)
             lsm.collect_state(target=float(i))
-
         lsm.clear_history()
         assert len(lsm.history) == 0
         assert len(lsm.history_targets) == 0
@@ -323,7 +300,6 @@ class TestLiquidStateMachineReset:
         lsm = LiquidStateMachine(N=100, M=2)
         lsm.step(np.array([0.5, -0.3]), tau=1.0, dt=0.1)
         assert not np.allclose(lsm.x, 0.0)
-
         lsm.reset_state()
         assert np.allclose(lsm.x, 0.0)
 
@@ -335,9 +311,7 @@ class TestLiquidStateMachineStatistics:
         """Should compute state statistics."""
         lsm = LiquidStateMachine(N=100, M=2)
         lsm.step(np.array([0.5, -0.3]), tau=1.0, dt=0.1)
-
         stats = lsm.get_state_statistics()
-
         assert "mean" in stats
         assert "std" in stats
         assert "min" in stats
@@ -347,16 +321,13 @@ class TestLiquidStateMachineStatistics:
     def test_weight_statistics(self):
         """Should compute weight statistics."""
         lsm = LiquidStateMachine(N=100, M=2)
-
         stats = lsm.get_weight_statistics()
-
         assert "W_res_spectral_radius" in stats
         assert "W_res_mean" in stats
         assert "W_res_std" in stats
         assert "W_in_mean" in stats
         assert "W_in_std" in stats
         assert "W_out_norm" in stats
-
         # Spectral radius should be < 1
         assert stats["W_res_spectral_radius"] < 1.0
 
@@ -367,38 +338,31 @@ class TestLiquidStateMachineStability:
     def test_echo_state_property(self):
         """Reservoir should have echo state property."""
         lsm = LiquidStateMachine(N=100, M=2, spectral_radius=0.9)
-
         # Run with different inputs
         u1 = np.array([0.5, -0.3])
         u2 = np.array([-0.5, 0.3])
-
         lsm.reset_state()
         for _ in range(100):
             lsm.step(u1, tau=1.0, dt=0.1)
         x1 = lsm.x.copy()
-
         lsm.reset_state()
         for _ in range(100):
             lsm.step(u2, tau=1.0, dt=0.1)
         x2 = lsm.x.copy()
-
         # States should be different
         assert not np.allclose(x1, x2)
 
     def test_fading_memory(self):
         """Reservoir should have fading memory property."""
         lsm = LiquidStateMachine(N=100, M=2, spectral_radius=0.9)
-
         # Apply impulse
         lsm.reset_state()
         lsm.step(np.array([1.0, 1.0]), tau=1.0, dt=0.1)
         x_impulse = lsm.x.copy()
-
         # Continue with zero input
         for _ in range(100):
             lsm.step(np.array([0.0, 0.0]), tau=1.0, dt=0.1)
         x_final = lsm.x.copy()
-
         # State should decay toward zero
         assert np.linalg.norm(x_final) < np.linalg.norm(x_impulse)
 
@@ -411,7 +375,6 @@ class TestLiquidStateMachineStability:
             x = lsm.step(inp, tau=1.0, dt=0.1)
             # Manually track history
             lsm.history.append(x.copy())
-
         # History should track states
         assert len(lsm.history) == 10
         assert all(isinstance(h, np.ndarray) for h in lsm.history)
@@ -423,9 +386,7 @@ class TestLiquidStateMachineStability:
         for inp in inputs:
             x = lsm.step(inp, tau=1.0, dt=0.1)
             lsm.history.append(x.copy())
-
         assert len(lsm.history) == 5
-
         # Clear history
         lsm.history.clear()
         assert len(lsm.history) == 0

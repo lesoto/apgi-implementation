@@ -1,5 +1,4 @@
 """Pydantic configuration schema for type-safe APGI configuration.
-
 Provides strict validation with clear error messages for production deployments.
 """
 
@@ -12,7 +11,6 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_va
 
 class APGIConfig(BaseModel):
     """Production-grade APGI configuration with strict validation.
-
     All parameters validated at initialization with clear error messages.
     No auto-adjustments - invalid configurations raise ValidationError.
     """
@@ -23,52 +21,42 @@ class APGIConfig(BaseModel):
     theta_base: float = Field(default=1.0, gt=0, description="Base threshold")
     sigma2_e0: float = Field(default=1.0, gt=0, description="Initial exteroceptive variance")
     sigma2_i0: float = Field(default=1.0, gt=0, description="Initial interoceptive variance")
-
     # Numerical stability
     eps: float = Field(default=1e-8, gt=0, lt=1, description="Numerical stability threshold")
     pi_min: float = Field(default=0.01, gt=0, description="Minimum precision")
     pi_max: float = Field(default=10.0, gt=0, description="Maximum precision")
-
     # EMA variance update
     alpha_e: float = Field(default=0.05, gt=0, lt=1, description="Exteroceptive EMA rate")
     alpha_i: float = Field(default=0.05, gt=0, lt=1, description="Interoceptive EMA rate")
-
     # Variance estimation method
     variance_method: Literal["ema", "sliding_window"] = Field(
         default="ema", description="Variance estimation method"
     )
     T_win: int = Field(default=50, gt=0, description="Sliding window size")
-
     # Neuromodulation
     g_ach: float = Field(default=1.0, ge=0, description="Acetylcholine gain")
     g_ne: float = Field(default=1.0, ge=0, description="Norepinephrine gain")
-
     # Dopaminergic bias
     beta: float = Field(default=1.15, ge=0, description="Dopaminergic bias")
     beta_da: float | None = Field(
         default=None, description="Alias for beta (backward compatibility)"
     )
-
     # NE double counting prevention
     ne_on_precision: bool = Field(default=True, description="NE modulates precision")
     ne_on_threshold: bool = Field(default=False, description="NE modulates threshold")
     gamma_ne: float = Field(default=0.1, ge=0, le=1, description="NE modulation strength")
     kappa: float = Field(default=0.15, gt=0, le=1, description="Threshold decay rate")
-
     # Signal accumulation
     lam: float = Field(default=0.2, gt=0, lt=1, description="Signal integration rate")
     signal_log_nonlinearity: bool = Field(default=True, description="Enable log stabilization")
     use_canonical_discrete_mode: bool = Field(
         default=False, description="Use discrete accumulation instead of ODE"
     )
-
     # Threshold update + refractory dynamics
     eta: float = Field(default=0.1, gt=0, le=1, description="Threshold learning rate")
     delta: float = Field(default=0.5, ge=0, description="Refractory boost")
-
     # Post-ignition signal reset
     reset_factor: float = Field(default=0.1, gt=0, lt=1, description="Signal reset factor (rho)")
-
     # Threshold adaptation timescales
     tau_theta: float = Field(
         default=20.0, gt=0, description="Threshold adaptation timescale (allostatic)"
@@ -76,11 +64,9 @@ class APGIConfig(BaseModel):
     tau_theta_recovery: float = Field(
         default=0.45, gt=0, description="Threshold recovery timescale (perceptual)"
     )
-
     # Hierarchical cascade tuning
     KAPPA_UP: float = Field(default=0.1, ge=0, le=1, description="Bottom-up cascade strength")
     KAPPA_DOWN: float = Field(default=0.1, ge=0, le=1, description="Top-down coupling strength")
-
     # Cost-value model
     use_realistic_cost: bool = Field(default=True, description="Use realistic metabolic cost")
     c0: float = Field(default=0.0, ge=0, description="Base metabolic cost")
@@ -88,27 +74,22 @@ class APGIConfig(BaseModel):
     c2: float = Field(default=0.5, ge=0, description="Ignition cost coefficient")
     v1: float = Field(default=0.5, ge=0, description="Exteroceptive value weight")
     v2: float = Field(default=0.5, ge=0, description="Interoceptive value weight")
-
     # Ignition dynamics
     ignite_tau: float = Field(default=0.5, gt=0, description="Ignition sigmoid temperature")
     tau_sigma: float | None = Field(
         default=None, description="Alias for ignite_tau (backward compatibility)"
     )
     stochastic_ignition: bool = Field(default=False, description="Enable stochastic ignition")
-
     # Continuous-time parameters
     tau_s: float = Field(default=5.0, gt=0, description="Signal decay time constant")
     dt: float = Field(default=0.5, gt=0, description="Integration time step")
     noise_std: float = Field(default=0.01, ge=0, description="SDE diffusion coefficient")
-
     # Generative model dynamics
     use_internal_predictions: bool = Field(default=True, description="Enable internal predictions")
     kappa_e: float = Field(default=0.01, ge=0, description="Exteroceptive prediction rate")
     kappa_i: float = Field(default=0.01, ge=0, description="Interoceptive prediction rate")
-
     # Multi-scale parameters
     timescale_k: float = Field(default=1.6, gt=1, lt=3, description="Timescale expansion factor")
-
     # Thermodynamic constraints
     use_thermodynamic_cost: bool = Field(default=False, description="Enable Landauer cost")
     k_boltzmann: float = Field(default=1.38e-23, gt=0, description="Boltzmann constant")
@@ -121,7 +102,6 @@ class APGIConfig(BaseModel):
     kappa_units: Literal["dimensionless", "joules_per_bit"] = Field(
         default="dimensionless", description="Metabolic cost units"
     )
-
     # BOLD calibration
     use_bold_calibration: bool = Field(default=False, description="Enable BOLD calibration")
     bold_conversion_factor: float = Field(
@@ -131,7 +111,6 @@ class APGIConfig(BaseModel):
     bold_ignition_spike_factor: float = Field(
         default=1.075, gt=0, description="Energy spike factor during ignition"
     )
-
     # Reservoir layer
     use_reservoir: bool = Field(default=False, description="Enable reservoir computing")
     reservoir_size: int = Field(default=100, gt=0, description="Reservoir units")
@@ -146,7 +125,6 @@ class APGIConfig(BaseModel):
     reservoir_amplification: float = Field(
         default=0.0, ge=0, description="Suprathreshold amplification strength"
     )
-
     # Kuramoto oscillators
     use_kuramoto: bool = Field(default=False, description="Enable Kuramoto oscillators")
     kuramoto_tau_xi: float = Field(default=1.0, gt=0, description="OU noise correlation timescale")
@@ -154,7 +132,6 @@ class APGIConfig(BaseModel):
     kuramoto_reset_amount: float = Field(
         default=3.14159, gt=0, description="Phase reset on ignition (radians)"
     )
-
     # Hierarchical mode
     hierarchical_mode: Literal["off", "basic", "advanced", "full"] | None = Field(
         default=None, description="Hierarchical mode preset"
@@ -163,12 +140,10 @@ class APGIConfig(BaseModel):
     use_hierarchical_precision_ode: bool = Field(default=False, description="Enable precision ODE")
     use_phase_modulation: bool = Field(default=False, description="Enable phase modulation")
     n_levels: int = Field(default=3, ge=1, le=10, description="Hierarchy levels")
-
     # Observable mapping
     use_observable_mapping: bool = Field(
         default=False, description="Enable neural/behavioral observable extraction"
     )
-
     # Stability analysis
     use_stability_analysis: bool = Field(default=False, description="Enable stability analysis")
 
@@ -237,13 +212,11 @@ class APGIConfig(BaseModel):
             # beta_da always takes precedence if provided
             if abs(self.beta_da - self.beta) > 0.01 or self.beta == 1.15:
                 self.beta = self.beta_da
-
         # 2. Ignition temperature (tau_sigma/ignite_tau)
         if self.tau_sigma is not None:
             # tau_sigma always takes precedence if provided
             if abs(self.tau_sigma - self.ignite_tau) > 0.01 or self.ignite_tau == 0.5:
                 self.ignite_tau = self.tau_sigma
-
         return self
 
     def to_dict(self) -> dict:
@@ -258,11 +231,9 @@ class APGIConfig(BaseModel):
 
 def create_production_config(strict: bool = True, **overrides: Any) -> APGIConfig | dict:
     """Create a production-ready configuration.
-
     Args:
         strict: If True, return APGIConfig (strict validation). If False, return dict.
         **overrides: Configuration overrides
-
     Returns:
         APGIConfig instance or dictionary based on strict mode
     """

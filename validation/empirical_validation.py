@@ -1,8 +1,6 @@
 """Empirical dataset-driven validation for APGI.
-
 Implements validation against real neural and behavioral datasets
 to test APGI predictions beyond simulation/proxy metrics.
-
 Spec §14: Observable mapping to neural and behavioral data
 """
 
@@ -28,7 +26,6 @@ class DatasetConfig:
 
 class EmpiricalDataLoader:
     """Load and preprocess empirical datasets for APGI validation.
-
     Supports multiple data formats:
     - EEG/MEG data (EDF, FIF, custom formats)
     - LFP data (NeuroExplorer, MATLAB)
@@ -38,7 +35,6 @@ class EmpiricalDataLoader:
 
     def __init__(self, config: DatasetConfig):
         """Initialize data loader.
-
         Args:
             config: Dataset configuration
         """
@@ -54,14 +50,11 @@ class EmpiricalDataLoader:
         event_markers: dict[str, int] | None = None,
     ) -> dict[str, Any]:
         """Load EEG dataset for validation.
-
         Expected format: EDF, FIF, or NumPy arrays.
-
         Args:
             file_path: Path to data file
             channel_names: Channels to extract (None = all)
             event_markers: Mapping of event names to marker codes
-
         Returns:
             Dictionary with signals, events, and metadata
         """
@@ -72,10 +65,8 @@ class EmpiricalDataLoader:
             raw = mne.io.read_raw(file_path, preload=True)
             if channel_names:
                 raw.pick_channels(channel_names)
-
             data = raw.get_data()
             sfreq = raw.info["sfreq"]
-
             result = {
                 "signals": data,
                 "fs": sfreq,
@@ -83,16 +74,13 @@ class EmpiricalDataLoader:
                 "duration": data.shape[1] / sfreq,
                 "events": None,
             }
-
             # Extract events if markers provided
             if event_markers:
                 events, event_dict = mne.events_from_annotations(raw)
                 result["events"] = events
                 result["event_dict"] = event_dict
-
             self.data = result
             return result
-
         except (ImportError, Exception):
             # Fallback: load NumPy array
             data = np.load(file_path, allow_pickle=True)
@@ -121,13 +109,11 @@ class EmpiricalDataLoader:
         condition_column: str | None = None,
     ) -> dict[str, Any]:
         """Load behavioral dataset (reaction times, accuracy).
-
         Args:
             file_path: Path to CSV/JSON/HDF5 file
             rt_column: Column name for reaction times
             accuracy_column: Column name for accuracy
             condition_column: Column name for experimental condition
-
         Returns:
             Dictionary with behavioral metrics
         """
@@ -144,7 +130,6 @@ class EmpiricalDataLoader:
                 df = df.to_frame()
         else:
             raise ValueError(f"Unsupported file format: {file_path}")
-
         result: dict[str, Any] = {
             "rt": df[rt_column].values,
             "accuracy": df[accuracy_column].values,
@@ -153,7 +138,6 @@ class EmpiricalDataLoader:
             "std_rt": float(df[rt_column].std()),
             "mean_accuracy": float(df[accuracy_column].mean()),
         }
-
         if condition_column and condition_column in df.columns:
             conditions: list[Any] = df[condition_column].unique().tolist()
             result["conditions"] = conditions
@@ -167,7 +151,6 @@ class EmpiricalDataLoader:
                     "n": int(mask.sum()),
                 }
             result["by_condition"] = by_condition
-
         self._behavioral_data = result
         return result
 
@@ -178,22 +161,18 @@ class EmpiricalDataLoader:
         channel_idx: int | None = None,
     ) -> np.ndarray:
         """Extract time segment from loaded data.
-
         Args:
             start_time: Start time in seconds
             end_time: End time in seconds
             channel_idx: Channel index (None = all)
-
         Returns:
             Signal segment
         """
         if "signals" not in self.data:
             raise ValueError("No data loaded. Call load_* method first.")
-
         fs = self.data["fs"]
         start_sample = int(start_time * fs)
         end_sample = int(end_time * fs)
-
         signals: np.ndarray = self.data["signals"]
         if channel_idx is not None:
             result: np.ndarray = signals[channel_idx, start_sample:end_sample]
@@ -204,7 +183,6 @@ class EmpiricalDataLoader:
 
 class NeuralValidator:
     """Validate APGI against neural recordings (EEG, LFP, MEG).
-
     Key predictions from spec §14:
     - S(t) → Gamma-band power (30-100 Hz)
     - θ(t) → P300/N200 ERP amplitude
@@ -213,7 +191,6 @@ class NeuralValidator:
 
     def __init__(self, fs: float = 100.0):
         """Initialize validator.
-
         Args:
             fs: Sampling frequency (Hz)
         """
@@ -226,12 +203,10 @@ class NeuralValidator:
         method: str = "welch",
     ) -> float:
         """Extract gamma-band power from neural signal.
-
         Args:
             signal: Time series data
             freq_range: Gamma frequency range (Hz)
             method: Spectral estimation method
-
         Returns:
             Gamma-band power
         """
@@ -243,7 +218,6 @@ class NeuralValidator:
             # FFT-based periodogram
             freqs = np.fft.rfftfreq(len(signal), 1 / self.fs)
             psd = np.abs(np.fft.rfft(signal)) ** 2
-
         # Integrate over gamma band
         mask = (freqs >= freq_range[0]) & (freqs <= freq_range[1])
         if np.any(mask):
@@ -257,22 +231,18 @@ class NeuralValidator:
         time_window: tuple[float, float] = (-0.2, 0.6),
     ) -> dict[str, Any]:
         """Compute event-related potential (ERP) from epoched data.
-
         Args:
             epochs: List of epochs or array (n_epochs, n_samples)
             baseline: Baseline correction window (seconds)
             time_window: ERP time window (seconds)
-
         Returns:
             Dictionary with ERP statistics
         """
         if isinstance(epochs, list):
             epochs = np.array(epochs)
-
         n_epochs = epochs.shape[0]
         n_samples = epochs.shape[1]
         times = np.linspace(time_window[0], time_window[1], n_samples)
-
         # Baseline correction
         baseline_mask = (times >= baseline[0]) & (times <= baseline[1])
         if np.any(baseline_mask):
@@ -281,24 +251,19 @@ class NeuralValidator:
             # No baseline window overlap - use zero baseline
             baseline_mean = np.zeros((n_epochs, 1))
         epochs_corrected = epochs - baseline_mean
-
         # Compute ERP (average over trials)
         erp = np.mean(epochs_corrected, axis=0)
-
         # Find peaks
         p300_window = (times >= 0.25) & (times <= 0.5)
         n200_window = (times >= 0.15) & (times <= 0.25)
-
         if np.any(p300_window):
             p300_amp = float(np.max(np.abs(erp[p300_window])))
         else:
             p300_amp = 0.0
-
         if np.any(n200_window):
             n200_amp = float(np.min(erp[n200_window]))  # N200 is negative
         else:
             n200_amp = 0.0
-
         return {
             "erp": erp,
             "times": times,
@@ -315,25 +280,20 @@ class NeuralValidator:
         epoch_times: list[tuple[float, float]] | None = None,
     ) -> dict[str, Any]:
         """Compare APGI predictions to neural data.
-
         Args:
             apgi_result: Output from APGIPipeline.step()
             neural_data: Neural recording (time series)
             epoch_times: List of (start, end) times for epochs
-
         Returns:
             Validation results with correlation metrics
         """
         # Extract APGI-predicted gamma from S(t)
         S_history = apgi_result.get("S_history", [apgi_result.get("S", 0.0)])
-
         # Compute neural gamma power
         neural_gamma = self.extract_gamma_power(neural_data)
-
         # Compare to APGI S(t) proxy
         # (In real validation, this would be time-aligned)
         apgi_s_proxy = np.mean(S_history) if S_history else 0.0
-
         return {
             "neural_gamma_power": neural_gamma,
             "apgi_s_proxy": apgi_s_proxy,
@@ -344,7 +304,6 @@ class NeuralValidator:
 
 class BehavioralValidator:
     """Validate APGI against behavioral data (RT, accuracy, decisions).
-
     Key predictions from spec §14:
     - S(t) → Perceptual sensitivity (d')
     - θ(t) → RT variability, response criterion
@@ -363,13 +322,11 @@ class BehavioralValidator:
         correct_rejections: int,
     ) -> dict[str, float]:
         """Compute signal detection theory metrics.
-
         Args:
             hits: Number of hits
             misses: Number of misses
             false_alarms: Number of false alarms
             correct_rejections: Number of correct rejections
-
         Returns:
             Dictionary with d', criterion, bias metrics
         """
@@ -378,23 +335,17 @@ class BehavioralValidator:
         # Hit rate and false alarm rate (with correction for 0/1)
         n_signal = hits + misses
         n_noise = false_alarms + correct_rejections
-
         hit_rate = (hits + 0.5) / (n_signal + 1.0)
         fa_rate = (false_alarms + 0.5) / (n_noise + 1.0)
-
         # Convert to z-scores
         z_hit = stats.norm.ppf(hit_rate)
         z_fa = stats.norm.ppf(fa_rate)
-
         # d' (sensitivity)
         d_prime = z_hit - z_fa
-
         # Criterion (bias)
         criterion = -0.5 * (z_hit + z_fa)
-
         # Beta (likelihood ratio)
         beta = np.exp(criterion * d_prime)
-
         return {
             "d_prime": float(d_prime),
             "criterion": float(criterion),
@@ -410,23 +361,19 @@ class BehavioralValidator:
         outlier_sd: float = 3.0,
     ) -> dict[str, Any]:
         """Analyze reaction time distribution.
-
         Args:
             rts: Reaction times in seconds
             remove_outliers: Whether to remove outliers
             outlier_sd: Outlier threshold in standard deviations
-
         Returns:
             Dictionary with RT statistics
         """
         rts = np.asarray(rts)
-
         if remove_outliers:
             mean_rt = np.mean(rts)
             std_rt = np.std(rts)
             mask = np.abs(rts - mean_rt) < outlier_sd * std_rt
             rts = rts[mask]
-
         return {
             "mean": float(np.mean(rts)),
             "median": float(np.median(rts)),
@@ -459,25 +406,20 @@ class BehavioralValidator:
         behavioral_data: dict[str, Any],
     ) -> dict[str, Any]:
         """Compare APGI predictions to behavioral data.
-
         Args:
             apgi_result: Output from APGIPipeline.step()
             behavioral_data: Dictionary with RT, accuracy data
-
         Returns:
             Validation results
         """
         # Extract APGI threshold dynamics
         theta = apgi_result.get("theta", 0.0)
-
         # Extract behavioral metrics
         rt_std = behavioral_data.get("rt_std", 0.0)
         response_criterion = behavioral_data.get("criterion", 0.0)
-
         # Compare: θ(t) should correlate with RT variability
         # (This is a simplified proxy - real validation needs time series)
         theta_rt_correlation_proxy = 1.0 / (1.0 + abs(theta - rt_std))
-
         return {
             "apgi_theta": theta,
             "behavioral_rt_std": rt_std,
@@ -489,14 +431,12 @@ class BehavioralValidator:
 
 class CrossValidationRunner:
     """Run k-fold cross-validation for APGI parameter fitting.
-
         Fits APGI parameters to empirical data using cross-validation
     to prevent overfitting.
     """
 
     def __init__(self, n_folds: int = 5):
         """Initialize cross-validation runner.
-
         Args:
             n_folds: Number of folds for cross-validation
         """
@@ -509,30 +449,23 @@ class CrossValidationRunner:
         labels: np.ndarray | None = None,
     ) -> list[tuple[np.ndarray, np.ndarray]]:
         """Split data into train/test folds.
-
         Args:
             data: Data array (n_samples, ...)
             labels: Optional labels for stratified splitting
-
         Returns:
             List of (train_indices, test_indices) tuples
         """
         n_samples = len(data)
         indices = np.arange(n_samples)
         np.random.shuffle(indices)
-
         fold_size = n_samples // self.n_folds
         splits = []
-
         for i in range(self.n_folds):
             test_start = i * fold_size
             test_end = test_start + fold_size if i < self.n_folds - 1 else n_samples
-
             test_indices = indices[test_start:test_end]
             train_indices = np.concatenate([indices[:test_start], indices[test_end:]])
-
             splits.append((train_indices, test_indices))
-
         return splits
 
     def run_validation(
@@ -542,28 +475,23 @@ class CrossValidationRunner:
         metric_fn: Callable[..., float],
     ) -> dict[str, Any]:
         """Run cross-validation.
-
         Args:
             data: Dataset to validate on
             apgi_pipeline: APGIPipeline instance
             metric_fn: Function to compute validation metric
-
         Returns:
             Cross-validation results
         """
         splits = self.split_data(data)
         fold_scores = []
-
         for fold, (train_idx, test_idx) in enumerate(splits):
             train_data = data[train_idx]
             test_data = data[test_idx]
-
             # Fit on training data (would adjust APGI parameters)
             # For now, just compute metric on test data
             _ = train_data  # Would use for training in full implementation
             score = metric_fn(test_data, apgi_pipeline)
             fold_scores.append(score)
-
             self.results.append(
                 {
                     "fold": fold,
@@ -572,7 +500,6 @@ class CrossValidationRunner:
                     "score": score,
                 }
             )
-
         return {
             "fold_scores": fold_scores,
             "mean_score": float(np.mean(fold_scores)),
@@ -588,24 +515,20 @@ def create_synthetic_validation_dataset(
     with_ground_truth: bool = True,
 ) -> dict[str, Any]:
     """Create synthetic dataset with known APGI parameters for validation testing.
-
     Args:
         n_samples: Number of trials/subjects
         duration: Duration of each recording (seconds)
         fs: Sampling frequency (Hz)
         with_ground_truth: Include ground truth parameters
-
     Returns:
         Synthetic dataset with known properties
     """
     n_timepoints = int(duration * fs)
-
     # Generate signals with known 1/f properties
     from stats.spectral_model import generate_predicted_spectrum_from_hierarchy
 
     freqs = np.fft.rfftfreq(n_timepoints, 1 / fs)
     data = np.zeros((n_samples, n_timepoints))
-
     for i in range(n_samples):
         # Generate hierarchical signal
         psd, taus, sigma2s = generate_predicted_spectrum_from_hierarchy(
@@ -614,25 +537,21 @@ def create_synthetic_validation_dataset(
             tau_min=0.01,
             tau_max=10.0,
         )
-
         # Generate time series from spectrum
         noise = np.random.randn(n_timepoints)
         fft_noise = np.fft.rfft(noise)
         scaling = np.sqrt(psd / (np.abs(fft_noise) ** 2 + 1e-10))
         data[i] = np.fft.irfft(fft_noise * scaling, n=n_timepoints)
-
     result = {
         "data": data,
         "fs": fs,
         "n_samples": n_samples,
         "duration": duration,
     }
-
     if with_ground_truth:
         result["ground_truth"] = {
             "taus": taus,
             "sigma2s": sigma2s,
             "beta": 1.0,  # Expected 1/f exponent
         }
-
     return result

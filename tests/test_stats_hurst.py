@@ -1,5 +1,4 @@
 """Comprehensive unit tests for stats/hurst.py module.
-
 Tests cover:
 - estimate_spectral_beta function
 - welch_periodogram function
@@ -31,7 +30,6 @@ class TestEstimateSpectralBeta:
         """Should estimate spectral exponent."""
         freqs = np.array([1.0, 2.0, 4.0, 8.0])
         power = np.array([1.0, 0.5, 0.25, 0.125])  # 1/f relationship
-
         result = estimate_spectral_beta(freqs, power)
         # Beta should be close to 1 for 1/f noise
         assert result > 0.5
@@ -41,7 +39,6 @@ class TestEstimateSpectralBeta:
         """Should raise ValueError for insufficient points."""
         freqs = np.array([1.0])
         power = np.array([1.0])
-
         with pytest.raises(ValueError, match="need at least two"):
             estimate_spectral_beta(freqs, power)
 
@@ -52,9 +49,7 @@ class TestWelchPeriodogram:
     def test_basic_computation(self):
         """Should compute Welch periodogram."""
         signal = np.random.randn(1000)
-
         freqs, psd = welch_periodogram(signal, fs=100.0)
-
         assert len(freqs) > 0
         assert len(psd) > 0
         assert len(freqs) == len(psd)
@@ -62,14 +57,12 @@ class TestWelchPeriodogram:
     def test_default_nperseg(self):
         """Should use default nperseg when not specified."""
         signal = np.random.randn(1000)
-
         freqs, psd = welch_periodogram(signal, fs=100.0)
         assert len(freqs) > 0
 
     def test_explicit_nperseg(self):
         """Should use explicitly provided nperseg."""
         signal = np.random.randn(1000)
-
         freqs, psd = welch_periodogram(signal, fs=100.0, nperseg=128)
         # For nperseg=128 with real signal, welch returns nperseg/2 + 1 = 65 frequencies
         assert len(freqs) == 65
@@ -84,9 +77,7 @@ class TestEstimateBetaWelch:
         # Generate 1/f-like signal
         np.random.seed(42)
         signal = np.cumsum(np.random.randn(1000))
-
         result = estimate_beta_welch(signal, fs=100.0)
-
         # Should return a positive beta value
         assert result > 0
 
@@ -94,7 +85,6 @@ class TestEstimateBetaWelch:
         """Should respect frequency range."""
         np.random.seed(42)
         signal = np.cumsum(np.random.randn(1000))
-
         result = estimate_beta_welch(signal, fs=100.0, fmin=1.0, fmax=10.0)
         assert result > 0
 
@@ -123,9 +113,7 @@ class TestPowerSpectrum:
         freqs = np.array([1.0, 2.0, 4.0])
         tau_levels = np.array([10.0, 100.0])
         sigma_levels = np.array([1.0, 1.0])
-
         result = power_spectrum(freqs, tau_levels, sigma_levels)
-
         assert len(result) == len(freqs)
         assert np.all(result > 0)
 
@@ -134,7 +122,6 @@ class TestPowerSpectrum:
         freqs = np.array([1.0, 2.0])
         tau_levels = np.array([10.0, 100.0])
         sigma_levels = np.array([1.0])
-
         with pytest.raises(ValueError, match="must have the same length"):
             power_spectrum(freqs, tau_levels, sigma_levels)
 
@@ -146,9 +133,7 @@ class TestEstimateHurstRobust:
         """Should estimate H using Welch method."""
         np.random.seed(42)
         signal = np.cumsum(np.random.randn(1000))
-
         result = estimate_hurst_robust(signal, fs=100.0, method="welch")
-
         # H should be between 0 and 1
         assert 0.0 < result < 1.5
 
@@ -156,9 +141,7 @@ class TestEstimateHurstRobust:
         """Should estimate H using raw FFT method."""
         np.random.seed(42)
         signal = np.cumsum(np.random.randn(1000))
-
         result = estimate_hurst_robust(signal, fs=100.0, method="raw")
-
         # H should be between 0 and 1
         assert 0.0 < result < 1.5
 
@@ -166,6 +149,5 @@ class TestEstimateHurstRobust:
         """Should raise ValueError for invalid method."""
         np.random.seed(42)
         signal = np.cumsum(np.random.randn(1000))
-
         with pytest.raises(ValueError, match="unknown method"):
             estimate_hurst_robust(signal, fs=100.0, method="invalid")

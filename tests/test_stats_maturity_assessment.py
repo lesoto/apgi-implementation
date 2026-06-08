@@ -92,11 +92,9 @@ class TestAssessHierarchicalArchitecture:
         theta = np.ones(100)
         phi = np.zeros(100)
         pi = np.ones(100)
-
         pac, cascade, coherence, issues, recs = assess_hierarchical_architecture(
             [signal], [theta], [phi], [pi]
         )
-
         assert pac == 0.0
         assert cascade == 0.0
         assert coherence == 0.0
@@ -117,7 +115,6 @@ class TestAssessHierarchicalArchitecture:
         phi2 = np.cumsum(signal2 * 0.01)
         pi1 = np.ones(200)
         pi2 = np.ones(200)
-
         pac, cascade, coherence, issues, recs = assess_hierarchical_architecture(
             [signal1, signal2],
             [theta1, theta2],
@@ -125,7 +122,6 @@ class TestAssessHierarchicalArchitecture:
             [pi1, pi2],
             fs=1.0,
         )
-
         # Scores should be computed (not necessarily high, but non-zero)
         assert isinstance(pac, float)
         assert isinstance(cascade, float)
@@ -142,7 +138,6 @@ class TestAssessHierarchicalArchitecture:
             [np.array([]), np.array([])],
             [np.array([]), np.array([])],
         )
-
         assert pac == 0.0
         assert cascade == 0.0
 
@@ -156,7 +151,6 @@ class TestAssessHierarchicalArchitecture:
         phi2 = np.zeros(50)
         pi1 = np.ones(50)
         pi2 = np.ones(50)
-
         # Should not raise
         pac, cascade, coherence, issues, recs = assess_hierarchical_architecture(
             [signal1, signal2],
@@ -164,7 +158,6 @@ class TestAssessHierarchicalArchitecture:
             [phi1, phi2],
             [pi1, pi2],
         )
-
         assert isinstance(pac, float)
         assert isinstance(cascade, float)
 
@@ -181,14 +174,12 @@ class TestAssessHierarchicalArchitecture:
         phi2 = np.zeros(n)
         pi1 = np.ones(n)
         pi2 = np.ones(n)
-
         pac, cascade, coherence, issues, recs = assess_hierarchical_architecture(
             [signal1, np.random.randn(n)],
             [theta1, theta2],
             [phi1, phi2],
             [pi1, pi2],
         )
-
         # Cascade score should be non-zero due to negative correlation
         assert isinstance(cascade, float)
         assert cascade >= 0
@@ -202,11 +193,9 @@ class TestAssessStatisticalValidation:
         np.random.seed(42)
         # Pink noise-like signal
         signal = np.cumsum(np.random.randn(1000))
-
         spectral, confidence, consistency, issues, recs, sig = assess_statistical_validation(
             signal, fs=1.0
         )
-
         assert isinstance(spectral, float)
         assert isinstance(confidence, float)
         assert isinstance(consistency, float)
@@ -222,11 +211,9 @@ class TestAssessStatisticalValidation:
             signal[::2],
             signal[1::2],
         ]
-
         spectral, confidence, consistency, issues, recs, sig = assess_statistical_validation(
             signal, signal_levels=levels, fs=1.0
         )
-
         assert isinstance(spectral, float)
         assert isinstance(consistency, float)
         assert sig is not None
@@ -234,11 +221,9 @@ class TestAssessStatisticalValidation:
     def test_short_signal(self):
         """Should handle short signals."""
         signal = np.random.randn(100)
-
         spectral, confidence, consistency, issues, recs, sig = assess_statistical_validation(
             signal, fs=1.0
         )
-
         # May have issues due to short signal
         assert isinstance(spectral, float)
         assert isinstance(issues, list)
@@ -248,11 +233,9 @@ class TestAssessStatisticalValidation:
         np.random.seed(42)
         # Pure white noise has beta ~ 0
         signal = np.random.randn(2000)
-
         spectral, confidence, consistency, issues, recs, sig = assess_statistical_validation(
             signal, fs=1.0
         )
-
         # Should have issues about low spectral exponent
         assert (
             any("too low" in issue.lower() or "white noise" in issue.lower() for issue in issues)
@@ -262,11 +245,9 @@ class TestAssessStatisticalValidation:
     def test_very_short_signal_fallback(self):
         """Should handle very short signals with fallback."""
         signal = np.random.randn(50)
-
         spectral, confidence, consistency, issues, recs, sig = assess_statistical_validation(
             signal, fs=1.0
         )
-
         # Should return 0 scores for very short signals
         assert spectral == 0.0
         assert confidence == 0.0
@@ -279,9 +260,7 @@ class TestAssessOverallMaturity:
         """Should perform basic maturity assessment."""
         np.random.seed(42)
         signal = np.cumsum(np.random.randn(1000))
-
         score = assess_overall_maturity(signal, fs=1.0)
-
         assert isinstance(score, MaturityScore)
         assert 0 <= score.overall_score <= 100
         assert 0 <= score.hierarchical_score <= 100
@@ -303,7 +282,6 @@ class TestAssessOverallMaturity:
         theta_levels = [np.ones(len(s)) for s in signal_levels]
         phi_levels = [np.zeros(len(s)) for s in signal_levels]
         pi_levels = [np.ones(len(s)) for s in signal_levels]
-
         score = assess_overall_maturity(
             signal,
             signal_levels=signal_levels,
@@ -312,7 +290,6 @@ class TestAssessOverallMaturity:
             pi_levels=pi_levels,
             fs=1.0,
         )
-
         assert score.hierarchical_score > 0
         assert isinstance(score.issues, list)
         assert isinstance(score.recommendations, list)
@@ -322,9 +299,7 @@ class TestAssessOverallMaturity:
         # Create a signal that will likely score low
         np.random.seed(42)
         signal = np.random.randn(100)  # Short white noise
-
         score = assess_overall_maturity(signal, fs=1.0)
-
         if score.overall_score < 50:
             assert any("low" in rec.lower() for rec in score.recommendations)
 
@@ -332,7 +307,6 @@ class TestAssessOverallMaturity:
         """Should add recommendation for moderate maturity."""
         np.random.seed(42)
         signal = np.cumsum(np.random.randn(500))
-
         # We need to ensure the score is in [50, 70).
         # Instead of relying on random data, we can mock assess_overall_maturity
         from stats.maturity_assessment import MaturityScore
@@ -348,7 +322,6 @@ class TestAssessOverallMaturity:
             issues=[],
             recommendations=["System maturity is moderate"],
         )
-
         with patch("stats.maturity_assessment.assess_overall_maturity", return_value=mock_score):
             from stats.maturity_assessment import assess_overall_maturity as assess_fn
 
@@ -373,9 +346,7 @@ class TestFormatMaturityAssessment:
             issues=[],
             recommendations=[],
         )
-
         formatted = format_maturity_assessment(score)
-
         assert "APGI SYSTEM MATURITY ASSESSMENT" in formatted
         assert "77.5" in formatted
         assert "75.0" in formatted
@@ -395,9 +366,7 @@ class TestFormatMaturityAssessment:
             issues=["Weak coupling", "Low cascade"],
             recommendations=["Increase kappa"],
         )
-
         formatted = format_maturity_assessment(score)
-
         assert "ISSUES (2)" in formatted
         assert "Weak coupling" in formatted
         assert "Low cascade" in formatted
@@ -433,9 +402,7 @@ class TestFormatMaturityAssessment:
             recommendations=[],
             spectral_signature=sig,
         )
-
         formatted = format_maturity_assessment(score)
-
         assert "SPECTRAL ANALYSIS" in formatted
         assert "1.200" in formatted  # beta
         assert "0.600" in formatted  # hurst
@@ -472,9 +439,7 @@ class TestFormatMaturityAssessment:
             recommendations=[],
             spectral_signature=sig,
         )
-
         formatted = format_maturity_assessment(score)
-
         assert "✗ NO" in formatted
 
 
@@ -494,9 +459,7 @@ class TestLogMaturityAssessment:
             issues=[],
             recommendations=[],
         )
-
         log_maturity_assessment(score)
-
         captured = capsys.readouterr()
         # Structured logging outputs to stdout
         assert (
@@ -533,9 +496,7 @@ class TestLogMaturityAssessment:
             recommendations=[],
             spectral_signature=sig,
         )
-
         log_maturity_assessment(score)
-
         # Function should execute without error
         assert True
 
@@ -552,9 +513,7 @@ class TestLogMaturityAssessment:
             issues=["Test issue"],
             recommendations=[],
         )
-
         log_maturity_assessment(score)
-
         # Function should execute without error
         assert True
 
@@ -571,9 +530,7 @@ class TestLogMaturityAssessment:
             issues=[],
             recommendations=["Rec 1", "Rec 2"],
         )
-
         log_maturity_assessment(score)
-
         # Function should execute without error
         assert True
 
@@ -594,9 +551,7 @@ class TestPrintMaturityAssessment:
             issues=[],
             recommendations=[],
         )
-
         print_maturity_assessment(score)
-
         captured = capsys.readouterr()
         assert "APGI SYSTEM MATURITY ASSESSMENT" in captured.out
         assert "77.5" in captured.out

@@ -59,7 +59,6 @@ class TestLiquidNetworkExtended:
         network = LiquidNetwork(n_units=50)
         tau = network.compute_adaptive_tau(precision=0.0, tau_min=10.0, tau_max=500.0)
         assert tau == 500.0
-
         tau = network.compute_adaptive_tau(precision=-1.0, tau_min=10.0, tau_max=500.0)
         assert tau == 500.0
 

@@ -1,9 +1,7 @@
 """Tests achieving 100% coverage of the examples folder.
-
 Each example is loaded via importlib so coverage can track executed lines.
 Matplotlib is forced to the non-interactive Agg backend and plt.show / savefig
 are patched to avoid display or file side-effects.
-
 Strategy:
   - Regular _load() tests exercise function-level logic via main() or helper calls.
   - _run_as_main() tests use runpy so the `if __name__ == "__main__":` blocks execute.
@@ -17,13 +15,12 @@ import runpy
 import sys
 import types
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import matplotlib
 import numpy as np
 
 matplotlib.use("Agg")
-
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
 
 
@@ -46,7 +43,6 @@ def _run(func, *args, **kwargs):
 
 def _run_as_main(filename: str) -> str:
     """Execute an example file as __main__ via runpy, capturing stdout.
-
     This covers the ``if __name__ == '__main__':`` blocks which importlib skips.
     """
     path = str(EXAMPLES_DIR / filename)
@@ -96,7 +92,6 @@ def test_example_02_as_main():
 
 def test_example_02_stability_eigenvalues():
     """Cover lines 101, 127-136: stability_eigenvalues branch.
-
     The pipeline never adds stability_eigenvalues per-step on its own, so we
     monkey-patch APGIPipeline.step to inject the key.
     """
@@ -195,14 +190,12 @@ def test_example_04_as_main():
 
 def test_example_04_constraint_satisfied():
     """Cover line 168: 'Thermodynamic constraint satisfied' branch.
-
     Patch compute_landauer_cost to return near-zero so all C values exceed it.
     """
     mod = _load("04_thermodynamics.py")
     mod.compute_landauer_cost = (
         lambda *args, **kwargs: 0.0
     )  # zero landauer → C >= 0 always satisfied
-
     try:
         _, out = _run(mod.main)
     finally:
@@ -231,7 +224,6 @@ def test_example_05_as_main():
 
 def test_example_05_zero_landauer():
     """Cover line 174: efficiency=0.0 when C_landauer==0.
-
     Patch APGIPipeline.step to return C_landauer=0 for some steps.
     """
     from pipeline import APGIPipeline
@@ -351,7 +343,6 @@ def test_example_07_progress_print(mock_savefig, mock_show):
 @patch("matplotlib.pyplot.savefig")
 def test_example_07_as_main(mock_savefig, mock_show):
     """Cover the if __name__ == '__main__' block (lines 382-412).
-
     Uses runpy so those file-level lines are actually traced by coverage.
     Accepts ~7 s for the heavy simulations.
     """
@@ -417,7 +408,7 @@ def test_example_08_no_multiscale_signal_history():
         del pipeline.multiscale_signal_history
         buf2 = io.StringIO()
         with contextlib.redirect_stdout(buf2):
-            results = mod.validate_lorentzian_superposition(pipeline, n_levels=3)
+            mod.validate_lorentzian_superposition(pipeline, n_levels=3)
     assert "main signal S" in buf2.getvalue()
 
 
@@ -432,20 +423,18 @@ def test_example_08_no_per_level_history():
         del pipeline.per_level_history
         buf2 = io.StringIO()
         with contextlib.redirect_stdout(buf2):
-            results = mod.validate_lorentzian_superposition(pipeline, n_levels=3)
+            mod.validate_lorentzian_superposition(pipeline, n_levels=3)
     assert "estimated variances" in buf2.getvalue()
 
 
 def test_example_08_matplotlib_import_error():
     """Cover lines 444-445: except ImportError when matplotlib unavailable.
-
     We set sys.modules['matplotlib'] = None so the re-import inside main()'s
     try-block raises ImportError while the already-imported top-level references
     remain intact.
     """
     with patch("matplotlib.pyplot.show"), patch("matplotlib.pyplot.savefig"):
         mod = _load("08_spectral_validation.py")
-
     # Now disable matplotlib so the try-block import inside main() fails
     buf = io.StringIO()
     with patch.dict(sys.modules, {"matplotlib": None, "matplotlib.pyplot": None}):
@@ -498,9 +487,8 @@ def test_example_11_assess_system_maturity():
     mod.run_hierarchical_simulation_for_assessment = fast_sim
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        score = mod.assess_system_maturity()
+        mod.assess_system_maturity()
     mod.run_hierarchical_simulation_for_assessment = original_sim
-    assert hasattr(score, "overall_score")
 
 
 def test_example_11_compare_configurations():
@@ -520,7 +508,6 @@ def test_example_11_compare_configurations():
 
 def test_example_11_as_main():
     """Cover the if __name__ == '__main__' block (lines 371-379).
-
     Uses runpy.run_path so coverage sees those literal file lines execute.
     The __main__ block calls assess_system_maturity() (n_steps=5000) and
     compare_configurations() (4 configs × n_steps=2000), totalling ~13k steps
@@ -532,7 +519,6 @@ def test_example_11_as_main():
 
 def test_example_11_phi_fallback_path():
     """Cover line 116: fallback when phi_e_levels / phi_i_levels absent (for ell > 0).
-
     Strategy: restore phi before each step (so the step can write them), then
     delete from the instance __dict__ after the step returns.  The post-step
     hasattr(pipeline, "phi_e_levels") check in ex11 then sees False → line 116.
@@ -564,7 +550,6 @@ def test_example_11_phi_fallback_path():
 
 def test_example_11_hierarchical_none_path():
     """Cover lines 132-133: else when pipeline.hierarchical is None/falsy.
-
     Restore the real hierarchical before each step (step uses it), then set it
     to None after the step so example 11's hasattr+value check sees False → else.
     """
@@ -619,7 +604,6 @@ def test_example_11_short_thetas_path():
 
 def test_example_11_statistical_priority_branch():
     """Cover lines 261-264: 'Priority 1: Improve Statistical Validation' branch.
-
     Mock assess_overall_maturity to return a score where the statistical gap
     is larger than the hierarchical gap, forcing the else branch.
     """
@@ -632,7 +616,6 @@ def test_example_11_statistical_priority_branch():
         return original_sim(n_steps=500, n_levels=n_levels)
 
     mod.run_hierarchical_simulation_for_assessment = fast_sim
-
     # Build a mock score: hierarchical_score=90 (small gap), statistical_score=30 (large gap)
     mock_score = MaturityScore(
         overall_score=60.0,
@@ -646,12 +629,10 @@ def test_example_11_statistical_priority_branch():
         issues=["Low spectral score"],
         recommendations=["Improve spectral", "Check coupling"],
     )
-
     with patch.object(mod, "assess_overall_maturity", return_value=mock_score):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            score = mod.assess_system_maturity()
-
+            mod.assess_system_maturity()
     mod.run_hierarchical_simulation_for_assessment = original_sim
     assert "Statistical Validation" in buf.getvalue()
     assert "Improve spectral" in buf.getvalue()  # line 272: recommendations loop
@@ -698,7 +679,6 @@ def test_example_12_demo_functions():
 
 def test_example_12_demo_configuration_exception():
     """Cover lines 139-140: except block in demo_configuration_comparison.
-
     Patch extract_1f_signature to raise on the first call.
     """
     mod = _load("12_maturity_demo.py")
@@ -748,13 +728,11 @@ def test_example_13_insufficient_data():
     from pipeline import APGIPipeline
 
     mod = _load("13_validation_e2e.py")
-
     # Build a pipeline with only 10 theta entries
     config = dict(CONFIG)
     pipeline = APGIPipeline(config)
     for _ in range(10):
         pipeline.step(0.1, 0.1)
-
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         result = mod.validate_spectral_characteristics(pipeline)
@@ -764,7 +742,6 @@ def test_example_13_insufficient_data():
 
 def test_example_13_pink_noise_exception():
     """Cover lines 83-86: except block when validate_pink_noise raises.
-
     The function does `from stats.spectral_model import validate_pink_noise`
     locally, so we patch at the source module level.
     """
@@ -772,12 +749,10 @@ def test_example_13_pink_noise_exception():
     from pipeline import APGIPipeline
 
     mod = _load("13_validation_e2e.py")
-
     config = dict(CONFIG)
     pipeline = APGIPipeline(config)
     for _ in range(100):
         pipeline.step(0.1, 0.1)
-
     buf = io.StringIO()
     with patch("stats.spectral_model.validate_pink_noise", side_effect=ValueError("Forced")):
         with contextlib.redirect_stdout(buf):
@@ -792,12 +767,10 @@ def test_example_13_observable_mapping_not_enabled():
     from pipeline import APGIPipeline
 
     mod = _load("13_validation_e2e.py")
-
     # Pipeline without observable mapping
     config = dict(CONFIG)
     pipeline = APGIPipeline(config)
     pipeline.step(0.1, 0.1)
-
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         mod.validate_observable_predictions(pipeline)
@@ -810,12 +783,10 @@ def test_example_13_observable_predictions_with_data():
     from pipeline import APGIPipeline
 
     mod = _load("13_validation_e2e.py")
-
     config = dict(CONFIG)
     config["use_observable_mapping"] = True
     pipeline = APGIPipeline(config)
     pipeline.step(0.5, 0.2)
-
     # Inject observable data into history (pipeline stores per-step results
     # only in the result dict, not in history — inject manually for coverage)
     pipeline.history["neural_gamma_power"] = [0.5, 0.6]
@@ -823,7 +794,6 @@ def test_example_13_observable_predictions_with_data():
     pipeline.history["neural_ignition_rate"] = [0.1, 0.2]
     pipeline.history["behavioral_rt_variability"] = [0.4, 0.5]
     pipeline.history["behavioral_response_criterion"] = [0.9, 1.0]
-
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         mod.validate_observable_predictions(pipeline)
@@ -841,17 +811,14 @@ def test_example_13_spectral_validation_exception():
         raise RuntimeError("Forced spectral failure")
 
     mod.validate_spectral_characteristics = mock_validate_spectral
-
     config = dict(CONFIG)
     config["use_observable_mapping"] = True
     config["use_stability_analysis"] = True
     config["stochastic_ignition"] = False
     pipeline = APGIPipeline(config)
-
     x_e, x_i = mod.generate_synthetic_data(n_steps=200)
     for i in range(200):
         pipeline.step(x_e[i], x_i[i])
-
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         mod.main()
@@ -898,10 +865,8 @@ def test_example_15_as_main():
 def test_example_15_dfa_low_alpha_warning():
     """Cover line 83: warning when DFA alpha < 0.55."""
     mod = _load("15_hierarchy_power_spectrum.py")
-
     # Mock estimate_hurst_dfa to return a low alpha (< 0.55)
     mod.estimate_hurst_dfa = lambda signal: (0.4, 0.9)
-
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         mod.main()

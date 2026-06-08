@@ -9,11 +9,9 @@ from .thermodynamics import K_BOLTZMANN, T_ENV_DEFAULT, compute_landauer_cost
 
 def compute_metabolic_cost(S: float, B_prev: int = 0, c1: float = 1.0, c2: float = 0.0) -> float:
     """C(t) = c1·S(t) + c2·B(t-1) per spec.
-
     The c2·B(t-1) term captures the metabolic cost of ignition events.
     c2=0 recovers the minimal single-term form; pass c2>0 to include it.
     """
-
     return float(c1 * S + c2 * int(B_prev))
 
 
@@ -29,13 +27,10 @@ def compute_metabolic_cost_realistic(
     bold_calibration: dict[str, Any] | None = None,
 ) -> float:
     """C(t)=c1*S(t)+c2*B(t-1) with optional Landauer constraint (spec §11).
-
     When enforce_landauer=True, ensures C(t) ≥ E_min per Landauer's principle:
         C(t) = max(c1·S + c2·B_prev, κ_meta·N_erase·k_B·T_env·ln(2))
-
     With BOLD calibration: C(t) = max(c1·S + c2·B_prev, E_BOLD)
     where E_BOLD is energy estimated from BOLD signal.
-
     Args:
         S: Signal magnitude
         B_prev: Previous ignition state
@@ -52,13 +47,10 @@ def compute_metabolic_cost_realistic(
             - "conversion_factor": Joules per 1% BOLD change per cm³ tissue
             - "tissue_volume": Tissue volume in cm³
             - "ignition_spike_factor": Energy spike factor (1.05-1.10)
-
     Returns:
         Metabolic cost C(t) in same units as input (AU or Joules if calibrated)
     """
-
     base_cost = c1 * S + c2 * B_prev
-
     if enforce_landauer and S > eps_stab:
         if bold_calibration is not None:
             # Use BOLD-calibrated energy estimate
@@ -72,14 +64,12 @@ def compute_metabolic_cost_realistic(
             conversion_factor = bold_calibration.get("conversion_factor", 1.2e-18)
             tissue_volume = bold_calibration.get("tissue_volume", 1.0)
             spike_factor = bold_calibration.get("ignition_spike_factor", 1.075)
-
             # Estimate baseline energy from BOLD (Joules)
             baseline_energy = bold_signal_to_energy(
                 bold_change,
                 conversion_factor=conversion_factor,
                 tissue_volume=tissue_volume,
             )
-
             # Apply ignition spike factor; κ_meta absorbs Joules→AU unit conversion
             e_min = estimate_ignition_energy_spike(baseline_energy, spike_factor)
             e_min_scaled = e_min * kappa_meta
@@ -93,9 +83,7 @@ def compute_metabolic_cost_realistic(
                 kappa_meta=kappa_meta,
                 kappa_units=kappa_units,
             )
-
         base_cost = max(base_cost, e_min_scaled)
-
     return float(base_cost)
 
 
@@ -103,12 +91,10 @@ def compute_information_value(
     z_e: float, z_i_eff: float, v1: float = 1.0, v2: float = 1.0
 ) -> float:
     """V(t) = v1|z_e| + v2|z_i_eff| (spec, using raw prediction errors).
-
     Spec is explicit: V uses unsigned raw magnitudes |z|, not φ-transformed
     values. Both positive and negative surprises carry equal informational
     value for threshold adaptation.
     """
-
     return float(v1 * abs(z_e) + v2 * abs(z_i_eff))
 
 
@@ -116,22 +102,18 @@ def compute_information_value_with_bias(
     z_e: float, z_i_eff: float, v1: float = 1.0, v2: float = 1.0
 ) -> float:
     """V(t) using raw prediction errors (§14).
-
     Alias for compute_information_value; maintained for API compatibility.
     """
-
     return compute_information_value(z_e, z_i_eff, v1, v2)
 
 
 def apply_ne_threshold_modulation(theta: float, g_ne: float, gamma_ne: float) -> float:
     """θ <- θ * (1 + γ_NE * g_NE)."""
-
     return float(theta * (1.0 + gamma_ne * g_ne))
 
 
 def threshold_decay(theta: float, theta_base: float, kappa: float) -> float:
     """θ_next = θ_base + (θ-θ_base)e^{-κ}."""
-
     if kappa < 0:
         raise ValueError("kappa must be >= 0")
     return float(theta_base + (theta - theta_base) * np.exp(-kappa))
@@ -146,12 +128,9 @@ def update_threshold_discrete(
     B_prev: int = 0,
 ) -> float:
     """Core allostatic update per APGI spec Section 4.
-
     Formula: θ(t+1) = θ(t) + η[C(t) - V(t)] + δ_reset·B(t)
-
     The refractory boost δ_reset·B is part of the core allostatic update,
     applied BEFORE NE modulation and ignition decision.
-
     Args:
         theta: Current threshold
         metabolic_cost: C(t) - metabolic cost of signal/ignition
@@ -159,21 +138,17 @@ def update_threshold_discrete(
         eta: Allostatic learning rate
         delta: Refractory boost magnitude (δ_reset)
         B_prev: Previous ignition state (0 or 1)
-
     Returns:
         Updated threshold
     """
-
     return float(theta + eta * (metabolic_cost - information_value) + delta * B_prev)
 
 
 def apply_serotonin_threshold_offset(theta: float, beta_5ht: float) -> float:
     """Serotonergic threshold offset: θ_eff = θ + β_5HT (spec §8.4).
-
     5-HT encodes patience / uncertainty tolerance by raising the ignition
     threshold additively. Positive β_5HT delays premature perceptual
     commitment; zero recovers baseline behaviour.
-
     Theoretical grounding: Dayan & Daw (2008); Crockett et al. (2012).
     Flagged as HIGH-UNCERTAINTY mapping in spec §8.4.
     """
@@ -182,7 +157,6 @@ def apply_serotonin_threshold_offset(theta: float, beta_5ht: float) -> float:
 
 def apply_refractory_boost(theta_next: float, B: int, delta: float) -> float:
     """Post-ignition boost: θ <- θ + δ*B."""
-
     return float(theta_next + delta * int(B))
 
 
@@ -197,9 +171,7 @@ def update_threshold_ode_deprecated(
 ) -> float:
     """[DEPRECATED] Continuous threshold dynamics (rate of change):
     dθ/dt = γ(θ_0 - θ) + δ·B(t-1) - λ|dS/dt|.
-
     Warning: Derivative coupling to dS/dt is removed from the APGI spec.
     Use core.allostatic.allostatic_threshold_ode instead.
     """
-
     return float(gamma * (theta_0 - theta) + delta * int(B_prev) - lam * abs(dS_dt))

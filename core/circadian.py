@@ -1,25 +1,19 @@
 """Circadian and ultradian θₜ modulation — APGI spec §27 (peripheral predictions).
-
 The APGI framework predicts that the ignition threshold θₜ is modulated by
 two biological rhythms:
-
   - Circadian (~24h): driven by the suprachiasmatic nucleus (SCN); encodes
     time-of-day variation in alertness and metabolic state.
   - Ultradian (~90 min, BRAC): Basic Rest-Activity Cycle; encodes within-day
     oscillations in cortical excitability and REM/NREM-like transitions.
-
 Both are implemented as additive cosine offsets on θₜ:
-
     Δθ_circ(t)     = A_circ     · cos(2π·t/T_circ     + φ_circ)
     Δθ_ultradian(t) = A_ultradian · cos(2π·t/T_ultradian + φ_ultradian)
     θ_eff(t)       = θ_base + Δθ_circ(t) + Δθ_ultradian(t)
-
 Falsification criteria (§27 Tier 3 — Peripheral):
   - Null result on circadian θₜ modulation below detection threshold in
     specific populations does NOT invalidate the core framework.
   - Ultradian ~90-min oscillations not detectable in vigilance paradigms
     leaves the core intact.
-
 References:
   - Daan, S., & Beersma, D. G. M. (1984). Circadian gating of sleep onset.
   - Kleitman, N. (1982). Basic rest-activity cycle — 22 years later.
@@ -32,10 +26,8 @@ from __future__ import annotations
 import numpy as np
 
 # ── Physical / biological constants ──────────────────────────────────────────
-
 T_CIRCADIAN_DEFAULT: float = 86400.0  # 24 h in seconds
 T_ULTRADIAN_DEFAULT: float = 5400.0  # 90 min in seconds
-
 
 # ── Scalar offset functions ───────────────────────────────────────────────────
 
@@ -47,9 +39,7 @@ def circadian_theta_offset(
     phi_circ: float = 0.0,
 ) -> float:
     """Circadian additive offset on θₜ.
-
     Δθ_circ(t) = A_circ · cos(2π·t/T_circ + φ_circ)
-
     Args:
         t: Time in seconds (absolute, e.g. seconds since midnight)
         A_circ: Amplitude of circadian modulation (default: 0.1 × θ_base units)
@@ -57,7 +47,6 @@ def circadian_theta_offset(
         T_circ: Period of circadian rhythm in seconds (default: 86400 s = 24 h)
         phi_circ: Phase offset in radians (default: 0; peak at t=0)
             Use φ_circ = π to flip phase (lowest arousal at t=0).
-
     Returns:
         Scalar additive offset Δθ_circ(t)
     """
@@ -73,16 +62,13 @@ def ultradian_theta_offset(
     phi_ultradian: float = 0.0,
 ) -> float:
     """Ultradian (~90 min, BRAC) additive offset on θₜ.
-
     Δθ_ultradian(t) = A_ultradian · cos(2π·t/T_ultradian + φ_ultradian)
-
     Args:
         t: Time in seconds
         A_ultradian: Amplitude of ultradian modulation (default: 0.05)
             Typically half the circadian amplitude — smaller excitability swings.
         T_ultradian: Period of BRAC in seconds (default: 5400 s = 90 min)
         phi_ultradian: Phase offset in radians (default: 0)
-
     Returns:
         Scalar additive offset Δθ_ultradian(t)
     """
@@ -101,13 +87,10 @@ def combined_biological_rhythm_offset(
     phi_ultradian: float = 0.0,
 ) -> float:
     """Combined circadian + ultradian additive offset on θₜ.
-
     Δθ(t) = A_circ · cos(2π·t/T_circ + φ_circ)
            + A_ultradian · cos(2π·t/T_ultradian + φ_ultradian)
-
     The two rhythms are superimposed linearly — they are driven by
     independent biological clocks (SCN vs. brainstem BRAC generator).
-
     Args:
         t: Time in seconds
         A_circ: Circadian amplitude (default: 0.1)
@@ -116,7 +99,6 @@ def combined_biological_rhythm_offset(
         A_ultradian: Ultradian amplitude (default: 0.05)
         T_ultradian: Ultradian period in seconds (default: 5400)
         phi_ultradian: Ultradian phase offset in radians (default: 0)
-
     Returns:
         Total additive offset Δθ(t) = Δθ_circ + Δθ_ultradian
     """
@@ -137,12 +119,9 @@ def apply_biological_rhythm_to_theta(
     theta_min: float = 0.0,
 ) -> float:
     """Apply combined biological rhythm offset to a baseline threshold.
-
     θ_eff(t) = max(θ_min, θ_base + Δθ_circ(t) + Δθ_ultradian(t))
-
     The floor θ_min prevents the rhythm from driving θ negative, which
     would make ignition unconditionally certain (biologically implausible).
-
     Args:
         theta_base: Baseline ignition threshold θ_base
         t: Time in seconds
@@ -153,7 +132,6 @@ def apply_biological_rhythm_to_theta(
         T_ultradian: Ultradian period (seconds)
         phi_ultradian: Ultradian phase offset (radians)
         theta_min: Minimum allowed threshold (default: 0.0)
-
     Returns:
         Rhythmically modulated threshold θ_eff(t) ≥ theta_min
     """
@@ -197,14 +175,10 @@ def ultradian_theta_offset_array(
 
 class CircadianRegulator:
     """Stateful biological rhythm regulator for incremental pipeline integration.
-
     Tracks elapsed time internally and exposes a single `theta_offset()`
     call per timestep, making it drop-in compatible with the allostatic ODE:
-
         θ(t+dt) = allostatic_ode(...) + regulator.theta_offset()
-
     Example::
-
         reg = CircadianRegulator(dt=1.0)   # 1-second timesteps
         for step in range(n_steps):
             theta_eff = theta_base + reg.theta_offset()
@@ -223,7 +197,6 @@ class CircadianRegulator:
         phi_ultradian: float = 0.0,
     ) -> None:
         """Initialize the circadian regulator.
-
         Args:
             t0: Initial time in seconds (default: 0 — start of day)
             dt: Timestep size in seconds (default: 1.0 s)

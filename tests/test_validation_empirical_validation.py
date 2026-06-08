@@ -54,16 +54,13 @@ class TestEmpiricalDataLoader:
         """Test EEG loading with NumPy fallback (no MNE)."""
         config = DatasetConfig(name="test", data_type="eeg", fs=100.0)
         loader = EmpiricalDataLoader(config)
-
         # Create a temporary .npy file
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".npy") as f:
             filepath = f.name
-
         try:
             # Create test data
             test_data = np.random.randn(2, 1000)
             np.save(filepath, test_data)
-
             # Mock MNE import to force fallback
             with patch.dict("sys.modules", {"mne": None}):
                 result = loader.load_eeg_dataset(filepath)
@@ -79,16 +76,13 @@ class TestEmpiricalDataLoader:
         """Test EEG loading with NPZ file format."""
         config = DatasetConfig(name="test", data_type="eeg", fs=100.0)
         loader = EmpiricalDataLoader(config)
-
         # Create a temporary .npz file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".npz") as f:
             filepath = f.name
-
         try:
             # Create test data as npz with named arrays matching the expected keys
             test_data = np.random.randn(2, 1000)
             np.savez(filepath, arr_0=test_data)  # Use arr_0 as the default key
-
             # Mock MNE import to force fallback
             with patch.dict("sys.modules", {"mne": None}):
                 result = loader.load_eeg_dataset(filepath)
@@ -103,18 +97,15 @@ class TestEmpiricalDataLoader:
         """Test EEG loading with mocked MNE and event markers."""
         config = DatasetConfig(name="test", data_type="eeg", fs=100.0)
         loader = EmpiricalDataLoader(config)
-
         # Create mock MNE module
         mock_raw = MagicMock()
         mock_raw.get_data.return_value = np.random.randn(2, 1000)
         mock_raw.info = {"sfreq": 100.0}
         mock_raw.ch_names = ["ch1", "ch2"]
         mock_raw.pick_channels = MagicMock()
-
         # Mock events_from_annotations
         mock_events = np.array([[0, 0, 1], [100, 0, 2]])
         mock_event_dict = {"event1": 1, "event2": 2}
-
         with patch.dict("sys.modules", {"mne": MagicMock()}):
             import sys
 
@@ -124,7 +115,6 @@ class TestEmpiricalDataLoader:
                 mock_events,
                 mock_event_dict,
             )
-
             result = loader.load_eeg_dataset(
                 "dummy_file.fif",
                 channel_names=["ch1"],
@@ -138,22 +128,18 @@ class TestEmpiricalDataLoader:
         """Test EEG loading with mocked MNE using defaults (no channel_names/event_markers)."""
         config = DatasetConfig(name="test", data_type="eeg", fs=100.0)
         loader = EmpiricalDataLoader(config)
-
         # Create mock MNE module
         mock_raw = MagicMock()
         mock_raw.get_data.return_value = np.random.randn(2, 1000)
         mock_raw.info = {"sfreq": 100.0}
         mock_raw.ch_names = ["ch1", "ch2"]
         mock_raw.pick_channels = MagicMock()
-
         with patch.dict("sys.modules", {"mne": MagicMock()}):
             import sys
 
             mock_mne = sys.modules["mne"]
             mock_mne.io.read_raw.return_value = mock_raw
-
             result = loader.load_eeg_dataset("dummy_file.fif")
-
             # Should not call pick_channels
             mock_raw.pick_channels.assert_not_called()
             # Should not have events
@@ -165,7 +151,6 @@ class TestEmpiricalDataLoader:
         """Test behavioral dataset loading from CSV."""
         config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
         loader = EmpiricalDataLoader(config)
-
         # Create a temporary CSV file
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
             filepath = f.name
@@ -173,7 +158,6 @@ class TestEmpiricalDataLoader:
             f.write("0.5,1.0,A\n")
             f.write("0.6,0.0,B\n")
             f.write("0.4,1.0,A\n")
-
         try:
             result = loader.load_behavioral_dataset(filepath)
             assert "rt" in result
@@ -189,12 +173,10 @@ class TestEmpiricalDataLoader:
         """Test behavioral dataset loading from JSON."""
         config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
         loader = EmpiricalDataLoader(config)
-
         # Create a temporary JSON file
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
             filepath = f.name
             f.write('{"rt":[0.5,0.6,0.4],"accuracy":[1.0,0.0,1.0]}')
-
         try:
             result = loader.load_behavioral_dataset(filepath)
             assert "rt" in result
@@ -208,12 +190,10 @@ class TestEmpiricalDataLoader:
         """Test behavioral dataset loading with unsupported format."""
         config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
         loader = EmpiricalDataLoader(config)
-
         # Create a temporary file with unsupported extension
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             filepath = f.name
             f.write("rt,accuracy\n0.5,1.0\n")
-
         try:
             with pytest.raises(ValueError, match="Unsupported file format"):
                 loader.load_behavioral_dataset(filepath)
@@ -225,7 +205,6 @@ class TestEmpiricalDataLoader:
         """Test behavioral dataset loading with conditions."""
         config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
         loader = EmpiricalDataLoader(config)
-
         # Create a temporary CSV file
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
             filepath = f.name
@@ -233,7 +212,6 @@ class TestEmpiricalDataLoader:
             f.write("0.5,1.0,A\n")
             f.write("0.6,0.0,B\n")
             f.write("0.4,1.0,A\n")
-
         try:
             result = loader.load_behavioral_dataset(filepath, condition_column="condition")
             assert "conditions" in result
@@ -248,7 +226,6 @@ class TestEmpiricalDataLoader:
         """Test get_segment raises error when no data loaded."""
         config = DatasetConfig(name="test", data_type="simulation", fs=100.0)
         loader = EmpiricalDataLoader(config)
-
         with pytest.raises(ValueError, match="No data loaded"):
             loader.get_segment(0.0, 1.0)
 
@@ -256,18 +233,15 @@ class TestEmpiricalDataLoader:
         """Test behavioral dataset loading from HDF5 format."""
         config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
         loader = EmpiricalDataLoader(config)
-
         # Create a temporary HDF5 file
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".h5") as f:
             filepath = f.name
-
         try:
             # Create HDF5 file with pandas
             import pandas as pd  # type: ignore[import-untyped]
 
             df = pd.DataFrame({"rt": [0.5, 0.6, 0.4], "accuracy": [1.0, 0.0, 1.0]})
             df.to_hdf(filepath, key="data", mode="w")
-
             result = loader.load_behavioral_dataset(filepath)
             assert "rt" in result
             assert "accuracy" in result
@@ -282,11 +256,9 @@ class TestEmpiricalDataLoader:
         """Test behavioral dataset loading when HDF5 returns Series."""
         config = DatasetConfig(name="test", data_type="behavior", fs=100.0)
         loader = EmpiricalDataLoader(config)
-
         # Create a temporary HDF5 file
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".h5") as f:
             filepath = f.name
-
         try:
             # Create HDF5 file with pandas Series to trigger conversion
             import pandas as pd  # type: ignore[import-untyped]
@@ -294,7 +266,6 @@ class TestEmpiricalDataLoader:
             # Save as Series - this should trigger the to_frame() conversion
             series = pd.Series([0.5, 0.6, 0.4], name="rt")
             series.to_hdf(filepath, key="data", mode="w")
-
             # This will fail because Series doesn't have 'accuracy' column
             # But the conversion line should be executed
             try:
@@ -312,13 +283,11 @@ class TestEmpiricalDataLoader:
         """Test get_segment extracts correct segment."""
         config = DatasetConfig(name="test", data_type="simulation", fs=100.0)
         loader = EmpiricalDataLoader(config)
-
         # Load test data
         loader.data = {
             "signals": np.random.randn(2, 1000),
             "fs": 100.0,
         }
-
         segment = loader.get_segment(0.0, 1.0, channel_idx=0)
         assert segment.shape == (100,)  # 1 second at 100 Hz
 
@@ -326,13 +295,11 @@ class TestEmpiricalDataLoader:
         """Test get_segment extracts all channels when channel_idx is None."""
         config = DatasetConfig(name="test", data_type="simulation", fs=100.0)
         loader = EmpiricalDataLoader(config)
-
         # Load test data
         loader.data = {
             "signals": np.random.randn(2, 1000),
             "fs": 100.0,
         }
-
         segment = loader.get_segment(0.0, 1.0, channel_idx=None)
         assert segment.shape == (2, 100)  # 2 channels, 1 second at 100 Hz
 
@@ -580,7 +547,6 @@ class TestCrossValidationRunner:
         """Test cross-validation execution."""
         runner = CrossValidationRunner(n_folds=3)
         data = np.random.randn(30)
-
         # Mock APGI pipeline
         mock_pipeline = MagicMock()
 

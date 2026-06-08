@@ -34,10 +34,8 @@ def test_compute_precision():
 def test_ema_updates():
     # Mean: (1-0.1)*1.0 + 0.1*2.0 = 0.9 + 0.2 = 1.1
     assert pytest.approx(update_mean_ema(1.0, 2.0, 0.1)) == 1.1
-
     # Var: (1-0.1)*1.0 + 0.1*(2.0-1.0)**2 = 0.9 + 0.1 = 1.0
     assert pytest.approx(update_variance_ema(1.0, 2.0, 1.0, 0.1)) == 1.0
-
     with pytest.raises(ValueError, match="alpha must be in"):
         update_mean_ema(1.0, 2.0, 1.5)
     with pytest.raises(ValueError, match="alpha must be in"):
@@ -75,7 +73,6 @@ def test_precision_coupling_ode_core():
         psi=abs,
     )
     assert pytest.approx(dpi) == 1.1
-
     # Boundary (None)
     dpi_boundary = precision_coupling_ode_core(
         pi_ell=1.0,

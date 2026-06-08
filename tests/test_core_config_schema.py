@@ -495,7 +495,6 @@ class TestAPGIConfigModelValidators:
         # Valid: only one is True (with valid gamma_ne for threshold mode)
         APGIConfig(ne_on_precision=True, ne_on_threshold=False)
         APGIConfig(ne_on_precision=False, ne_on_threshold=True, gamma_ne=0.01, kappa=0.15)
-
         # Invalid: both True
         with pytest.raises(ValidationError) as exc_info:
             APGIConfig(ne_on_precision=True, ne_on_threshold=True, gamma_ne=0.01, kappa=0.15)
@@ -505,7 +504,6 @@ class TestAPGIConfigModelValidators:
         """Should validate NE threshold mode parameters."""
         # Valid: low gamma_ne with high kappa (must set ne_on_precision=False to avoid double counting)
         APGIConfig(ne_on_threshold=True, ne_on_precision=False, gamma_ne=0.01, kappa=0.15)
-
         # Invalid: high gamma_ne causes instability
         with pytest.raises(ValidationError) as exc_info:
             APGIConfig(ne_on_threshold=True, ne_on_precision=False, gamma_ne=0.1, kappa=0.15)
@@ -515,7 +513,6 @@ class TestAPGIConfigModelValidators:
         """Should validate dt against minimum timescale."""
         # Valid: dt is small enough
         APGIConfig(tau_s=5.0, tau_theta=20.0, dt=0.1)
-
         # Invalid: dt too large
         with pytest.raises(ValidationError) as exc_info:
             APGIConfig(tau_s=1.0, tau_theta=1.0, dt=0.2)
@@ -525,12 +522,10 @@ class TestAPGIConfigModelValidators:
         """Should validate kappa_e and kappa_i against pi_max."""
         # Valid: kappa < 2/pi_max
         APGIConfig(use_internal_predictions=True, pi_max=100.0, kappa_e=0.01)
-
         # Invalid: kappa_e too large
         with pytest.raises(ValidationError) as exc_info:
             APGIConfig(use_internal_predictions=True, pi_max=1.0, kappa_e=5.0)
         assert "kappa_e" in str(exc_info.value)
-
         # Invalid: kappa_i too large
         with pytest.raises(ValidationError) as exc_info:
             APGIConfig(use_internal_predictions=True, pi_max=1.0, kappa_i=5.0)

@@ -1,5 +1,4 @@
 """Comprehensive unit tests for energy/thermodynamics.py module.
-
 Tests cover:
 - estimate_bits_erased function
 - metabolic_cost_landauer function
@@ -202,11 +201,9 @@ class TestThermodynamicTracker:
     def test_get_summary(self):
         """Should return summary of recordings."""
         tracker = ThermodynamicTracker()
-
         # Record multiple ignitions
         for _ in range(5):
             tracker.record_ignition(z_e=1.0, z_i=0.5, pi_e=2.0, pi_i=1.0)
-
         summary = tracker.get_summary()
         assert summary["total_ignitions"] == 5
         assert summary["total_bits_processed"] > 0
@@ -215,11 +212,9 @@ class TestThermodynamicTracker:
     def test_validate_total(self):
         """Should validate total costs."""
         tracker = ThermodynamicTracker()
-
         # Record multiple ignitions
         for _ in range(10):
             tracker.record_ignition(z_e=1.0, z_i=0.5, pi_e=2.0, pi_i=1.0)
-
         validation = tracker.validate_total()
         assert "is_physically_possible" in validation
         assert "is_biologically_plausible" in validation

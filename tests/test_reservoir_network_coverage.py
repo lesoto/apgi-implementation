@@ -10,7 +10,6 @@ def test_liquid_network_init():
     assert net.W_res.shape == (10, 10)
     assert net.W_in.shape == (10,)
     assert net.W_out.shape == (10,)
-
     with pytest.raises(ValueError, match="spectral_radius"):
         LiquidNetwork(spectral_radius=1.5)
 
@@ -29,11 +28,9 @@ def test_compute_adaptive_tau():
     # precision <= 0
     assert net.compute_adaptive_tau(0) == 500.0
     assert net.compute_adaptive_tau(-1) == 500.0
-
     # Normal case
     tau = net.compute_adaptive_tau(1.0)
     assert 10.0 <= tau <= 500.0
-
     # Clipping
     assert net.compute_adaptive_tau(1e6) == 10.0
     assert net.compute_adaptive_tau(1e-6) == 500.0
@@ -42,21 +39,16 @@ def test_compute_adaptive_tau():
 def test_liquid_network_step():
     net = LiquidNetwork(n_units=10)
     x0 = net.x.copy()
-
     # Step with fixed tau
     x1 = net.step(u=1.0, tau=50.0)
     assert not np.array_equal(x0, x1)
-
     # Step with precision
     net.step(u=0.5, precision=2.0)
     assert net.tau_current != 100.0
-
     # Step with default tau (previous current)
     net.step(u=0.0)
-
     # Step with suprathreshold amplification
     net.step(u=0.0, S_target=1.0, theta=0.5, A_amp=1.0)
-
     # Error: tau <= 0
     with pytest.raises(ValueError, match="tau must be > 0"):
         net.step(u=0.0, tau=0.0)
@@ -67,7 +59,6 @@ def test_readout_signal():
     net.x = np.ones(5)
     assert isinstance(net.readout_signal("linear"), float)
     assert isinstance(net.readout_signal("energy"), float)
-
     with pytest.raises(ValueError, match="Unknown readout method"):
         net.readout_signal("invalid")
 
@@ -77,7 +68,6 @@ def test_apply_suprathreshold_gain():
     x0 = net.x.copy()
     net.apply_suprathreshold_gain(S=1.0, theta=0.5, A=1.0)
     assert not np.array_equal(x0, net.x)
-
     # Below threshold
     x_pre = net.x.copy()
     net.apply_suprathreshold_gain(S=0.1, theta=0.5)

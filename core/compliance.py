@@ -1,5 +1,4 @@
 """Compliance and audit controls for APGI production deployments.
-
 Provides audit logging, data lifecycle management, and compliance hooks
 for enterprise environments requiring SOC2/ISO27001/GDPR/HIPAA-style controls.
 """
@@ -54,7 +53,6 @@ class AuditLogger:
 
     def __init__(self, enabled: bool = True, data_classification: str = "internal"):
         """Initialize audit logger.
-
         Args:
             enabled: Whether audit logging is enabled
             data_classification: Default data classification level
@@ -73,20 +71,17 @@ class AuditLogger:
         metadata: dict[str, Any] | None = None,
     ) -> AuditEvent:
         """Log an audit event.
-
         Args:
             event_type: Type of event (e.g., 'config_change', 'pipeline_start')
             operation: Operation being performed
             resource: Resource being accessed
             result: Result of the operation
             metadata: Additional metadata
-
         Returns:
             The created audit event
         """
         if not self.enabled:
             return None  # type: ignore[return-value]
-
         event = AuditEvent(
             event_type=event_type,
             session_id=self.session_id,
@@ -96,9 +91,7 @@ class AuditLogger:
             result=result,
             metadata=metadata or {},
         )
-
         self._event_buffer.append(event)
-
         # Log to structured logger
         logger.info(
             "audit_event",
@@ -109,25 +102,21 @@ class AuditLogger:
             result=event.result,
             data_classification=event.data_classification,
         )
-
         return event
 
     def log_config_change(
         self, old_config: dict[str, Any], new_config: dict[str, Any], reason: str | None = None
     ) -> AuditEvent:
         """Log configuration changes for audit trail.
-
         Args:
             old_config: Previous configuration
             new_config: New configuration
             reason: Reason for the change
-
         Returns:
             The created audit event
         """
         # Hash sensitive config values for privacy
         diff = self._compute_config_diff(old_config, new_config)
-
         return self.log_event(
             event_type="config_change",
             operation="update",
@@ -142,11 +131,9 @@ class AuditLogger:
 
     def log_pipeline_start(self, config: dict[str, Any], n_steps: int) -> AuditEvent:
         """Log pipeline execution start.
-
         Args:
             config: Pipeline configuration
             n_steps: Number of steps
-
         Returns:
             The created audit event
         """
@@ -165,12 +152,10 @@ class AuditLogger:
         self, n_steps: int, ignition_count: int, duration_ms: float
     ) -> AuditEvent:
         """Log pipeline execution completion.
-
         Args:
             n_steps: Number of steps executed
             ignition_count: Number of ignition events
             duration_ms: Execution duration in milliseconds
-
         Returns:
             The created audit event
         """
@@ -188,12 +173,10 @@ class AuditLogger:
 
     def log_data_retention(self, data_id: str, retention_days: int, action: str) -> AuditEvent:
         """Log data retention actions.
-
         Args:
             data_id: Identifier for the data
             retention_days: Retention period
             action: Action taken (e.g., 'delete', 'archive')
-
         Returns:
             The created audit event
         """
@@ -213,7 +196,6 @@ class AuditLogger:
 
     def export_events(self, filepath: str) -> None:
         """Export audit events to JSON file.
-
         Args:
             filepath: Output file path
         """
@@ -234,12 +216,10 @@ class AuditLogger:
         old_keys = set(old_config.keys())
         new_keys = set(new_config.keys())
         all_keys = old_keys | new_keys
-
         changed = []
         for key in all_keys:
             if old_config.get(key) != new_config.get(key):
                 changed.append(key)
-
         return changed
 
 
@@ -248,7 +228,6 @@ class DataLifecycleManager:
 
     def __init__(self, default_retention_days: int = 90):
         """Initialize data lifecycle manager.
-
         Args:
             default_retention_days: Default retention period in days
         """
@@ -259,7 +238,6 @@ class DataLifecycleManager:
         self, data_id: str, data_type: str, retention_days: int | None = None
     ) -> None:
         """Register data for lifecycle management.
-
         Args:
             data_id: Unique identifier for the data
             data_type: Type of data (e.g., 'simulation', 'history')
@@ -278,7 +256,6 @@ class DataLifecycleManager:
 
     def check_expired(self) -> list[str]:
         """Check for expired data.
-
         Returns:
             List of expired data IDs
         """
@@ -290,10 +267,8 @@ class DataLifecycleManager:
 
     def anonymize_history(self, history: dict[str, list[float]]) -> dict[str, list[float]]:
         """Anonymize history data by removing identifiable patterns.
-
         Args:
             history: Raw history data
-
         Returns:
             Anonymized history
         """
@@ -306,10 +281,8 @@ class DataLifecycleManager:
 
     def delete_data(self, data_id: str) -> bool:
         """Mark data as deleted.
-
         Args:
             data_id: Data identifier
-
         Returns:
             True if data was found and deleted
         """
@@ -331,7 +304,6 @@ class ComplianceManager:
         retention_days: int = 90,
     ):
         """Initialize compliance manager.
-
         Args:
             audit_enabled: Enable audit logging
             data_classification: Default data classification
@@ -358,10 +330,8 @@ class ComplianceManager:
 
 def create_compliance_config(strict: bool = True) -> dict[str, Any]:
     """Create compliance configuration.
-
     Args:
         strict: Enable strict compliance mode
-
     Returns:
         Compliance configuration dictionary
     """

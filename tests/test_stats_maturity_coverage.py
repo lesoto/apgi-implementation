@@ -20,14 +20,12 @@ def test_assess_hierarchical_architecture():
     theta_levels = [np.random.randn(200), np.random.randn(200)]
     phi_levels = [np.random.randn(200), np.random.randn(200)]
     pi_levels = [np.ones(200), np.ones(200)]
-
     pac, cascade, coh, issues, recs = assess_hierarchical_architecture(
         signal_levels, theta_levels, phi_levels, pi_levels
     )
     assert 0 <= pac <= 100
     assert 0 <= cascade <= 100
     assert 0 <= coh <= 100
-
     # 1 level case
     pac1, cascade1, coh1, issues1, recs1 = assess_hierarchical_architecture(
         [signal_levels[0]], [theta_levels[0]], [phi_levels[0]], [pi_levels[0]]
@@ -44,12 +42,10 @@ def test_assess_statistical_validation():
     assert spec >= 0
     assert conf >= 0
     assert sig is not None
-
     # Short signal
     spec_s, conf_s, cons_s, issues_s, recs_s, sig_s = assess_statistical_validation(np.zeros(10))
     assert spec_s == 0
     assert sig_s is None
-
     # Consistency check
     signal_levels = [np.cumsum(np.random.randn(200)) for _ in range(2)]
     spec_c, conf_c, cons_c, _, _, _ = assess_statistical_validation(signal, signal_levels)
@@ -61,7 +57,6 @@ def test_assess_overall_maturity():
     score = assess_overall_maturity(signal)
     assert isinstance(score, MaturityScore)
     assert 0 <= score.overall_score <= 100
-
     # Low score case
     short_signal = np.zeros(20)
     score_low = assess_overall_maturity(short_signal)
@@ -72,16 +67,13 @@ def test_assess_overall_maturity():
 def test_logging_and_formatting(capsys):
     signal = np.cumsum(np.random.randn(200))
     score = assess_overall_maturity(signal)
-
     # Format
     fmt = format_maturity_assessment(score)
     assert "APGI SYSTEM MATURITY ASSESSMENT" in fmt
-
     # Print
     print_maturity_assessment(score)
     captured = capsys.readouterr()
     assert "OVERALL MATURITY" in captured.out
-
     # Log
     log_maturity_assessment(score)
     # Just ensure it runs without error
@@ -115,7 +107,6 @@ def test_hierarchical_exceptions():
         assert coh == 0
     finally:
         scipy.signal.coherence = original
-
     # Test branches where length is exactly 1 (covers `if min_len > 1:` false branches)
     pac_1, cascade_1, coh_1, issues_1, recs_1 = assess_hierarchical_architecture(
         [np.array([1.0]), np.array([2.0])],  # signal_levels
@@ -148,13 +139,11 @@ def test_maturity_scenarios():
         n_samples=200,
         frequency_range=(0.1, 10.0),
     )
-
     import stats.maturity_assessment
 
     original = stats.maturity_assessment.extract_1f_signature
     try:
         stats.maturity_assessment.extract_1f_signature = lambda *args, **kwargs: perfect_sig
-
         # We need n_levels > 1 and high coupling to avoid issues
         signal = np.random.randn(200)
         signal_levels = [signal, signal]
@@ -164,11 +153,9 @@ def test_maturity_scenarios():
         # Cascade: corr(signal_below, theta_above) -> High negative
         # theta_levels[1] should be negatively correlated with signal_levels[0]
         theta_levels[1] = -signal
-
         score = assess_overall_maturity(signal, signal_levels, theta_levels, phi_levels)
         assert score.overall_score > 70
         assert "None detected" in format_maturity_assessment(score)  # Hit 414
-
         # 2. Moderate maturity recommendation (50 <= score < 70)
         # We'll mock it to have lower scores
         stats.maturity_assessment.extract_1f_signature = lambda *args, **kwargs: SpectralSignature(
@@ -185,7 +172,6 @@ def test_maturity_scenarios():
             n_samples=200,
             frequency_range=(0.1, 10.0),
         )
-
         # We need to ensure the overall score is in the [50, 70) range.
         # assess_overall_maturity calculates overall_score as (hier + stat) / 2
         # Without levels, hierarchical_score will be 0.
@@ -193,7 +179,6 @@ def test_maturity_scenarios():
         # For this mock, spectral ~ 60, confidence ~ 50, consistency ~ 100.
         # Statistical score = (spectral + confidence + consistency) / 3 ~= (60 + 50 + 100) / 3 = 70.
         # Overall score = (0 + 70) / 2 = 35. This is too low.
-
         # Let's mock assess_overall_maturity directly to return exactly what we want if needed,
         # but better to mock the components.
         with patch("stats.maturity_assessment.assess_statistical_validation") as mock_val:
@@ -201,7 +186,6 @@ def test_maturity_scenarios():
             # (0 + X) / 2 = 60 => X = 120.
             # But the max for statistical_score is 100.
             # So we NEED some hierarchical score.
-
             # Let's just mock assess_overall_maturity to cover the branch.
             from stats.maturity_assessment import MaturityScore
 
@@ -226,7 +210,6 @@ def test_maturity_scenarios():
                     assert any(
                         "moderate" in r.lower() for r in score_mod.recommendations
                     )  # pragma: no cover
-
         # 3. White noise issue (beta < 0.8)
         stats.maturity_assessment.extract_1f_signature = lambda *args, **kwargs: SpectralSignature(
             beta=0.5,
@@ -244,7 +227,6 @@ def test_maturity_scenarios():
         )
         score_white = assess_overall_maturity(signal)
         assert any("Spectral exponent too low" in i for i in score_white.issues)
-
         # 4. Brown noise issue (beta > 1.5)
         stats.maturity_assessment.extract_1f_signature = lambda *args, **kwargs: SpectralSignature(
             beta=2.0,
@@ -262,7 +244,6 @@ def test_maturity_scenarios():
         )
         score_brown = assess_overall_maturity(signal)
         assert any("Spectral exponent too high" in i for i in score_brown.issues)
-
         # 5. Consistency score coverage (len(level_betas) <= 1)
         # We can mock extract_1f_signature to fail on second call
         call_count = 0
@@ -277,7 +258,6 @@ def test_maturity_scenarios():
         stats.maturity_assessment.extract_1f_signature = fail_on_second
         score_cons = assess_statistical_validation(signal, signal_levels=[signal, signal])
         assert score_cons[2] == 0.0  # consistency_score
-
         # 6. Moderate score (50-70) - ensure we hit the 70 > score >= 50 branch
         stats.maturity_assessment.extract_1f_signature = lambda *args, **kwargs: SpectralSignature(
             beta=1.0,
@@ -311,7 +291,6 @@ def test_maturity_scenarios():
                 )  # Hit 327
         finally:
             stats.maturity_assessment.assess_hierarchical_architecture = orig_hier
-
         # 7. Coherence empty (hit 153)
         # We need n_levels > 1 to enter the loops, but signals < 100 to miss coherence
         s_short = [np.zeros(50), np.zeros(50)]
@@ -334,7 +313,6 @@ def test_maturity_scenarios():
         stats.maturity_assessment.extract_1f_signature = lambda *args, **kwargs: perfect_sig
         score_cons_outer = assess_statistical_validation(signal, signal_levels=FailingIter())
         assert score_cons_outer[2] == 0.0  # Hit 253
-
     finally:
         stats.maturity_assessment.extract_1f_signature = original
 

@@ -30,7 +30,6 @@ def test_expected_free_energy():
         action_metabolic_cost=0.1,
     )
     assert pytest.approx(res) == 0.6
-
     # Negative margin (avoidance state) → negative pragmatic_gain raises F
     # pragmatic_gain = 0.5 * (0.1 - 0.5) = -0.2
     # F = 1.0*0.8 - 1.0*(-0.2) + 0.5*0.1 = 0.8 + 0.2 + 0.05 = 1.05
@@ -50,11 +49,9 @@ def test_agent_init():
     agent = ActiveInferenceAgent(n_actions=5)
     assert agent.n_actions == 5
     assert agent.action_params.shape == (5, 3)
-
     custom_params = np.zeros((2, 3))
     agent_custom = ActiveInferenceAgent(n_actions=2, action_params=custom_params)
     assert agent_custom.n_actions == 2
-
     with pytest.raises(ValueError, match="must have shape"):
         ActiveInferenceAgent(n_actions=3, action_params=custom_params)
 
@@ -67,14 +64,12 @@ def test_select_policy():
     assert len(res.F_values) == 3
     assert len(res.p_policies) == 3
     assert len(agent.action_history) == 1
-
     # Test high precision -> near-MAP
     agent_high = ActiveInferenceAgent(policy_precision=100.0)
     res_high = agent_high.select_policy(0.1, 0.1, 1.0, 0.5)
     # argmin of F should have p near 1.0
     best_idx = np.argmin(res_high.F_values)
     assert res_high.p_policies[best_idx] > 0.99
-
     # Out of labels case
     agent_many = ActiveInferenceAgent(n_actions=10)
     res_many = agent_many.select_policy(0.1, 0.1, 1.0, 0.5)

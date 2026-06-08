@@ -1,11 +1,7 @@
 # APGI: Allostatic Precision-Gated Ignition
-
 ## Overview
-
 APGI is a unified computational framework for modeling allostatic threshold dynamics in biological systems. It integrates signal processing, precision-weighted accumulation, threshold adaptation, and ignition mechanisms with optional advanced features including Kuramoto oscillators, reservoir computing, and thermodynamic constraints.
-
 **Key Features:**
-
 - ✅ Complete signal preprocessing pipeline (§1)
 - ✅ Free Energy Principle-grounded precision system (§2)
 - ✅ Precision-weighted signal accumulation (§3)
@@ -20,37 +16,26 @@ APGI is a unified computational framework for modeling allostatic threshold dyna
 - ✅ Observable mapping to neural/behavioral data (§14)
 - ✅ Fixed-point stability analysis (§7)
 - ✅ Comprehensive parameter validation (§15)
-
 ---
-
 ## Quick Start
-
 ### Installation
-
 ```bash
 # Clone repository
 git clone <repository-url>
 cd apgi-implementation
-
 # Install with core dependencies
 pip install -e .
-
 # Or install with all optional dependencies
 pip install -e ".[all]"
-
 # Verify installation
 python -m pytest tests/ -v
 ```
-
 ### Basic Usage
-
 ```python
 from pipeline import APGIPipeline
 from config import CONFIG
-
 # Initialize pipeline
 pipeline = APGIPipeline(CONFIG)
-
 # Run single step
 result = pipeline.step(
     x_e=0.5,      # Exteroceptive signal
@@ -58,92 +43,62 @@ result = pipeline.step(
     x_i=0.2,      # Interoceptive signal
     x_hat_i=0.1   # Interoceptive prediction
 )
-
 # Access results
 print(f"Signal: {result['S']:.4f}")
 print(f"Threshold: {result['theta']:.4f}")
 print(f"Ignition: {result['B']}")
 ```
-
 ### Run Examples
-
 ```bash
 # Basic usage
 python examples/01_basic_usage.py
-
 # Advanced features
 python examples/02_advanced_features.py
-
 # Observable mapping
 python examples/03_observable_mapping.py
-
 # Thermodynamic analysis
 python examples/04_thermodynamics.py
-
 # BOLD thermodynamics
 python examples/05_bold_thermodynamics.py
-
 # Hierarchical system
 python examples/06_hierarchical_system.py
-
 # Spectral validation (Lorentzian superposition + Hurst)
 python examples/08_spectral_validation.py
-
 # Kuramoto coupling
 python examples/09_kuramoto_coupling.py
-
 # Reservoir as threshold
 python examples/10_reservoir_as_threshold.py
-
 # Maturity assessment
 python examples/11_maturity_assessment.py
-
 # Maturity demo
 python examples/12_maturity_demo.py
-
 # Validation end-to-end
 python examples/13_validation_e2e.py
-
 # BOLD calibration
 python examples/14_bold_calibration.py
-
 # Hierarchical power spectrum
 python examples/15_hierarchy_power_spectrum.py
 ```
-
 ---
-
 ## Documentation
-
 ### Getting Started
-
 - **[API Reference](docs/API-REFERENCE.md)** - Complete API documentation
 - **[Quick Start Guide](examples/01_basic_usage.py)** - Basic usage example
 - **[Parameter Constraints](docs/PARAMETER-CONSTRAINTS.md)** - Parameter guide
-
 ### Understanding the System
-
 - **[Design Choices](docs/DESIGN-CHOICES.md)** - Implementation rationale
 - **[Specification](docs/APGI-Specs.md)** - Full mathematical specification
 - **[Observable Mapping](examples/03_observable_mapping.py)** - Neural/behavioral observables
-
 ### Troubleshooting & Advanced Topics
-
 - **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Common errors and solutions
 - **[Advanced Features](examples/02_advanced_features.py)** - Kuramoto, reservoir, stability
 - **[Thermodynamics](examples/04_thermodynamics.py)** - Landauer's principle analysis
-
 ### Spectral & Hierarchical
-
 - **[Spectral Validation](docs/SPECTRAL-VALIDATION.md)** - 1/f spectral validation guide
 - **[Hierarchical Guide](docs/HIERARCHICAL-GUIDE.md)** - Multi-timescale architecture guide
-
 ---
-
 ## Architecture
-
 ### Core Components
-
 ```text
 APGIPipeline
 ├── Signal Preprocessing (§1)
@@ -195,9 +150,7 @@ APGIPipeline
     ├── Eigenvalue analysis
     └── Bifurcation detection
 ```
-
 ### Module Organization
-
 ```text
 apgi-implementation/
 ├── core/                          # Core components
@@ -256,23 +209,16 @@ apgi-implementation/
 ├── pyproject.toml                 # Project configuration
 └── README.md                      # This file
 ```
-
 ---
-
 ## Configuration
-
 ### Minimal Configuration
-
 ```python
 from config import CONFIG
 from pipeline import APGIPipeline
-
 # Use default configuration
 pipeline = APGIPipeline(CONFIG)
 ```
-
 ### Custom Configuration
-
 ```python
 config = {
     # Signal preprocessing
@@ -294,44 +240,29 @@ config = {
     "use_observable_mapping": True,
     "use_stability_analysis": True,
 }
-
 pipeline = APGIPipeline(config)
 ```
-
 See [Parameter Constraints](docs/PARAMETER-CONSTRAINTS.md) for complete parameter guide.
-
 ---
-
 ## Testing
-
 ### Run All Tests
-
 ```bash
 python -m pytest tests/ -v
 ```
-
 ### Run Specific Test File
-
 ```bash
 python -m pytest tests/test_pipeline.py -v
 ```
-
 ### Run with Coverage
-
 ```bash
 python -m pytest tests/ --cov=. --cov-report=html
 ```
-
 ### Test Results
-
 - **Total Tests:** 799
 - **Execution Time:** ~2.5 seconds
 - **Coverage:** All major components
-
 ---
-
 ## Performance
-
 | Metric | Value | Notes |
 | :--- | :--- | :--- |
 | Pipeline step | ~0.1 ms | Single step execution |
@@ -339,13 +270,9 @@ python -m pytest tests/ --cov=. --cov-report=html
 | Memory (per 1000 steps) | ~1 MB | History storage |
 | Test suite | ~2.5 s | 799 tests |
 | Examples | < 30 s | All 15 examples |
-
 ---
-
 ## Specification Compliance
-
 ### Overall Rating: 98/100 ✅
-
 | Section | Topic | Rating | Status |
 | :--- | :--- | :--- | :--- |
 | 1 | Signal Preprocessing | 95/100 | ✅ |
@@ -364,187 +291,122 @@ python -m pytest tests/ --cov=. --cov-report=html
 | 14 | Observable Mapping | 95/100 | ✅ |
 | 15 | Design Constraints | 95/100 | ✅ |
 | 19 | Active Inference Loop | 95/100 | ✅ |
-
 ---
-
 ## Key Features
-
 ### Signal Processing
-
 - Online variance estimation (EMA)
 - Z-score normalization
 - Generative model dynamics (optional)
-
 ### Precision System
-
 - Free Energy Principle grounding
 - Precision clamping [0.01, 100]
 - Neuromodulatory gains (ACh, NE, DA)
 - Precision ODE (optional)
-
 ### Threshold Dynamics
-
 - Allostatic update rule
 - Metabolic cost computation
 - Information value computation
 - Exponential decay
-
 ### Ignition Mechanism
-
 - Hard threshold (binary)
 - Soft threshold (sigmoid)
 - Ignition margin computation
-
 ### Advanced Features
-
 - **Kuramoto Oscillators:** Coupled phase dynamics with OU noise
 - **Reservoir Layer:** Liquid state machine with ridge regression
 - **Thermodynamics:** Landauer's principle grounding
 - **Observable Mapping:** Neural and behavioral observables
 - **Stability Analysis:** Fixed-point and bifurcation analysis
 - **Hierarchical System:** Multi-timescale processing
-
 ---
-
 ## Neuromodulation
-
 ### Acetylcholine (ACh)
-
 - Modulates exteroceptive precision
 - Increases attention to external signals
 - Typical range: 0.5-1.5
-
 ### Norepinephrine (NE)
-
 - Modulates either precision or threshold (not both)
 - Increases arousal/vigilance
 - Typical range: 0-1.0
-
 ### Dopamine (DA)
-
 - Additive bias to interoceptive signal
 - Encodes motivation/reward
 - Typical range: -1.0 to 1.0
-
 ---
-
 ## Observable Mapping
-
 ### Neural Observables
-
 - **S(t) → Gamma-band power** (30-100 Hz)
 - **θ(t) → P300/N200 ERP amplitude**
 - **B(t) → Global ignition (gamma synchrony)**
-
 ### Behavioral Observables
-
 - **S(t) → Perceptual sensitivity (d')**
 - **θ(t) → RT variability, response criterion**
 - **B(t) → Overt decision/button press**
-
 ### Key Testable Prediction
-
 - Hit rate ∝ P_ign(t) = σ(Δ(t) / τ_σ)
 - Margin Δ(t) = S(t) - θ(t) outperforms S(t) alone
-
 ---
-
 ## Thermodynamic Grounding
-
 ### Landauer's Principle
-
 ```text
 E_min = κ_meta · N_erase · k_B · T_env · ln(2)
 where N_erase ≈ log₂(S / ε_stab)
 ```
-
 ### Metabolic Constraint
-
 ```text
 C(t) ≥ κ_meta · N_erase(t) · k_B · T_env · ln(2)
 ```
-
 ### Physical Constants
-
 - Boltzmann constant: 1.38e-23 J/K
 - Environment temperature: 310 K (37°C)
 - Metabolic efficiency: 1.0 (configurable)
-
 ---
-
 ## Troubleshooting
-
 ### Common Errors
-
 **Error:** `ValueError: lam must be in (0,1)`
-
 - **Solution:** Set `config["lam"]` to value between 0 and 1
-
 **Error:** `ValueError: NE cannot modulate both precision and threshold`
-
 - **Solution:** Set either `ne_on_precision` or `ne_on_threshold` to False
-
 **Error:** `ValueError: dt=X exceeds max Y`
-
 - **Solution:** Reduce `dt` or increase timescales
-
 See [Troubleshooting Guide](docs/TROUBLESHOOTING.md) for more solutions.
-
 ---
-
 ## Contributing
-
 ### Development Setup
-
 ```bash
 # Clone repository
 git clone <repository-url>
 cd apgi-implementation
-
 # Create virtual environment
 python -m venv venv
 source venv/bin/activate
-
 # Install with development dependencies
 pip install -e ".[dev]"
-
 # Run tests
 python -m pytest tests/ -v
 ```
-
 ### Code Style
-
 - Follow PEP 8
 - Use type hints
 - Write comprehensive docstrings
 - Include spec references (§X.Y format)
-
 ### Test Coverage
-
 - Write tests for new features
 - Ensure all tests pass
 - Maintain > 90% coverage
-
 ---
-
 ## References
-
 ### Specification
-
 - [APGI Specification](docs/APGI-Specs.md) - Full mathematical specification
 - [APGI Overview](docs/APGI.md) - Mathematical framework overview
-
 ### Documentation Links
-
 - [API Reference](docs/API-REFERENCE.md) - Complete API documentation
 - [Design Choices](docs/DESIGN-CHOICES.md) - Implementation rationale
 - [Parameter Constraints](docs/PARAMETER-CONSTRAINTS.md) - Parameter guide
 - [Spectral Validation](docs/SPECTRAL-VALIDATION.md) - 1/f spectral analysis guide
 - [Hierarchical Guide](docs/HIERARCHICAL-GUIDE.md) - Multi-timescale architecture guide
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Common errors and solutions
-
 ### Examples
-
 - [Basic Usage](examples/01_basic_usage.py) - Simple introduction
 - [Advanced Features](examples/02_advanced_features.py) - All features
 - [Observable Mapping](examples/03_observable_mapping.py) - Neural/behavioral observables
@@ -559,19 +421,12 @@ python -m pytest tests/ -v
 - [Validation E2E](examples/13_validation_e2e.py) - End-to-end validation
 - [BOLD Calibration](examples/14_bold_calibration.py) - BOLD calibration
 - [Hierarchy Power Spectrum](examples/15_hierarchy_power_spectrum.py) - Power spectrum analysis
-
 ---
-
 ## License
-
 [Specify license here]
-
 ---
-
 ## Citation
-
 If you use APGI in your research, please cite:
-
 ```bibtex
 @software{apgi2026,
   title={APGI: Allostatic Precision-Gated Ignition},

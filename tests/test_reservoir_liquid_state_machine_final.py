@@ -1,5 +1,4 @@
 """Final tests for reservoir/liquid_state_machine.py to cover remaining lines 126-128, 421-422.
-
 Lines 126-128: Fallback branch for LinAlgError during spectral normalization.
 Lines 421-422: Clear history targets branch.
 """
@@ -27,7 +26,6 @@ class TestLiquidStateMachineFallbackBranch:
         """Test spectral radius validation."""
         with pytest.raises(ValueError, match="spectral_radius must be in"):
             LiquidStateMachine(N=100, M=2, spectral_radius=1.0)
-
         with pytest.raises(ValueError, match="spectral_radius must be in"):
             LiquidStateMachine(N=100, M=2, spectral_radius=0.0)
 
@@ -35,7 +33,6 @@ class TestLiquidStateMachineFallbackBranch:
         """Test N validation."""
         with pytest.raises(ValueError, match="N must be > 0"):
             LiquidStateMachine(N=0, M=2)
-
         with pytest.raises(ValueError, match="N must be > 0"):
             LiquidStateMachine(N=-1, M=2)
 
@@ -43,7 +40,6 @@ class TestLiquidStateMachineFallbackBranch:
         """Test M validation."""
         with pytest.raises(ValueError, match="M must be > 0"):
             LiquidStateMachine(N=100, M=0)
-
         with pytest.raises(ValueError, match="M must be > 0"):
             LiquidStateMachine(N=100, M=-1)
 
@@ -78,14 +74,11 @@ class TestLiquidStateMachineHistoryClearing:
     def test_clear_history_with_data(self):
         """Test clearing history with data."""
         lsm = LiquidStateMachine(N=50, M=2)
-
         # Add some history using collect_state
         for i in range(10):
             lsm.step(np.array([float(i), float(i + 1)]))
             lsm.collect_state(target=float(i))
-
         assert len(lsm.history) > 0
-
         lsm.clear_history()
         assert len(lsm.history) == 0
         assert len(lsm.history_targets) == 0
@@ -93,15 +86,12 @@ class TestLiquidStateMachineHistoryClearing:
     def test_clear_history_after_training_data_collection(self):
         """Test clearing after collecting training data."""
         lsm = LiquidStateMachine(N=50, M=2)
-
         # Collect some training data
         for i in range(10):
             lsm.step(np.array([float(i), float(i + 1)]))
             lsm.collect_state(target=float(i))
-
         assert len(lsm.history) > 0
         assert len(lsm.history_targets) > 0
-
         lsm.clear_history()
         assert len(lsm.history) == 0
         assert len(lsm.history_targets) == 0
@@ -186,24 +176,20 @@ class TestLiquidStateMachineTrainingData:
     def test_get_training_data_no_targets(self):
         """Test getting training data with states but no targets raises ValueError."""
         lsm = LiquidStateMachine(N=50, M=2)
-
         # Add states without targets using collect_state without target
         for i in range(5):
             lsm.step(np.array([float(i), float(i + 1)]))
             lsm.collect_state()  # No target
-
         with pytest.raises(ValueError, match="No targets collected"):
             lsm.get_training_data()
 
     def test_collect_and_get_training_data(self):
         """Test collecting states with targets and retrieving."""
         lsm = LiquidStateMachine(N=50, M=2)
-
         # Collect training data
         for i in range(10):
             lsm.step(np.array([float(i), float(i + 1)]))
             lsm.collect_state(target=float(i))
-
         X, y = lsm.get_training_data()
         assert X is not None
         assert y is not None
@@ -218,11 +204,9 @@ class TestLiquidStateMachineReset:
     def test_reset_state(self):
         """Test state reset."""
         lsm = LiquidStateMachine(N=50, M=2)
-
         # Run some steps
         for i in range(5):
             lsm.step(np.array([float(i), float(i + 1)]))
-
         # Reset state
         lsm.reset_state()
         assert np.all(lsm.x == 0.0)
@@ -234,11 +218,9 @@ class TestLiquidStateMachineStateStatistics:
     def test_get_state_statistics(self):
         """Test get_state_statistics."""
         lsm = LiquidStateMachine(N=50, M=2)
-
         # Run some steps
         for i in range(5):
             lsm.step(np.array([float(i), float(i + 1)]))
-
         stats = lsm.get_state_statistics()
         assert "mean" in stats
         assert "std" in stats

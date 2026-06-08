@@ -16,7 +16,6 @@ omit =
     delete_pycache.py
     */__pycache__/*
     */*.pyc
-
 [report]
 omit =
     tests/*

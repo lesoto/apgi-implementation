@@ -8,7 +8,6 @@ def test_lsm_init():
     lsm = LiquidStateMachine(N=20, M=2, seed=42)
     assert lsm.N == 20
     assert lsm.W_res.shape == (20, 20)
-
     # Error cases
     with pytest.raises(ValueError, match="spectral_radius"):
         LiquidStateMachine(spectral_radius=1.5)
@@ -33,23 +32,17 @@ def test_lsm_init_exceptions():
 
 def test_lsm_step():
     lsm = LiquidStateMachine(N=10, M=2)
-
     # Scalar input
     x1 = lsm.step(u=0.5)
     assert x1.shape == (10,)
-
     # Array input
     lsm.step(u=np.array([0.1, -0.1]))
-
     # Scalar broadcasting
     lsm.step(u=np.array([0.7]))
-
     # Precision adaptive
     lsm.step(u=0.1, precision=1.0)
-
     # Suprathreshold
     lsm.step(u=0.1, S_target=2.0, theta=1.0, A_amp=0.5)
-
     # Errors
     with pytest.raises(ValueError, match="Input dimension mismatch"):
         lsm.step(u=np.array([1, 2, 3]))
@@ -74,21 +67,17 @@ def test_lsm_training():
         u = float(i) / 50.0
         lsm.step(u)
         lsm.collect_state(target=u)
-
     X, y = lsm.get_training_data()
     assert X.shape == (50, 10)
     assert y.shape == (50,)
-
     res = lsm.train_readout(X, y)
     assert "rmse" in res
     assert lsm.W_out.shape == (10, 1)
-
     # Training errors
     with pytest.raises(ValueError, match="same number of samples"):
         lsm.train_readout(X, y[:10])
     with pytest.raises(ValueError, match="X must have 10 columns"):
         lsm.train_readout(np.zeros((10, 5)), y[:10])
-
     # Collection errors
     lsm.clear_history()
     with pytest.raises(ValueError, match="No training data collected"):
@@ -103,10 +92,8 @@ def test_lsm_utility_methods():
     lsm.x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     stats = lsm.get_state_statistics()
     assert stats["mean"] == 3.0
-
     w_stats = lsm.get_weight_statistics()
     assert "W_res_spectral_radius" in w_stats
-
     lsm.reset_state()
     assert np.all(lsm.x == 0)
 

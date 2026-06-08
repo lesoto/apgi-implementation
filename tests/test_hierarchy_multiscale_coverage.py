@@ -33,7 +33,6 @@ def test_estimate_optimal_timescale_ratio():
     sig = np.sin(2 * np.pi * 5 * t) + np.sin(2 * np.pi * 10 * t)
     k = estimate_optimal_timescale_ratio(sig, fs=100.0)
     assert 1.3 <= k <= 2.0
-
     # Not enough peaks (using short zero signal)
     k_def = estimate_optimal_timescale_ratio(np.zeros(5))
     assert k_def == 1.6
@@ -64,7 +63,6 @@ def test_aggregate_multiscale_signal():
     w = [0.6, 0.4]
     s = aggregate_multiscale_signal(phi, pi, w)
     assert s == pytest.approx(0.6 * 1.0 * 1.0 + 0.4 * 1.0 * 2.0)
-
     with pytest.raises(ValueError, match="same length"):
         aggregate_multiscale_signal([1], [1, 2], [1])
 
@@ -75,7 +73,6 @@ def test_aggregate_multiscale_signal_phi():
     w = [0.5, 0.5]
     s = aggregate_multiscale_signal_phi(phi, pi, w)
     assert s == pytest.approx(0.5 * (-1.0) + 0.5 * 2.0)
-
     with pytest.raises(ValueError, match="same length"):
         aggregate_multiscale_signal_phi([1], [1, 2], [1])
 

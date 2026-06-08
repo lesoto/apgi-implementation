@@ -1,5 +1,4 @@
 """Final tests for stats/spectral_model.py to cover remaining lines.
-
 Covers lines: 65, 70, 77, 85, 129-130, 165, 167, 209, 211, 270, 276-277, 329-330,
 333, 361, 425-426, 435-436, 445-446, 466-468, 476-478, 491, 493, 548-550, 563-567
 """
@@ -48,7 +47,6 @@ class TestLorentzianSpectrumEdgeCases:
         f = np.array([1.0])
         with pytest.raises(ValueError, match="tau must be > 0"):
             lorentzian_spectrum(f, tau=0.0, sigma2=1.0)
-
         with pytest.raises(ValueError, match="tau must be > 0"):
             lorentzian_spectrum(f, tau=-1.0, sigma2=1.0)
 
@@ -103,7 +101,6 @@ class TestComputePSD1fExponentAnalytic:
         taus = np.array([0.1, 1.0, 10.0])
         sigma2s = np.array([1.0, 1.0, 1.0])
         result = compute_psd_1f_exponent_analytic(taus, sigma2s)
-
         assert "beta" in result
         assert "hurst" in result
         assert "freqs" in result
@@ -211,7 +208,6 @@ class TestFitLorentzianSuperposition:
         # Generate data from model
         true_sigma2s = np.array([0.5, 1.0, 0.3])
         power = hierarchical_spectral_superposition(freqs, taus, true_sigma2s)
-
         result = fit_lorentzian_superposition(freqs, power, taus)
         assert "amplitudes" in result
         assert "fitted_psd" in result
@@ -273,7 +269,6 @@ class TestSpectralValidator:
         """Test plot comparison when matplotlib is available (lines 482-517)."""
         validator = SpectralValidator(n_levels=3)
         signal = np.random.randn(512)
-
         try:
             import matplotlib.pyplot as plt
 
@@ -291,7 +286,6 @@ class TestSpectralValidator:
         """Test plot comparison handles ImportError (lines 519-520)."""
         validator = SpectralValidator(n_levels=3)
         signal = np.random.randn(512)
-
         # This tests the ImportError path if matplotlib is not available
         # If matplotlib is available, it will use it
         try:
@@ -308,7 +302,6 @@ class TestSpectralValidator:
 
         validator = SpectralValidator(n_levels=3)
         signal = np.random.randn(512)
-
         # Force ImportError by mocking matplotlib to None
         with patch.dict("sys.modules", {"matplotlib": None, "matplotlib.pyplot": None}):
             # We also need to reload or ensure the import inside the function fails
@@ -320,7 +313,6 @@ class TestSpectralValidator:
         """Test the catch-all exception block in plot_comparison."""
         validator = SpectralValidator(n_levels=3)
         signal = np.random.randn(512)
-
         # The catch-all exception block handles any unexpected errors
         # We can't easily test this without actually causing an error,
         # but we can verify the function doesn't crash

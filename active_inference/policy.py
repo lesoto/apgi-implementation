@@ -1,21 +1,16 @@
 """Active Inference Action Loop — §19 APGI Full Specs.
-
 Implements:
   aₜ = argmin_a E[F(a)]       (policy selection)
-
 where Expected Free Energy decomposes as:
   F(a) = w_epi · expected_surprise(a)
        - w_prag · expected_salience_gain(a)
        + w_met  · metabolic_cost(a)
-
 Actions feed back into ignition dynamics through three channels (§19):
   1. Sensory consequence   → Δx̂ₑ  (changes future εₜ)
   2. Interoceptive         → ΔM    (metabolic state → θₜ via allostatic ODE)
   3. Uncertainty reduction → ΔΣ   (reduces Σₜ, raises Πₜ)
-
 Policy posterior uses a Boltzmann softmax:
   p(a) ∝ exp(−γ_policy · F(a))
-
 The MAP action is returned as the selected policy.
 """
 
@@ -40,7 +35,6 @@ _DEFAULT_ACTION_PARAMS = np.array(
     ],
     dtype=float,
 )
-
 ACTION_LABELS = ["explore", "exploit", "rest"]
 
 
@@ -84,7 +78,6 @@ def compute_expected_free_energy(
     w_metabolic: float = 0.5,
 ) -> float:
     """Scalar Expected Free Energy F(a) for one candidate action.
-
     Components
     ----------
     Epistemic:  expected residual variance after the action reduces uncertainty.
@@ -97,20 +90,16 @@ def compute_expected_free_energy(
                 applied — both reward-seeking and threat-avoidance pathways are
                 respected (§6, §12).
     Metabolic:  direct ATP cost of executing the action (§14 cost model).
-
     Returns
     -------
     F(a) — scalar. Smaller means the action is preferred.
     """
     total_sigma2 = sigma2_e + sigma2_i
-
     # Epistemic term: residual uncertainty after epistemic gain
     sigma2_after = max(total_sigma2 - action_epistemic_gain, 1e-6)
-
     # Pragmatic term: signed ignition margin (φ-space) — reward-seeking > 0, threat < 0
     ignition_margin = S - theta
     pragmatic_gain = action_sensory_shift * ignition_margin
-
     F = (
         w_epistemic * sigma2_after
         - w_pragmatic * pragmatic_gain
@@ -129,9 +118,7 @@ def _softmax(x: np.ndarray, gamma: float) -> np.ndarray:
 
 class ActiveInferenceAgent:
     """Discrete-policy active inference loop closing the perception-action cycle.
-
     Implements §19: aₜ = argmin_a E[F(a)] with feedback through three channels.
-
     Parameters
     ----------
     n_actions : int
@@ -190,7 +177,6 @@ class ActiveInferenceAgent:
                     f"action_params must have shape ({n_actions}, 3), "
                     f"got {self.action_params.shape}"
                 )
-
         self.n_actions = n_actions
         self.policy_precision = float(policy_precision)
         self.w_epistemic = float(w_epistemic)
@@ -203,7 +189,6 @@ class ActiveInferenceAgent:
         self.alpha_neg = float(alpha_neg)
         self.gamma_pos = float(gamma_pos)
         self.gamma_neg = float(gamma_neg)
-
         # Running history for diagnostics
         self.action_history: list[int] = []
         self.F_history: list[list[float]] = []
@@ -216,7 +201,6 @@ class ActiveInferenceAgent:
         theta: float,
     ) -> PolicyResult:
         """Compute E[F(a)] for all actions and return the MAP policy.
-
         Parameters
         ----------
         sigma2_e, sigma2_i : float
@@ -225,7 +209,6 @@ class ActiveInferenceAgent:
             Current accumulated ignition signal.
         theta : float
             Current ignition threshold.
-
         Returns
         -------
         PolicyResult with selected action, F values, and policy posterior.
@@ -248,12 +231,9 @@ class ActiveInferenceAgent:
             ],
             dtype=float,
         )
-
         p_policies = _softmax(F_values, self.policy_precision)
         action_idx = int(np.argmin(F_values))
-
         label = ACTION_LABELS[action_idx] if action_idx < len(ACTION_LABELS) else str(action_idx)
-
         result = PolicyResult(
             action_idx=action_idx,
             action_label=label,
@@ -261,10 +241,8 @@ class ActiveInferenceAgent:
             p_policies=p_policies.tolist(),
             expected_free_energy=float(F_values[action_idx]),
         )
-
         self.action_history.append(action_idx)
         self.F_history.append(F_values.tolist())
-
         return result
 
     def apply_action_feedback(
@@ -277,18 +255,15 @@ class ActiveInferenceAgent:
         M: float,
     ) -> ActionFeedback:
         """Compute the three feedback-channel deltas for the selected action.
-
         Channel 1 — Sensory consequence (§19 pt 1):
             Δx̂ₑ = sensory_feedback_rate · action_sensory_shift · φ(z_e)
             The action shifts the model's prediction in the valence-signed
             direction of the current error, scaled by the asymmetric φ(ε)
             transform (α⁺ for reward-seeking, α⁻ for threat-avoidance).
-
         Channel 2 — Interoceptive / metabolic consequence (§19 pt 2):
             ΔM = −metabolic_feedback_rate · action_metabolic_cost
             Costly actions deplete metabolic state; epistemic gain partially
             offsets the cost via reduced future surprise.
-
         Channel 3 — Uncertainty reduction (§19 pt 3):
             ΔΣₑ = −precision_update_rate · action_epistemic_gain · sigma2_e
             ΔΣᵢ = −precision_update_rate · action_epistemic_gain · sigma2_i
@@ -299,7 +274,6 @@ class ActiveInferenceAgent:
         sensory_shift = params[0]
         epistemic_gain = params[1]
         metabolic_cost = params[2]
-
         # Channel 1: shift predictions in the valence-signed φ(ε) direction (§19, §6)
         # φ(z_e) > 0 for reward-seeking errors; φ(z_e) < 0 for threat-avoidance errors.
         # α⁺ > α⁻ gives larger approach shifts; α⁻ > α⁺ gives larger avoidance shifts.
@@ -307,15 +281,12 @@ class ActiveInferenceAgent:
         phi_z_i = phi_transform(z_i, self.alpha_pos, self.alpha_neg, self.gamma_pos, self.gamma_neg)
         delta_x_hat_e = self.sensory_feedback_rate * sensory_shift * phi_z_e
         delta_x_hat_i = self.sensory_feedback_rate * sensory_shift * phi_z_i
-
         # Channel 2: metabolic state change (negative = depletion)
         delta_M = -self.metabolic_feedback_rate * metabolic_cost
-
         # Channel 3: variance reduction (bounded — cannot go below zero)
         reduction = self.precision_update_rate * epistemic_gain
         delta_sigma2_e = -reduction * sigma2_e
         delta_sigma2_i = -reduction * sigma2_i
-
         return ActionFeedback(
             delta_x_hat_e=delta_x_hat_e,
             delta_x_hat_i=delta_x_hat_i,

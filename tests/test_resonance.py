@@ -1,5 +1,4 @@
 """Tests for Cross-Level Threshold Resonance — Russian Doll Architecture.
-
 Coverage:
 - Phase advancement: natural frequency + top-down Kuramoto coupling
 - Spec §8 threshold formula: θ_l = θ₀_l · (1 + κ·Π_{l+1}·cos(φ_{l+1}))
@@ -47,7 +46,6 @@ def _make_system(
 
 
 class TestPhaseAdvancement:
-
     def test_phases_advance_from_zero(self):
         """Phases must change from 0 after one step (natural frequency drive)."""
         sys = _make_system()
@@ -96,7 +94,6 @@ class TestPhaseAdvancement:
 
 
 class TestThresholdFormula:
-
     def test_top_level_stays_at_baseline(self):
         """The top level has no level above it, so θ = θ₀ always."""
         sys = _make_system()
@@ -152,7 +149,6 @@ class TestThresholdFormula:
 
 
 class TestSignalAccumulation:
-
     def test_S_starts_at_zero(self):
         sys = _make_system()
         np.testing.assert_array_equal(sys.S, 0.0)
@@ -215,7 +211,6 @@ class TestSignalAccumulation:
 
 
 class TestApplyLevelIgnition:
-
     def test_ignition_resets_S_at_level(self):
         sys = _make_system()
         for _ in range(20):
@@ -286,7 +281,6 @@ class TestApplyLevelIgnition:
 
 
 class TestProperties:
-
     def test_ignition_windows_shape(self):
         sys = _make_system()
         assert sys.ignition_windows.shape == (3,)
@@ -320,7 +314,6 @@ class TestProperties:
 
 
 class TestBuildResonanceSystem:
-
     def test_lambda_rates_from_taus(self):
         taus = np.array([2.0, 10.0])
         sys = build_resonance_system(2, taus, theta_base=1.0, dt=0.5)
@@ -357,7 +350,6 @@ class TestBuildResonanceSystem:
 
 
 class TestPipelineResonance:
-
     def _cfg(self, **overrides):
         from config import CONFIG
 

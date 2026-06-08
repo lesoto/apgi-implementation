@@ -6,7 +6,6 @@ import sys
 
 def test_suppress_lapack_stderr_processing():
     """Trigger the stderr processing logic in suppress_lapack_stderr_session.
-
     This fixture is autouse=True, so it's already active.
     We just need to write something to stderr and let the session end.
     """
@@ -22,7 +21,6 @@ def test_stderr():
     test_file = "tests/temp_stderr_test.py"
     with open(test_file, "w") as f:
         f.write(test_code)
-
     try:
         # Run pytest on this file
         subprocess.run(

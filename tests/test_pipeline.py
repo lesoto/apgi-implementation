@@ -1,5 +1,4 @@
 """Comprehensive tests for APGI Pipeline module.
-
 Tests all functionality including:
 - Hierarchical mode presets
 - Precision state management
@@ -542,14 +541,12 @@ class TestSignalIntegrationModes:
         """Test that discrete and ODE modes produce different results."""
         pipeline_discrete = APGIPipeline(discrete_config)
         pipeline_ode = APGIPipeline(ode_config)
-
         np.random.seed(42)
         for _ in range(10):
             x_e = np.random.randn()
             x_i = np.random.randn()
             pipeline_discrete.step(x_e=x_e, x_i=x_i)  # noqa: F841
             pipeline_ode.step(x_e=x_e, x_i=x_i)  # noqa: F841
-
         # After several steps, signals should diverge
         assert pipeline_discrete.S != pytest.approx(pipeline_ode.S, abs=0.01)
 
@@ -600,13 +597,11 @@ class TestSomaticPrecision:
         """Test that somatic precision affects pi_i_eff."""
         pipeline_somatic = APGIPipeline(somatic_config)
         pipeline_base = APGIPipeline(base_config)
-
         for _ in range(5):
             x_e = np.random.randn()
             x_i = np.random.randn()
             result_s = pipeline_somatic.step(x_e=x_e, x_i=x_i)
             result_b = pipeline_base.step(x_e=x_e, x_i=x_i)
-
         # pi_i_eff should be different with somatic precision
         assert result_s["pi_i_eff"] != result_b["pi_i_eff"]
 
@@ -625,13 +620,11 @@ class TestNEPrecisionModulation:
         """Test NE precision produces different results."""
         pipeline_ne = APGIPipeline(ne_precision_config)
         pipeline_base = APGIPipeline(base_config)
-
         for _ in range(5):
             x_e = np.random.randn()
             x_i = np.random.randn()
             result_ne = pipeline_ne.step(x_e=x_e, x_i=x_i)
             result_base = pipeline_base.step(x_e=x_e, x_i=x_i)
-
         assert result_ne["pi_i_eff"] != result_base["pi_i_eff"]
 
 
@@ -660,13 +653,11 @@ class TestContinuousThresholdODE:
         """Test that continuous and discrete threshold modes differ."""
         pipeline_cont = APGIPipeline(continuous_threshold_config)
         pipeline_disc = APGIPipeline(base_config)
-
         for _ in range(5):
             x_e = np.random.randn()
             x_i = np.random.randn()
             pipeline_cont.step(x_e=x_e, x_i=x_i)  # noqa: F841
             pipeline_disc.step(x_e=x_e, x_i=x_i)  # noqa: F841
-
         # Thresholds should diverge
         assert pipeline_cont.theta != pytest.approx(pipeline_disc.theta, abs=0.001)
 
@@ -787,13 +778,11 @@ class TestReservoirAsThreshold:
         """Test reservoir-as-threshold produces different results."""
         pipeline_rt = APGIPipeline(reservoir_threshold_config)
         pipeline_r = APGIPipeline(reservoir_config)
-
         for _ in range(5):
             x_e = np.random.randn()
             x_i = np.random.randn()
             pipeline_rt.step(x_e=x_e, x_i=x_i)  # noqa: F841
             pipeline_r.step(x_e=x_e, x_i=x_i)  # noqa: F841
-
         # Theta should differ between modes
         assert pipeline_rt.theta != pytest.approx(pipeline_r.theta, abs=0.001)
 
@@ -957,10 +946,8 @@ class TestGenerativeModelUpdate:
         pipeline = APGIPipeline(generative_config)
         initial_x_hat_e = pipeline.x_hat_e
         initial_x_hat_i = pipeline.x_hat_i
-
         for _ in range(10):
             pipeline.step(x_e=1.0, x_i=0.5)
-
         # Predictions should change
         assert pipeline.x_hat_e != initial_x_hat_e or pipeline.x_hat_i != initial_x_hat_i
 
@@ -1029,12 +1016,10 @@ class TestPostIgnitionDynamics:
         pipeline.theta = 0.5
         pipeline.step(x_e=2.0, x_i=0.5)
         theta_after_ignition = pipeline.theta
-
         # Run more steps without ignition
         pipeline.S = 0.1  # Low signal
         for _ in range(10):
             pipeline.step(x_e=0.1, x_i=0.5)
-
         # Theta should decay toward baseline
         assert pipeline.theta < theta_after_ignition or pipeline.theta == pytest.approx(
             base_config["theta_base"], abs=0.1
@@ -1106,13 +1091,10 @@ class TestRealisticCost:
         config_realistic["use_realistic_cost"] = True
         config_simple = base_config.copy()
         config_simple["use_realistic_cost"] = False
-
         pipeline_r = APGIPipeline(config_realistic)
         pipeline_s = APGIPipeline(config_simple)
-
         result_r = pipeline_r.step(x_e=1.0, x_i=0.5)
         result_s = pipeline_s.step(x_e=1.0, x_i=0.5)
-
         # Cost values should differ
         assert result_r["C"] != result_s["C"]
 

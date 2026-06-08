@@ -1,5 +1,4 @@
 """Comprehensive unit tests for core/ignition.py module.
-
 Tests cover:
 - compute_ignition_probability function
 - sample_ignition_state function
@@ -49,7 +48,6 @@ class TestComputeIgnitionProbability:
         """Should raise ValueError for non-positive tau."""
         with pytest.raises(ValueError, match="tau must be > 0"):
             compute_ignition_probability(1.0, 0.5, tau=0.0)
-
         with pytest.raises(ValueError, match="tau must be > 0"):
             compute_ignition_probability(1.0, 0.5, tau=-0.5)
 
@@ -58,7 +56,6 @@ class TestComputeIgnitionProbability:
         # Very large positive difference
         result_large = compute_ignition_probability(1000.0, 0.0, tau=0.5)
         assert result_large <= 1.0
-
         # Very large negative difference
         result_small = compute_ignition_probability(-1000.0, 0.0, tau=0.5)
         assert result_small >= 0.0
@@ -93,7 +90,6 @@ class TestSampleIgnitionState:
         """Should raise ValueError for invalid probabilities."""
         with pytest.raises(ValueError, match="p_ignite must be in"):
             sample_ignition_state(-0.1)
-
         with pytest.raises(ValueError, match="p_ignite must be in"):
             sample_ignition_state(1.1)
 
@@ -101,10 +97,8 @@ class TestSampleIgnitionState:
         """Should use provided RNG when given."""
         rng = np.random.default_rng(42)
         result1 = sample_ignition_state(0.5, rng=rng)
-
         rng = np.random.default_rng(42)
         result2 = sample_ignition_state(0.5, rng=rng)
-
         assert result1 == result2
 
 

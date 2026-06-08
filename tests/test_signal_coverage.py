@@ -54,7 +54,6 @@ def test_compute_apgi_signal():
         )
         == expected_bias
     )
-
     # signal_additive (deprecated): S = 2*φ(0.5) + 3*φ(-0.2) + β — raises DeprecationWarning
     expected_additive = 2.0 * np.tanh(2.0 * 0.5) + 3.0 * np.tanh(2.0 * -0.2) + 0.1
     with pytest.warns(DeprecationWarning, match="contradicts the APGI spec"):
@@ -62,6 +61,5 @@ def test_compute_apgi_signal():
             0.5, -0.2, 2.0, 3.0, beta=0.1, dopamine_mode="signal_additive"
         )
     assert pytest.approx(result_additive) == expected_additive
-
     with pytest.raises(ValueError, match="unknown dopamine_mode"):
         compute_apgi_signal(0.5, 0.2, 2.0, 3.0, dopamine_mode="invalid")

@@ -1,5 +1,4 @@
 """Comprehensive unit tests for core/threshold.py module.
-
 Tests cover:
 - compute_metabolic_cost function
 - compute_metabolic_cost_realistic function
@@ -319,7 +318,6 @@ class TestComputeInformationValueWithBias:
         z_i_eff = 0.5
         v1 = 0.5
         v2 = 0.5
-
         result_with_bias = compute_information_value_with_bias(
             z_e=z_e, z_i_eff=z_i_eff, v1=v1, v2=v2
         )

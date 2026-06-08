@@ -1,5 +1,4 @@
 """Comprehensive unit tests for core/precision.py module.
-
 Tests cover:
 - clamp function
 - compute_precision function
@@ -84,7 +83,6 @@ class TestComputePrecision:
         # Very small variance should be clamped to pi_max
         result_small = compute_precision(1e-10, pi_min=1e-4, pi_max=1e4)
         assert result_small == 1e4
-
         # Very large variance should be clamped to pi_min
         result_large = compute_precision(1e10, pi_min=1e-4, pi_max=1e4)
         assert result_large == 1e-4
@@ -128,10 +126,8 @@ class TestUpdateMeanEMA:
         """Should raise ValueError for invalid alpha."""
         with pytest.raises(ValueError, match="alpha must be in"):
             update_mean_ema(1.0, 2.0, 0.0)
-
         with pytest.raises(ValueError, match="alpha must be in"):
             update_mean_ema(1.0, 2.0, 1.5)
-
         with pytest.raises(ValueError, match="alpha must be in"):
             update_mean_ema(1.0, 2.0, -0.1)
 
@@ -233,7 +229,6 @@ class TestComputeInteroceptivePrecisionExponential:
             1.0, 2.0, 10.0, pi_min=1e-4, pi_max=1e4
         )
         assert result_large == 1e4
-
         # Large negative M should be clamped to pi_min
         # exp(2.0 * -10.0) = exp(-20) ≈ 2.06e-9 < 1e-4
         result_small = compute_interoceptive_precision_exponential(
@@ -257,7 +252,6 @@ class TestPrecisionCouplingODECore:
             C_down=0.1,
             C_up=0.05,
         )
-
         # Expected: -1.0/1000 + 0.1*0.5 + 0.1*(1.5-1.0) + 0.05*0.3
         expected = -0.001 + 0.05 + 0.05 + 0.015
         assert pytest.approx(result, rel=1e-6) == expected
@@ -275,7 +269,6 @@ class TestPrecisionCouplingODECore:
             C_down=0.1,
             C_up=0.05,
         )
-
         # Bottom level (no epsilon_ell_minus_1)
         result_bottom = precision_coupling_ode_core(
             pi_ell=1.0,
@@ -287,17 +280,14 @@ class TestPrecisionCouplingODECore:
             C_down=0.1,
             C_up=0.05,
         )
-
         # Top level should have no top-down coupling
         assert result_top == -0.001 + 0.05 + 0 + 0.015
-
         # Bottom level should have no bottom-up coupling
         assert result_bottom == -0.001 + 0.05 + 0.05 + 0
 
     def test_precision_coupling_with_psi(self) -> None:
         """Should apply psi function to bottom-up error."""
         psi: Callable[[float], float] = lambda x: x**2
-
         result = precision_coupling_ode_core(
             pi_ell=1.0,
             tau_pi=1000.0,
@@ -309,7 +299,6 @@ class TestPrecisionCouplingODECore:
             C_up=0.05,
             psi=psi,
         )
-
         # Expected: -0.001 + 0.05 + 0 + 0.05*(2.0^2)
         expected = -0.001 + 0.05 + 0 + 0.05 * 4.0
         assert pytest.approx(result, rel=1e-6) == expected
@@ -329,7 +318,6 @@ class TestUpdatePrecisionEuler:
         # Update that would exceed pi_max
         result_max = update_precision_euler(1.0, 100.0, 0.5, pi_min=1e-4, pi_max=10.0)
         assert result_max == 10.0
-
         # Update that would go below pi_min
         result_min = update_precision_euler(0.01, -1.0, 0.5, pi_min=1e-4, pi_max=10.0)
         assert result_min == 1e-4

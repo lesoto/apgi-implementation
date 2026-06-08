@@ -1,8 +1,6 @@
 """Kuramoto oscillators with phase noise and reset dynamics.
-
 Implements coupled phase dynamics per APGI spec §9:
     dφ_ℓ/dt = ω_ℓ + Σ_j K_{ℓj} sin(φ_j - φ_ℓ) + ξ_ℓ(t)
-
 where ξ_ℓ(t) is Ornstein-Uhlenbeck phase noise.
 """
 
@@ -16,9 +14,7 @@ import numpy as np
 @dataclass
 class OrnsteinUhlenbeckNoise:
     """Ornstein-Uhlenbeck noise process for phase dynamics.
-
     Implements: dξ = -ξ/τ_ξ dt + σ_ξ dW
-
     This provides colored noise with exponential autocorrelation,
     more realistic than white noise for neural oscillations.
     """
@@ -31,17 +27,14 @@ class OrnsteinUhlenbeckNoise:
 
     def step(self, dt: float) -> float:
         """Update OU noise process.
-
         Args:
             dt: Time step
-
         Returns:
             Current noise value ξ(t)
         """
         # OU update: ξ(t+dt) = ξ(t) exp(-dt/τ_ξ) + σ_ξ √(1-exp(-2dt/τ_ξ)) N(0,1)
         decay = np.exp(-dt / self.tau_xi)
         diffusion = self.sigma_xi * np.sqrt(1.0 - decay**2)
-
         self.xi = decay * self.xi + diffusion * np.random.normal()
         return float(self.xi)
 
@@ -52,15 +45,12 @@ class OrnsteinUhlenbeckNoise:
 
 class KuramotoOscillators:
     """Coupled Kuramoto oscillators with phase noise and reset.
-
     Implements the coupled phase dynamics:
         dφ_ℓ/dt = ω_ℓ + Σ_j K_{ℓj} sin(φ_j - φ_ℓ) + ξ_ℓ(t)
-
     where:
     - ω_ℓ: natural frequency of oscillator ℓ
     - K_{ℓj}: coupling strength from j to ℓ
     - ξ_ℓ(t): Ornstein-Uhlenbeck phase noise
-
     Spec §9: Oscillatory Phase Coupling
     """
 
@@ -73,7 +63,6 @@ class KuramotoOscillators:
         sigma_xi: float = 0.1,
     ):
         """Initialize Kuramoto oscillator network.
-
         Args:
             n_levels: Number of oscillators (typically = hierarchy levels)
             frequencies: Natural frequencies (Hz). If None, uses log-spaced.
@@ -81,9 +70,7 @@ class KuramotoOscillators:
             tau_xi: OU noise correlation timescale (ms)
             sigma_xi: OU noise amplitude (rad/ms)
         """
-
         self.n_levels = n_levels
-
         # Natural frequencies (convert Hz to rad/ms)
         if frequencies is None:
             # Default: log-spaced from 1 Hz to ~100 Hz
@@ -91,63 +78,50 @@ class KuramotoOscillators:
             self.omegas = 2 * np.pi * freqs_hz / 1000.0  # Convert to rad/ms
         else:
             self.omegas = 2 * np.pi * np.array(frequencies) / 1000.0
-
         # Coupling matrix
         if coupling_matrix is None:
             self.K = self._nearest_neighbor_coupling(n_levels)
         else:
             self.K = np.array(coupling_matrix)
-
         # Phase state
         self.phases = np.random.uniform(0, 2 * np.pi, n_levels)
-
         # Phase noise processes (one per oscillator)
         self.noise_processes = [
             OrnsteinUhlenbeckNoise(tau_xi=tau_xi, sigma_xi=sigma_xi) for _ in range(n_levels)
         ]
-
         self.t = 0.0
         self.history: list[np.ndarray] = []
 
     @staticmethod
     def _nearest_neighbor_coupling(n_levels: int) -> np.ndarray:
         """Create nearest-neighbor coupling matrix.
-
         Each level couples to adjacent levels with:
         - K_down = 0.2: coupling from higher level (i+1 to i)
         - K_up = 0.1: coupling from lower level (i-1 to i)
-
         Args:
             n_levels: Number of levels
-
         Returns:
             Coupling matrix K[i,j] = strength from j to i
         """
         K = np.zeros((n_levels, n_levels))
         K_up = 0.1
         K_down = 0.2
-
         for i in range(n_levels):
             if i > 0:
                 K[i, i - 1] = K_up  # Coupling from lower level
             if i < n_levels - 1:
                 K[i, i + 1] = K_down  # Coupling from higher level
-
         return K
 
     def step(self, dt: float = 1.0) -> np.ndarray:
         """Update all oscillator phases by one time step.
-
         Implements Euler-Maruyama integration of:
             dφ_ℓ/dt = ω_ℓ + Σ_j K_{ℓj} sin(φ_j - φ_ℓ) + ξ_ℓ(t)
-
         Args:
             dt: Time step (ms)
-
         Returns:
             Updated phases (wrapped to [0, 2π])
         """
-
         # Compute coupling contributions
         coupling_sums = np.zeros(self.n_levels)
         for i in range(self.n_levels):
@@ -155,19 +129,15 @@ class KuramotoOscillators:
                 if self.K[i, j] != 0.0:
                     # Kuramoto coupling: K_ij sin(φ_j - φ_i)
                     coupling_sums[i] += self.K[i, j] * np.sin(self.phases[j] - self.phases[i])
-
         # Update each phase with noise
         for i in range(self.n_levels):
             # Get OU noise for this oscillator
             noise = self.noise_processes[i].step(dt)
-
             # Phase update: dφ = (ω + coupling + noise) dt
             dphi = (self.omegas[i] + coupling_sums[i] + noise) * dt
             self.phases[i] = (self.phases[i] + dphi) % (2 * np.pi)
-
         self.t += dt
         self.history.append(self.phases.copy())
-
         return self.phases.copy()
 
     def reset_phase_on_ignition(
@@ -178,27 +148,21 @@ class KuramotoOscillators:
         broadcast_decay: float = 0.5,
     ) -> None:
         """Reset phase on ignition event.
-
         Spec §9: Phase reset on ignition
-
         When ignition occurs at level ℓ, reset its phase. If broadcast is True,
         propagate the reset to other levels with exponential decay based on
         hierarchical distance.
-
         Args:
             level: Level index where ignition occurred
             reset_amount: Amount to reset phase (default π)
             broadcast: If True, propagate reset to all levels
             broadcast_decay: Decay factor for propagation (0-1)
         """
-
         if not (0 <= level < self.n_levels):
             return
-
         # Core level reset
         self.phases[level] = (self.phases[level] + reset_amount) % (2 * np.pi)
         self.noise_processes[level].reset()
-
         if broadcast:
             for j in range(self.n_levels):
                 if j == level:
@@ -221,47 +185,37 @@ class KuramotoOscillators:
 
     def get_synchronization_order(self) -> float:
         """Compute Kuramoto order parameter (synchronization measure).
-
         R = |Σ_ℓ exp(i φ_ℓ)| / n_levels
-
         Returns:
             Synchronization order (0 = incoherent, 1 = fully synchronized)
         """
-
         complex_sum = np.sum(np.exp(1j * self.phases))
         R = np.abs(complex_sum) / self.n_levels
         return float(R)
 
     def get_phase_coherence(self) -> np.ndarray:
         """Compute pairwise phase coherence G_φ(i,j,t) = cos(φ_i − φ_j).
-
         Spec: G_φ(i,j,t) = cos(φᵢ(t) − φⱼ(t)) ∈ [−1, 1] (signed).
         Anti-phase (G_φ = −1) suppresses ignition; in-phase (G_φ = +1) gates it.
         The sign must be preserved so that Γ⁽ˡ⁾ captures both constructive and
         destructive interference across the oscillator population.
-
         Returns:
             Coherence matrix C[i,j] = cos(φ_i − φ_j) ∈ [−1, 1]
         """
-
         coherence = np.zeros((self.n_levels, self.n_levels))
         for i in range(self.n_levels):
             for j in range(self.n_levels):
                 phase_diff = self.phases[i] - self.phases[j]
                 coherence[i, j] = np.cos(phase_diff)
-
         return coherence
 
     def compute_gamma(self) -> float:
         """Compute oscillatory synchrony gate Γ⁽ˡ⁾(t) per spec §12.
-
         Γ⁽ˡ⁾(t) = (1/N²) · Σᵢ,ⱼ G_φ(i,j,t)
                = (1/N²) · Σᵢ,ⱼ cos(φᵢ − φⱼ)
-
         This is the mean pairwise phase coherence (signed), which acts as a
         multiplicative gate on the instantaneous signal:
             S_inst^(l) = Π · φ(ε) · Γ^(l)(t)
-
         Returns:
             Γ ∈ [−1, 1]; positive = synchronised (gates access), negative = anti-phase
         """
@@ -277,7 +231,6 @@ class KuramotoOscillators:
 
 class HierarchicalKuramotoSystem:
     """Kuramoto oscillators integrated with hierarchical APGI system.
-
     Couples oscillator phases to:
     - Threshold modulation (phase-gated ignition)
     - Signal accumulation (phase-weighted precision)
@@ -290,19 +243,15 @@ class HierarchicalKuramotoSystem:
         config: dict | None = None,
     ):
         """Initialize hierarchical Kuramoto system.
-
         Args:
             n_levels: Number of hierarchy levels
             config: Configuration dict with Kuramoto parameters
         """
-
         self.n_levels = n_levels
         self.config = config or {}
-
         # Initialize Kuramoto oscillators
         tau_xi = self.config.get("kuramoto_tau_xi", 1.0)
         sigma_xi = self.config.get("kuramoto_sigma_xi", 0.1)
-
         self.oscillators = KuramotoOscillators(
             n_levels=n_levels,
             tau_xi=tau_xi,
@@ -311,16 +260,12 @@ class HierarchicalKuramotoSystem:
 
     def step(self, dt: float = 1.0) -> dict:
         """Update Kuramoto system and return diagnostics.
-
         Args:
             dt: Time step
-
         Returns:
             Dictionary with phases, synchronization, coherence
         """
-
         phases = self.oscillators.step(dt)
-
         return {
             "phases": phases,
             "synchronization": self.oscillators.get_synchronization_order(),
@@ -329,12 +274,10 @@ class HierarchicalKuramotoSystem:
 
     def apply_ignition_reset(self, level: int, broadcast: bool | None = None) -> None:
         """Apply phase reset on ignition at given level.
-
         Args:
             level: Level where ignition occurred
             broadcast: Override config broadcast setting
         """
-
         reset_amount = self.config.get("kuramoto_reset_amount", np.pi)
         do_broadcast = (
             broadcast
@@ -342,25 +285,20 @@ class HierarchicalKuramotoSystem:
             else self.config.get("kuramoto_reset_broadcast", False)
         )
         decay = self.config.get("kuramoto_broadcast_decay", 0.5)
-
         self.oscillators.reset_phase_on_ignition(
             level, reset_amount, broadcast=do_broadcast, broadcast_decay=decay
         )
 
     def get_phase_modulation_factor(self, level: int) -> float:
         """Get phase-dependent modulation factor for threshold.
-
         Uses cos(φ_ℓ) to modulate threshold:
         - When φ_ℓ ≈ 0: cos(φ) ≈ 1 (high threshold)
         - When φ_ℓ ≈ π: cos(φ) ≈ -1 (low threshold)
-
         Args:
             level: Level index
-
         Returns:
             Modulation factor in [-1, 1]
         """
-
         if 0 <= level < self.n_levels:
             return float(np.cos(self.oscillators.phases[level]))
         return 0.0

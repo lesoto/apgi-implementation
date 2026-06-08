@@ -1,5 +1,4 @@
 """Comprehensive unit tests for core/preprocessing.py module.
-
 Tests cover:
 - RunningStats class
 - compute_prediction_error function
@@ -27,7 +26,6 @@ class TestRunningStats:
         """Should raise ValueError for invalid window size."""
         with pytest.raises(ValueError, match="window_size must be > 0"):
             RunningStats(window_size=0)
-
         with pytest.raises(ValueError, match="window_size must be > 0"):
             RunningStats(window_size=-1)
 
@@ -37,7 +35,6 @@ class TestRunningStats:
         stats.update(1.0)
         stats.update(2.0)
         stats.update(3.0)
-
         assert len(stats.window) == 3
         assert list(stats.window) == [1.0, 2.0, 3.0]
 
@@ -48,7 +45,6 @@ class TestRunningStats:
         stats.update(2.0)
         stats.update(3.0)
         stats.update(4.0)
-
         assert len(stats.window) == 3
         assert list(stats.window) == [2.0, 3.0, 4.0]
 
@@ -58,7 +54,6 @@ class TestRunningStats:
         values = [1.0, 2.0, 3.0, 4.0, 5.0]
         for v in values:
             stats.update(v)
-
         assert stats.mean() == 3.0
 
     def test_mean_empty_window(self):
@@ -72,7 +67,6 @@ class TestRunningStats:
         values = [1.0, 2.0, 3.0, 4.0, 5.0]
         for v in values:
             stats.update(v)
-
         # Sample variance with Bessel correction
         expected = np.var(values, ddof=1)
         assert pytest.approx(stats.variance(bessel_correction=True), rel=1e-7) == expected
@@ -83,7 +77,6 @@ class TestRunningStats:
         values = [1.0, 2.0, 3.0, 4.0, 5.0]
         for v in values:
             stats.update(v)
-
         # Population variance (MLE)
         expected = np.var(values, ddof=0)
         assert pytest.approx(stats.variance(bessel_correction=False), rel=1e-7) == expected
@@ -99,24 +92,19 @@ class TestRunningStats:
         values = [1.0, 2.0, 3.0, 4.0, 5.0]
         for v in values:
             stats.update(v)
-
         expected = np.std(values, ddof=1)
         assert pytest.approx(stats.std(), rel=1e-7) == expected
 
     def test_running_window_stats(self):
         """Should maintain correct stats with sliding window."""
         stats = RunningStats(window_size=3)
-
         # Add values one by one and check mean
         stats.update(1.0)
         assert stats.mean() == 1.0
-
         stats.update(2.0)
         assert stats.mean() == 1.5
-
         stats.update(3.0)
         assert stats.mean() == 2.0
-
         stats.update(4.0)  # 1.0 is removed
         assert stats.mean() == 3.0  # mean of [2, 3, 4]
 
@@ -173,7 +161,6 @@ class TestZScore:
         stats = RunningStats(window_size=5)
         for v in [1.0, 2.0, 3.0, 4.0, 5.0]:
             stats.update(v)
-
         result = z_score(epsilon=6.0, stats=stats)
         # (6.0 - 3.0) / std([1,2,3,4,5])
         expected_std = stats.std()
@@ -185,7 +172,6 @@ class TestZScore:
         stats = RunningStats(window_size=5)
         for v in [1.0, 2.0, 3.0, 4.0, 5.0]:
             stats.update(v)
-
         result = z_score(epsilon=3.0, stats=stats)
         assert result == 0.0
 
@@ -202,7 +188,6 @@ class TestZScore:
         # Add multiple identical values to get zero std
         for _ in range(3):
             stats.update(1.0)
-
         result = z_score(epsilon=2.0, stats=stats, eps=0.1)
         # Should not crash due to small std, should use eps
         assert abs(result) > 0

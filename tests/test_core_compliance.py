@@ -116,9 +116,7 @@ class TestAuditLogger:
         logger = AuditLogger()
         old_config = {"param1": 1, "param2": 2}
         new_config = {"param1": 1, "param2": 3, "param3": 4}
-
         event = logger.log_config_change(old_config, new_config, reason="update")
-
         assert event.event_type == "config_change"
         assert event.operation == "update"
         assert event.resource == "configuration"
@@ -140,7 +138,6 @@ class TestAuditLogger:
         logger = AuditLogger()
         config = {"hierarchical_mode": "full", "steps": 100}
         event = logger.log_pipeline_start(config, n_steps=100)
-
         assert event.event_type == "pipeline_start"
         assert event.operation == "execute"
         assert event.resource == "pipeline"
@@ -152,7 +149,6 @@ class TestAuditLogger:
         """Should log pipeline completion."""
         logger = AuditLogger()
         event = logger.log_pipeline_complete(n_steps=100, ignition_count=5, duration_ms=1234.5)
-
         assert event.event_type == "pipeline_complete"
         assert event.operation == "execute"
         assert event.resource == "pipeline"
@@ -165,7 +161,6 @@ class TestAuditLogger:
         """Should log data retention actions."""
         logger = AuditLogger()
         event = logger.log_data_retention("data_123", 30, "delete")
-
         assert event.event_type == "data_retention"
         assert event.operation == "delete"
         assert event.resource == "data_123"
@@ -177,12 +172,10 @@ class TestAuditLogger:
         logger = AuditLogger()
         logger.log_event(event_type="test1")
         logger.log_event(event_type="test2")
-
         events = logger.get_events()
         assert len(events) == 2
         assert events[0].event_type == "test1"
         assert events[1].event_type == "test2"
-
         # Modifying returned list should not affect buffer
         events.clear()
         assert len(logger.get_events()) == 2
@@ -191,14 +184,11 @@ class TestAuditLogger:
         """Should export events to JSON file."""
         logger = AuditLogger()
         logger.log_event(event_type="test", metadata={"key": "value"})
-
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             filepath = f.name
-
         try:
             logger.export_events(filepath)
             assert os.path.exists(filepath)
-
             with open(filepath) as f:
                 data = json.load(f)
             assert len(data) == 1
@@ -212,11 +202,9 @@ class TestAuditLogger:
         config1 = {"a": 1, "b": 2}
         config2 = {"b": 2, "a": 1}  # Different order
         config3 = {"a": 1, "b": 3}  # Different value
-
         hash1 = AuditLogger._hash_config(config1)
         hash2 = AuditLogger._hash_config(config2)
         hash3 = AuditLogger._hash_config(config3)
-
         assert len(hash1) == 16
         assert hash1 == hash2  # Same content = same hash
         assert hash1 != hash3  # Different content = different hash
@@ -225,7 +213,6 @@ class TestAuditLogger:
         """Should compute config differences."""
         old = {"a": 1, "b": 2, "c": 3}
         new = {"a": 1, "b": 3, "d": 4}  # b changed, c removed, d added
-
         diff = AuditLogger._compute_config_diff(old, new)
         assert set(diff) == {"b", "c", "d"}
 
@@ -254,7 +241,6 @@ class TestDataLifecycleManager:
         """Should register data with default retention."""
         manager = DataLifecycleManager()
         manager.register_data("data_1", "simulation")
-
         assert "data_1" in manager._data_registry
         info = manager._data_registry["data_1"]
         assert info["data_type"] == "simulation"
@@ -267,7 +253,6 @@ class TestDataLifecycleManager:
         """Should register data with custom retention."""
         manager = DataLifecycleManager(default_retention_days=90)
         manager.register_data("data_1", "history", retention_days=30)
-
         info = manager._data_registry["data_1"]
         assert info["retention_days"] == 30
 
@@ -282,7 +267,6 @@ class TestDataLifecycleManager:
         # Register data that expires immediately
         manager.register_data("expired", "test", retention_days=-1)
         manager.register_data("valid", "test", retention_days=365)
-
         expired = manager.check_expired()
         assert "expired" in expired
         assert "valid" not in expired
@@ -291,9 +275,7 @@ class TestDataLifecycleManager:
         """Should anonymize history data."""
         manager = DataLifecycleManager()
         history = {"signal": [1.0, 2.0, 3.0], "threshold": [0.5, 0.6, 0.7]}
-
         result = manager.anonymize_history(history)
-
         assert result.keys() == history.keys()
         assert result["signal"] == history["signal"]
         assert result["signal"] is not history["signal"]  # Should be copy
@@ -302,9 +284,7 @@ class TestDataLifecycleManager:
         """Should mark data as deleted."""
         manager = DataLifecycleManager()
         manager.register_data("data_1", "test")
-
         result = manager.delete_data("data_1")
-
         assert result is True
         assert manager._data_registry["data_1"]["deleted"] is True
         assert "deleted_at" in manager._data_registry["data_1"]
@@ -342,9 +322,7 @@ class TestComplianceManager:
         """Should record pipeline start."""
         manager = ComplianceManager()
         config = {"hierarchical_mode": "full"}
-
         manager.start_pipeline(config, n_steps=100)
-
         assert manager._start_time is not None
         assert len(manager.audit.get_events()) == 1
         assert manager.audit.get_events()[0].event_type == "pipeline_start"
@@ -353,11 +331,9 @@ class TestComplianceManager:
         """Should record pipeline end with duration."""
         manager = ComplianceManager()
         manager.start_pipeline({}, n_steps=100)
-
         # Small delay to ensure measurable duration
         time.sleep(0.01)
         manager.end_pipeline(n_steps=100, ignition_count=5)
-
         events = manager.audit.get_events()
         assert len(events) == 2
         assert events[1].event_type == "pipeline_complete"
@@ -367,7 +343,6 @@ class TestComplianceManager:
         """Should handle end without start."""
         manager = ComplianceManager()
         manager.end_pipeline(n_steps=100, ignition_count=5)
-
         events = manager.audit.get_events()
         assert len(events) == 1
         assert events[0].metadata["duration_ms"] == 0
@@ -376,14 +351,11 @@ class TestComplianceManager:
         """Should export audit trail."""
         manager = ComplianceManager()
         manager.start_pipeline({}, n_steps=10)
-
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             filepath = f.name
-
         try:
             manager.export_audit_trail(filepath)
             assert os.path.exists(filepath)
-
             with open(filepath) as f:
                 data = json.load(f)
             assert len(data) == 1

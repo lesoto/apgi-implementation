@@ -68,14 +68,12 @@ class TestPipelineSerotonin:
 
         cfg_zero = {**CONFIG, "beta_5ht": 0.0}
         pipe = APGIPipeline(cfg_zero)
-
         rng = np.random.default_rng(99)
         results = []
         for _ in range(10):
             eps_e = float(rng.normal(0, 0.5))
             eps_i = float(rng.normal(0, 0.5))
             results.append(pipe.step(eps_e, eps_i))
-
         # All thetas must be finite and within a sane range
         thetas = [r["theta"] for r in results]
         assert all(np.isfinite(t) for t in thetas)

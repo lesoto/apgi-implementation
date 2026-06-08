@@ -1,12 +1,9 @@
 """Asymmetric Signed Nonlinear Transformation φ(ε) — §6 of APGI Full Specs.
-
 φ(ε) = α⁺ · tanh(γ⁺ · ε)   if ε ≥ 0   (reward / approach signal)
 φ(ε) = α⁻ · tanh(γ⁻ · ε)   if ε < 0   (threat / avoidance signal)
-
 Parameter bounds (§6, Parameter Bounds and Derivation):
   α⁺, α⁻  ∈ [0.5, 2.0]  — valence-specific amplitude gain
   γ⁺, γ⁻  ∈ [1.0, 5.0]  — saturation steepness
-
 Symmetric first-order approximation (α⁺=α⁻, γ⁺=γ⁻) recovers the unsigned
 |ε| formulation used in earlier APGI iterations (§6 Compatibility Note).
 """
@@ -47,7 +44,6 @@ def phi_transform(
     gamma_neg: float = 2.0,
 ) -> float:
     """Signed asymmetric tanh transform of a scalar prediction error.
-
     Returns a signed float in (-alpha_pos, alpha_pos) for ε≥0
     and in (alpha_neg·(-1), 0) for ε<0.
     """

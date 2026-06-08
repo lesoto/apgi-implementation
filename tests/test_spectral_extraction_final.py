@@ -1,5 +1,4 @@
 """Final tests for stats/spectral_extraction.py to cover remaining lines.
-
 Covers lines 126-128, 421-422.
 """
 
@@ -22,7 +21,6 @@ class TestRobustLogRegressionEdgeCases:
         y = 2.0 * x ** (-1.0)  # Perfect power law
         log_x = np.log(x)
         log_y = np.log(y)
-
         slope, intercept, r2 = robust_log_regression(log_x, log_y)
         assert not np.isnan(slope)
         assert not np.isnan(r2)
@@ -35,10 +33,8 @@ class TestRobustLogRegressionEdgeCases:
         # Add some outliers
         y[10] *= 10.0
         y[20] *= 5.0
-
         log_x = np.log(x)
         log_y = np.log(y)
-
         slope, intercept, r2 = robust_log_regression(log_x, log_y)
         assert not np.isnan(slope)
         # Slope should still be close to -1 despite outliers
@@ -53,7 +49,6 @@ class TestExtract1fSignatureLines126to128:
         # Pink noise signal
         np.random.seed(42)
         signal = np.cumsum(np.random.randn(1024))  # Brown-like noise
-
         result = extract_1f_signature(signal, fs=1.0, compute_ci=True)
         assert isinstance(result, SpectralSignature)
         assert not np.isnan(result.beta)
@@ -62,11 +57,9 @@ class TestExtract1fSignatureLines126to128:
         """Test with different method combinations."""
         np.random.seed(42)
         signal = np.random.randn(512)
-
         # Test with single method
         result_welch = extract_1f_signature(signal, fs=1.0, methods=["welch"])
         assert isinstance(result_welch, SpectralSignature)
-
         result_periodogram = extract_1f_signature(signal, fs=1.0, methods=["periodogram"])
         assert isinstance(result_periodogram, SpectralSignature)
 
@@ -78,7 +71,6 @@ class TestExtract1fSignatureLines421to422:
         """Test handling of NaN values during regression."""
         np.random.seed(42)
         signal = np.random.randn(256)
-
         # This should trigger NaN handling paths
         result = extract_1f_signature(signal, fs=1.0)
         assert isinstance(result, SpectralSignature)
@@ -87,7 +79,6 @@ class TestExtract1fSignatureLines421to422:
         """Test with very short signal."""
         np.random.seed(42)
         signal = np.random.randn(32)
-
         result = extract_1f_signature(signal, fs=1.0)
         # May return NaN for very short signals
         assert isinstance(result, SpectralSignature)
@@ -95,7 +86,6 @@ class TestExtract1fSignatureLines421to422:
     def test_extract_1f_constant_signal_fallback(self):
         """Test with constant signal (edge case)."""
         signal = np.ones(128)
-
         # Should handle constant signal gracefully
         with pytest.raises((ValueError, RuntimeError)):
             extract_1f_signature(signal, fs=1.0)
@@ -151,7 +141,6 @@ class TestBootstrapConfidenceIntervals:
         """Test bootstrap with enough data points."""
         np.random.seed(42)
         signal = np.random.randn(512)
-
         result = extract_1f_signature(signal, fs=1.0, compute_ci=True, n_bootstrap=50)
         assert isinstance(result, SpectralSignature)
         assert not np.isnan(result.beta_ci_lower)
@@ -161,6 +150,5 @@ class TestBootstrapConfidenceIntervals:
         """Test bootstrap with small signal (fallback path)."""
         np.random.seed(42)
         signal = np.random.randn(64)
-
         result = extract_1f_signature(signal, fs=1.0, compute_ci=True, n_bootstrap=10)
         assert isinstance(result, SpectralSignature)

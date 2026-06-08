@@ -1,5 +1,4 @@
 """Comprehensive unit tests for oscillation/phase.py module.
-
 Tests cover:
 - compute_phase function
 - update_phase_euler function
@@ -91,7 +90,6 @@ class TestNearestNeighborCouplingMatrix:
     def test_basic_matrix(self):
         """Should create correct coupling matrix."""
         K = nearest_neighbor_coupling_matrix(n_levels=3, K_up=0.1, K_down=0.2)
-
         assert K.shape == (3, 3)
         assert K[0, 1] == 0.2  # Downward coupling from level 1 to 0
         assert K[1, 0] == 0.1  # Upward coupling from level 0 to 1
@@ -114,9 +112,7 @@ class TestHierarchicalPhaseCoupling:
         phases = np.array([0.0, np.pi / 2])
         omegas = np.array([1.0, 1.0])
         K = np.array([[0.0, 0.1], [0.1, 0.0]])
-
         result = hierarchical_phase_coupling(phases, omegas, K)
-
         assert len(result) == 2
         # Oscillator 0 receives from 1: 0.1 * sin(pi/2) = 0.1
         assert pytest.approx(result[0], rel=1e-7) == 0.1
@@ -129,9 +125,7 @@ class TestHierarchicalPhaseCoupling:
         omegas = np.array([1.0, 1.0, 1.0])
         # Only some entries are non-zero
         K = np.array([[0.0, 0.1, 0.0], [0.1, 0.0, 0.0], [0.0, 0.0, 0.0]])
-
         result = hierarchical_phase_coupling(phases, omegas, K)
-
         assert len(result) == 3
         # Level 2 has no incoming coupling
         assert result[2] == 0.0
@@ -151,9 +145,7 @@ class TestPhaseOscillatorNetwork:
         """Should update phases."""
         network = PhaseOscillatorNetwork(n_levels=3)
         initial_phases = network.phases.copy()
-
         new_phases = network.step(dt=0.01)
-
         # Phases should have changed due to natural frequency
         assert not np.array_equal(new_phases, initial_phases)
 
@@ -162,7 +154,6 @@ class TestPhaseOscillatorNetwork:
         network = PhaseOscillatorNetwork(n_levels=3)
         phases1 = network.get_phases()
         phases2 = network.get_phases()
-
         # Should be copies, not same object
         assert phases1 is not phases2
         np.testing.assert_array_equal(phases1, phases2)
@@ -171,14 +162,12 @@ class TestPhaseOscillatorNetwork:
         """Should set phases correctly."""
         network = PhaseOscillatorNetwork(n_levels=3)
         network.set_phases(np.array([0.5, 1.0, 1.5]))
-
         np.testing.assert_array_equal(network.phases, np.array([0.5, 1.0, 1.5]))
 
     def test_phase_wrapping(self):
         """Should wrap phases to [0, 2*pi]."""
         network = PhaseOscillatorNetwork(n_levels=3)
         network.set_phases(np.array([2 * np.pi + 0.5, 4 * np.pi, -0.5]))
-
         # Should be wrapped
         assert network.phases[0] == pytest.approx(0.5, abs=1e-10)
         assert network.phases[1] == pytest.approx(0.0, abs=1e-10)

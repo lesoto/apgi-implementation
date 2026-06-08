@@ -1,11 +1,7 @@
 # APGI API Reference
-
 ## Core Pipeline
-
 ### `APGIPipeline`
-
 Main execution pipeline for APGI system.
-
 ```python
 class APGIPipeline:
     """APGI unified pipeline per specification.
@@ -113,15 +109,10 @@ class APGIPipeline:
             >>> pipeline.set_state(state)
         """
 ```
-
 ---
-
 ## Signal Processing
-
 ### `compute_prediction_errors`
-
 Compute raw prediction errors.
-
 ```python
 def compute_prediction_errors(
     x_e: float,
@@ -151,11 +142,8 @@ def compute_prediction_errors(
         >>> print(f"Interoceptive error: {eps_i}")
     """
 ```
-
 ### `compute_z_scores`
-
 Normalize prediction errors to z-scores.
-
 ```python
 def compute_z_scores(
     eps_e: float,
@@ -190,15 +178,10 @@ def compute_z_scores(
         >>> print(f"z_e: {z_e:.4f}, z_i: {z_i:.4f}")
     """
 ```
-
 ---
-
 ## Precision System
-
 ### `compute_precision`
-
 Compute precision from variance.
-
 ```python
 def compute_precision(
     sigma: float,
@@ -227,11 +210,8 @@ def compute_precision(
         >>> print(f"Precision: {pi:.4f}")
     """
 ```
-
 ### `apply_neuromodulatory_gains`
-
 Apply neuromodulatory modulation to precision and signals.
-
 ```python
 def apply_neuromodulatory_gains(
     pi_e: float,
@@ -267,15 +247,10 @@ def apply_neuromodulatory_gains(
         ... )
     """
 ```
-
 ---
-
 ## Threshold Dynamics
-
 ### `compute_metabolic_cost`
-
 Compute metabolic cost of signal processing.
-
 ```python
 def compute_metabolic_cost(
     S: float,
@@ -303,11 +278,8 @@ def compute_metabolic_cost(
         >>> print(f"Cost: {cost:.4f}")
     """
 ```
-
 ### `compute_information_value`
-
 Compute information value of signals.
-
 ```python
 def compute_information_value(
     z_e: float,
@@ -335,11 +307,8 @@ def compute_information_value(
         >>> print(f"Value: {value:.4f}")
     """
 ```
-
 ### `update_threshold`
-
 Update threshold via allostatic mechanism.
-
 ```python
 def update_threshold(
     theta_prev: float,
@@ -384,15 +353,10 @@ def update_threshold(
         ... )
     """
 ```
-
 ---
-
 ## Ignition Mechanism
-
 ### `compute_ignition_hard`
-
 Hard threshold ignition.
-
 ```python
 def compute_ignition_hard(S: float, theta: float) -> int:
     """Compute hard ignition.
@@ -413,11 +377,8 @@ def compute_ignition_hard(S: float, theta: float) -> int:
         >>> print(f"Ignition: {B}")
     """
 ```
-
 ### `compute_ignition_soft`
-
 Soft threshold ignition with sigmoid.
-
 ```python
 def compute_ignition_soft(
     S: float,
@@ -443,11 +404,8 @@ def compute_ignition_soft(
         >>> print(f"P(ignition): {p_ign:.4f}")
     """
 ```
-
 ### `compute_ignition_margin`
-
 Compute ignition margin.
-
 ```python
 def compute_ignition_margin(S: float, theta: float) -> float:
     """Compute ignition margin.
@@ -468,15 +426,10 @@ def compute_ignition_margin(S: float, theta: float) -> float:
         >>> print(f"Margin: {delta:.4f}")
     """
 ```
-
 ---
-
 ## Oscillatory Coupling
-
 ### `KuramotoOscillators`
-
 Coupled phase oscillators.
-
 ```python
 class KuramotoOscillators:
     """Kuramoto oscillators per spec §9.
@@ -530,15 +483,10 @@ class KuramotoOscillators:
             Order parameter R ∈ [0, 1]
         """
 ```
-
 ---
-
 ## Reservoir Layer
-
 ### `LiquidStateMachine`
-
 Reservoir computing layer.
-
 ```python
 class LiquidStateMachine:
     """Liquid state machine per spec §10.
@@ -589,15 +537,10 @@ class LiquidStateMachine:
             alpha: Ridge regularization (default 1e-6)
         """
 ```
-
 ---
-
 ## Thermodynamics
-
 ### `compute_landauer_cost`
-
 Compute thermodynamic cost per Landauer's principle.
-
 ```python
 def compute_landauer_cost(
     S: float,
@@ -628,15 +571,10 @@ def compute_landauer_cost(
         >>> print(f"Thermodynamic cost: {cost:.2e} J")
     """
 ```
-
 ---
-
 ## Observable Mapping
-
 ### `NeuralObservableExtractor`
-
 Extract neural observables from APGI dynamics.
-
 ```python
 class NeuralObservableExtractor:
     """Extract neural observables per spec §14.
@@ -668,11 +606,8 @@ class NeuralObservableExtractor:
     def extract_erp_amplitude(self) -> float:
         """Get ERP amplitude from history."""
 ```
-
 ### `BehavioralObservableExtractor`
-
 Extract behavioral observables.
-
 ```python
 class BehavioralObservableExtractor:
     """Extract behavioral observables per spec §14.
@@ -698,74 +633,48 @@ class BehavioralObservableExtractor:
             - decision_rate: Decision rate
         """
 ```
-
 ---
-
 ## Statistical Analysis
-
 ### `estimate_1f_exponent` — `stats.spectral_model`
-
 Estimate the 1/f spectral exponent from a power spectrum.
-
 ```python
 from stats.spectral_model import estimate_1f_exponent
-
 beta = estimate_1f_exponent(freqs, psd)
 # Returns float: spectral exponent β
 ```
-
 ### `fit_lorentzian_superposition` — `stats.spectral_model`
-
 Fit Lorentzian superposition model to observed PSD. Always restrict to the 1/f
 transition band `[fc_min/2, fc_max*2]` to avoid collinear basis columns.
-
 ```python
 from stats.spectral_model import fit_lorentzian_superposition
-
 result = fit_lorentzian_superposition(freqs_band, psd_band, taus_seconds)
 # result keys: amplitudes, r_squared, r_squared_log, beta
 # Use r_squared_log > 0.3 as goodness-of-fit threshold
 ```
-
 ### `validate_pink_noise` — `stats.spectral_model`
-
 Validate that a PSD matches 1/f (pink noise) characteristics.
-
 ```python
 from stats.spectral_model import validate_pink_noise
-
 result = validate_pink_noise(freqs, psd)
 # result keys: is_pink_noise (bool), beta (float), r_squared (float)
 ```
-
 ### `estimate_hurst_robust` — `stats.hurst`
-
 Estimate Hurst exponent using DFA (Detrended Fluctuation Analysis).
-
 ```python
 from stats.hurst import estimate_hurst_robust
-
 H = estimate_hurst_robust(signal, fs=500.0)
 # Returns float: Hurst exponent H ∈ [0.7, 1.0] for pink noise
 ```
-
 ### `welch_periodogram` — `stats.hurst`
-
 Compute Welch power spectral density estimate.
-
 ```python
 from stats.hurst import welch_periodogram
-
 freqs, psd = welch_periodogram(signal, fs=500.0)
 ```
-
 ### `assess_overall_maturity` — `stats.maturity_assessment`
-
 Comprehensive maturity assessment combining hierarchical (§8) and statistical (§12) scores.
-
 ```python
 from stats.maturity_assessment import assess_overall_maturity
-
 score = assess_overall_maturity(
     signal=S_history,
     signal_levels=signal_levels,  # list[np.ndarray]
@@ -777,18 +686,12 @@ score = assess_overall_maturity(
 # score.overall_score, score.hierarchical_score, score.statistical_score
 # score.pac_score, score.cascade_score, score.spectral_score
 ```
-
 > **Cascade saturation warning:** If `kappa_up > 0.05` or input amplitude > 0.1,
 > upper levels saturate causing NaN correlation scores. See `docs/HIERARCHICAL-GUIDE.md`.
-
 ---
-
 ## Stability Analysis
-
 ### `StabilityAnalyzer`
-
 Analyze system stability.
-
 ```python
 class StabilityAnalyzer:
     """Stability analysis per spec §7.
@@ -828,15 +731,10 @@ class StabilityAnalyzer:
             Bifurcation analysis results
         """
 ```
-
 ---
-
 ## Validation
-
 ### `validate_config`
-
 Validate configuration against spec constraints.
-
 ```python
 def validate_config(config: dict) -> None:
     """Validate configuration.
@@ -865,15 +763,10 @@ def validate_config(config: dict) -> None:
         >>> print("Configuration valid!")
     """
 ```
-
 ---
-
 ## Configuration
-
 ### `CONFIG`
-
 Default configuration dictionary.
-
 ```python
 CONFIG = {
     # Signal preprocessing (§1)
@@ -939,20 +832,14 @@ CONFIG = {
     "use_stability_analysis": False,  # Enable stability analysis
 }
 ```
-
 ---
-
 ## Usage Examples
-
 ### Basic Usage
-
 ```python
 from pipeline import APGIPipeline
 from config import CONFIG
-
 # Initialize pipeline
 pipeline = APGIPipeline(CONFIG)
-
 # Run single step
 result = pipeline.step(
     x_e=0.5,      # Exteroceptive signal
@@ -960,22 +847,17 @@ result = pipeline.step(
     x_i=0.2,      # Interoceptive signal
     x_hat_i=0.1   # Interoceptive prediction
 )
-
 # Access results
 print(f"Signal: {result['S']:.4f}")
 print(f"Threshold: {result['theta']:.4f}")
 print(f"Ignition: {result['B']}")
 ```
-
 ### Advanced Usage with Observable Mapping
-
 ```python
 config = CONFIG.copy()
 config["use_observable_mapping"] = True
 config["use_kuramoto"] = True
-
 pipeline = APGIPipeline(config)
-
 # Run simulation
 for t in range(1000):
     result = pipeline.step(x_e=0.5, x_hat_e=0.3, x_i=0.2, x_hat_i=0.1)
@@ -988,13 +870,9 @@ for t in range(1000):
     if "behavioral_rt_variability" in result:
         print(f"RT variability: {result['behavioral_rt_variability']:.4f}")
 ```
-
 ---
-
 ## Error Handling
-
 All functions raise `ValueError` with descriptive messages when constraints are violated. Example:
-
 ```python
 try:
     pipeline = APGIPipeline(invalid_config)
@@ -1002,5 +880,4 @@ except ValueError as e:
     print(f"Configuration error: {e}")
     print("See docs/PARAMETER-CONSTRAINTS.md for valid ranges")
 ```
-
 ---

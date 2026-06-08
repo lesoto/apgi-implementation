@@ -24,7 +24,6 @@ def test_compute_eigenvalues():
     eigs, vecs = compute_eigenvalues(J)
     assert len(eigs) == 2
     assert np.all(eigs == 0.5)
-
     # Fallback case
     from unittest.mock import patch
 
@@ -59,7 +58,6 @@ def test_analyze_bifurcation():
     res = analyze_bifurcation(cfg, "lam", (0.1, 0.9), n_points=5)
     assert len(res["parameter_values"]) == 5
     assert all(res["stability"])
-
     # Test unstable region (negative kappa)
     res_uns = analyze_bifurcation(cfg, "kappa", (-0.1, 0.1), n_points=10)
     assert not all(res_uns["stability"])
@@ -71,7 +69,6 @@ def test_validate_system_dynamics():
     # Insufficient data
     res_short = validate_system_dynamics(cfg, np.zeros(10), np.zeros(10))
     assert res_short["valid"] is False
-
     # Near fixed point
     S = np.full(200, 5.0) + np.random.randn(200) * 0.01
     th = np.full(200, 1.0) + np.random.randn(200) * 0.01
@@ -85,11 +82,9 @@ def test_stability_analyzer():
     ana = StabilityAnalyzer(cfg)
     for _ in range(50):
         ana.step(5.0, 1.0)
-
     # Analysis with insufficient history
     res1 = ana.analyze()
     assert res1["dynamics_validation"]["valid"] is False
-
     # With enough history
     for _ in range(100):
         ana.step(5.0, 1.0)

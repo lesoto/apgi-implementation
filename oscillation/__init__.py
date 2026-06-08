@@ -1,5 +1,4 @@
 """Oscillatory phase coupling module for APGI.
-
 Implements phase dynamics ϕ_l(t) = ω_l t + ϕ_0 with cross-level coupling,
 Kuramoto oscillators with phase noise, and phase reset on ignition.
 """

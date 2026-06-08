@@ -21,12 +21,10 @@ def test_robust_log_regression():
     y = 2 * x + 1 + 0.1 * np.random.randn(20)
     slope, intercept, r2 = robust_log_regression(x, y)
     assert pytest.approx(slope, rel=0.1) == 2.0
-
     # With outliers
     y[0] = 100
     slope_out, intercept_out, r2_out = robust_log_regression(x, y)
     assert pytest.approx(slope_out, rel=0.1) == 2.0
-
     # Error cases
     assert np.isnan(robust_log_regression([1, 2], [1, 2])[0])  # len < 3
     assert np.isnan(robust_log_regression([1, 2, 3], [1, 1, 1])[0])  # std(y) < 1e-10
@@ -37,14 +35,11 @@ def test_spectral_exponents():
     # Pink noise approximation
     fs = 100.0
     signal = np.cumsum(np.random.randn(500))  # Brown noise (beta ~ 2)
-
     beta_w, r2_w, h_w = estimate_spectral_exponent_welch(signal, fs=fs)
     assert not np.isnan(beta_w)
     assert beta_w > 0
-
     beta_p, r2_p, h_p = estimate_spectral_exponent_periodogram(signal, fs=fs)
     assert not np.isnan(beta_p)
-
     # Short signal error
     assert np.isnan(estimate_spectral_exponent_welch(np.random.randn(10), fmin=40, fmax=50)[0])
     assert np.isnan(
@@ -57,7 +52,6 @@ def test_estimate_hurst_dfa():
     h, r2 = estimate_hurst_dfa(signal)
     assert not np.isnan(h)
     assert h > 0
-
     # Trigger segments < 2
     h_err, r2_err = estimate_hurst_dfa(np.random.randn(20), min_lag=15, max_lag=16)
     assert np.isnan(h_err)
@@ -93,13 +87,11 @@ def test_extract_1f_signature():
     sig = extract_1f_signature(signal, n_bootstrap=10)
     assert isinstance(sig, SpectralSignature)
     assert sig.beta > 0
-
     # Custom methods and f range
     sig_custom = extract_1f_signature(
         signal, methods=["welch"], fmin=0.1, fmax=0.4, compute_ci=False
     )
     assert sig_custom.method == "welch"
-
     # Failed methods
     with pytest.raises(ValueError, match="All spectral estimation methods failed"):
         extract_1f_signature(np.random.randn(5), methods=["welch"])
@@ -111,7 +103,6 @@ def test_validate_hierarchical_spectral_signature():
     assert res["n_levels"] == 2
     assert len(res["signatures"]) == 2
     assert res["coherence_matrix"].shape == (2, 2)
-
     # Level failure
     res_err = validate_hierarchical_spectral_signature([np.zeros(5)], fmin=0.1, fmax=10.0)
     assert res_err["signatures"][0] is None
@@ -141,25 +132,21 @@ def test_spectral_exceptions():
     # 1. robust_log_regression scaling failure (85)
     # x has no variance -> std < 1e-10
     assert np.isnan(robust_log_regression([1, 1, 1], [1, 2, 3])[0])
-
     # 2. robust_log_regression LinAlgError (129-130)
     from unittest.mock import patch
 
     with patch("numpy.polyfit", side_effect=np.linalg.LinAlgError):
         assert np.isnan(robust_log_regression([1, 2, 3, 4], [1, 2, 3, 4])[0])
-
     # 3. estimate_hurst_dfa LinAlgError (276-277)
     with patch("numpy.polyfit", side_effect=np.linalg.LinAlgError):
         h, r2 = estimate_hurst_dfa(np.cumsum(np.random.randn(100)))
         assert np.isnan(h)
-
     # 4. extract_1f_signature method failures (426-427, 436-437, 446-447)
     with patch("stats.spectral_extraction.estimate_spectral_exponent_welch", side_effect=Exception):
         sig = extract_1f_signature(
             np.random.randn(200), methods=["welch", "periodogram"], compute_ci=False
         )
         assert sig.method == "periodogram"
-
     with patch(
         "stats.spectral_extraction.estimate_spectral_exponent_periodogram", side_effect=Exception
     ):
@@ -167,16 +154,13 @@ def test_spectral_exceptions():
             np.random.randn(200), methods=["periodogram", "dfa"], compute_ci=False
         )
         assert sig.method == "dfa"
-
     with patch("stats.spectral_extraction.estimate_hurst_dfa", side_effect=Exception):
         sig = extract_1f_signature(np.random.randn(200), methods=["dfa", "welch"], compute_ci=False)
         assert sig.method == "welch"
-
     # 5. beta_estimator exception (467-469) and fallback CI (479-481)
     with patch("stats.spectral_extraction.estimate_spectral_exponent_welch", side_effect=Exception):
         sig = extract_1f_signature(np.random.randn(200), methods=["periodogram"], n_bootstrap=10)
         assert not np.isnan(sig.beta_ci_lower)
-
     # 6. validate_hierarchical_spectral_signature coherence failure (574-575)
     with patch("scipy.signal.coherence", side_effect=Exception):
         res = validate_hierarchical_spectral_signature([np.random.randn(100), np.random.randn(100)])

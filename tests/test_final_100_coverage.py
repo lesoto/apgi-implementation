@@ -1,5 +1,4 @@
 """Final coverage gap tests — drives all remaining source lines to 100%.
-
 Targets:
   - core/circadian.py       lines 177, 190
   - core/precision.py       lines 52, 53, 54, 100
@@ -109,10 +108,8 @@ class TestMultiscaleWeightSchedulerZeroTotal:
         scheduler = MultiscaleWeightScheduler(n_levels=3, alpha=0.05)
         # Zero out accumulated values directly
         scheduler.values[:] = 0.0
-
         # Call update with zero phi errors — EMA stays at zero → total <= 1e-12
         weights = scheduler.update(np.zeros(3))
-
         # Should fall back to uniform (line 259)
         np.testing.assert_array_almost_equal(weights, np.ones(3) / 3)
 
@@ -126,7 +123,6 @@ class TestAvalancheMissingLines:
     """Cover all remaining avalanche analysis paths."""
 
     # ---- extract_avalanches ----
-
     def test_extract_avalanches_2d_raises(self) -> None:
         """Line 35: ValueError for non-1D input."""
         from stats.avalanche import extract_avalanches
@@ -162,7 +158,6 @@ class TestAvalancheMissingLines:
         assert sizes[1] == 1
 
     # ---- fit_discrete_power_law_mle ----
-
     def test_fit_power_law_2d_input_raises(self) -> None:
         """Line 81: ValueError for non-1D sizes."""
         from stats.avalanche import fit_discrete_power_law_mle
@@ -199,7 +194,6 @@ class TestAvalancheMissingLines:
         assert result.n == 100
 
     # ---- validate_avalanche_power_law ----
-
     def test_validate_with_sufficient_avalanches(self) -> None:
         """Lines 129-131: success path when >= min_avalanches found."""
         from stats.avalanche import validate_avalanche_power_law
@@ -238,7 +232,6 @@ class TestSpectralModelNNLSFallback:
         freqs = np.logspace(-2, 2, 60)
         taus = np.array([0.1, 1.0, 10.0])
         power = np.ones(60)
-
         original_nnls = scipy.optimize.nnls
 
         def _raise(*args, **kwargs):
@@ -251,7 +244,6 @@ class TestSpectralModelNNLSFallback:
             result = fit_lorentzian_superposition(freqs, power, taus)
         finally:
             scipy.optimize.nnls = original_nnls
-
         # Should have fallen back to lstsq (lines 398-399 executed)
         assert "amplitudes" in result
         assert "fitted_psd" in result
@@ -353,7 +345,6 @@ class TestPipelineBottomUpCascade:
 
     def test_kappa_up_nonzero_plain_hierarchical(self) -> None:
         """Lines 854-855: cascade loop body in the non-resonance else branch.
-
         use_resonance defaults to True, which short-circuits to the resonance
         branch at line 836 and skips the cascade else block.  Setting it False
         forces the else branch so the for-loop body at lines 854-855 executes.
@@ -413,13 +404,11 @@ class TestPipelineValidate:
         p = APGIPipeline(cfg)
         for t in range(70):
             p.step(np.sin(0.1 * t) * 2.0, 0.0, 0.5, 0.3)
-
         with patch(
             "stats.spectral_model.fit_lorentzian_superposition",
             side_effect=RuntimeError("forced lorentzian failure"),
         ):
             out = p.validate()
-
         assert out["status"] == "success"
         assert out["lorentzian_superposition"]["status"] == "error"
 
@@ -448,13 +437,11 @@ class TestPipelineValidate:
         p = APGIPipeline(cfg)
         for t in range(70):
             p.step(np.sin(0.1 * t) * 4.0, 0.0, 0.5, 0.0)
-
         with patch(
             "stats.avalanche.validate_avalanche_power_law",
             side_effect=RuntimeError("forced avalanche failure"),
         ):
             out = p.validate()
-
         assert out["status"] == "success"
         assert out["avalanche_power_law"]["status"] == "error"
 
@@ -509,7 +496,6 @@ class TestCalibrationUtilsDunderMain:
 
     def test_calibration_utils_dunder_main(self, capsys) -> None:
         """Line 124 in energy/calibration_utils.py: __main__ guard.
-
         run_path cannot handle relative imports, so we use run_module with
         the package-qualified name, which correctly resolves 'from .bold_calibration'.
         """
@@ -518,7 +504,6 @@ class TestCalibrationUtilsDunderMain:
 
         # Remove from sys.modules to avoid RuntimeWarning about module already imported
         sys.modules.pop("energy.calibration_utils", None)
-
         runpy.run_module("energy.calibration_utils", run_name="__main__")
         captured = capsys.readouterr()
         assert "Landauer" in captured.out or "BOLD" in captured.out
@@ -626,7 +611,6 @@ class TestConftestHelpers:
 
 class TestConftestSessionTeardown:
     """Lines 60-82: force the session fixture teardown to process chunks.
-
     The suppress_lapack_stderr_session session fixture captures fd 2.
     Writing directly to that file descriptor during a test ensures that
     `chunks` is non-empty in the teardown, triggering lines 64-82.

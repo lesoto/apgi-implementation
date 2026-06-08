@@ -89,10 +89,8 @@ class APGIPipeline:
 
     def _apply_hierarchical_preset(self, config: dict) -> dict:
         """Apply hierarchical mode preset to configuration.
-
         Simplifies hierarchical system configuration by allowing users to set
         a single 'hierarchical_mode' parameter instead of three separate flags.
-
         Modes:
             - 'off': Disable all hierarchical features
             - 'basic': Enable hierarchical only (use_hierarchical=True)
@@ -100,22 +98,17 @@ class APGIPipeline:
                          use_hierarchical_precision_ode=True)
             - 'full': Enable all hierarchical features (use_hierarchical=True,
                      use_hierarchical_precision_ode=True, use_phase_modulation=True)
-
         Args:
             config: Configuration dictionary
-
         Returns:
             Updated configuration with hierarchical flags set
-
         Raises:
             ValueError: If hierarchical_mode has unknown value
         """
         mode = config.get("hierarchical_mode", None)
-
         # Only apply preset if hierarchical_mode is explicitly set
         if mode is None:
             return config
-
         if mode == "off":
             config.update(
                 {
@@ -155,7 +148,6 @@ class APGIPipeline:
             raise ValueError(
                 f"Unknown hierarchical_mode: {mode}. Must be one of: 'off', 'basic', 'advanced', 'full'"
             )
-
         return config
 
     def _compute_per_level_errors(
@@ -164,14 +156,11 @@ class APGIPipeline:
         epsilon_i: float,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Compute per-level z-scores for hierarchical system.
-
         Spec §7: Each level ℓ processes errors at its own timescale τ_ℓ.
         This version is fully vectorized for performance (§4.1).
-
         Args:
             epsilon_e: Exteroceptive prediction error
             epsilon_i: Interoceptive prediction error
-
         Returns:
             (z_e_levels, z_i_levels) — z-scores at each level (np.ndarray)
         """
@@ -180,14 +169,11 @@ class APGIPipeline:
             z_e = (epsilon_e - self.state.mu_e) / (self.state.sigma2_e**0.5 + self.config["eps"])
             z_i = (epsilon_i - self.state.mu_i) / (self.state.sigma2_i**0.5 + self.config["eps"])
             return np.array([z_e]), np.array([z_i])
-
         # Multi-scale: fully vectorized EMA updates
         alphas = 1.0 / self.taus
-
         # Vectorized mean updates
         self.mu_e_levels = (1.0 - alphas) * self.mu_e_levels + alphas * epsilon_e
         self.mu_i_levels = (1.0 - alphas) * self.mu_i_levels + alphas * epsilon_i
-
         # Vectorized variance updates (centered)
         self.sigma2_e_levels = (1.0 - alphas) * self.sigma2_e_levels + alphas * (
             epsilon_e - self.mu_e_levels
@@ -195,7 +181,6 @@ class APGIPipeline:
         self.sigma2_i_levels = (1.0 - alphas) * self.sigma2_i_levels + alphas * (
             epsilon_i - self.mu_i_levels
         ) ** 2
-
         # Vectorized z-scores
         z_e_levels = (epsilon_e - self.mu_e_levels) / (
             np.sqrt(self.sigma2_e_levels) + self.config["eps"]
@@ -203,22 +188,18 @@ class APGIPipeline:
         z_i_levels = (epsilon_i - self.mu_i_levels) / (
             np.sqrt(self.sigma2_i_levels) + self.config["eps"]
         )
-
         return z_e_levels, z_i_levels
 
     def __init__(self, config: dict):
         # Copy to avoid mutating the caller's dict
         self.config = dict(config)
-
         # Apply hierarchical mode preset if specified
         self.config = self._apply_hierarchical_preset(self.config)
-
         # Support spec-preferred parameter names with backward compatibility
         if "beta_da" in self.config and "beta" not in self.config:
             self.config["beta"] = self.config["beta_da"]
         if "tau_sigma" in self.config and "ignite_tau" not in self.config:
             self.config["ignite_tau"] = self.config["tau_sigma"]
-
         # Validate configuration against spec constraints (§15)
         # Default is non-strict mode: warn on validation issues but allow continuation
         strict_mode = self.config.get("strict_mode", False)
@@ -235,7 +216,6 @@ class APGIPipeline:
                     RuntimeWarning,
                     stacklevel=2,
                 )
-
         # Validate NE configuration to prevent double-counting
         # This is always fatal - even in non-strict mode
         if self.config.get("ne_on_precision", False) and self.config.get("ne_on_threshold", False):
@@ -244,7 +224,6 @@ class APGIPipeline:
                 "This double-counts norepinephrine effects. "
                 "Enable only one. See spec Section 2.3-2.4."
             )
-
         # Spec constraint: γ_NE · g_NE_max ≤ 0.5 (prevents multiplicative instability)
         gamma_ne = self.config.get("gamma_ne", 0.1)
         g_ne = self.config.get("g_ne", 1.0)
@@ -254,7 +233,6 @@ class APGIPipeline:
                 "Spec mandates γ_NE · g_NE_max ≤ 0.5 to prevent multiplicative threshold instability. "
                 f"Reduce gamma_ne (currently {gamma_ne}) or g_ne (currently {g_ne})."
             )
-
         # Check for threshold instability and auto-adjust in non-strict mode
         if not strict_mode:
             gamma_ne = self.config.get("gamma_ne", 0.1)
@@ -270,7 +248,6 @@ class APGIPipeline:
                 # Auto-adjust to safe values
                 self.config["gamma_ne"] = 0.01
                 self.config["kappa"] = 0.15
-
         self.S = float(self.config["S0"])
         self.theta = float(self.config["theta_0"])
         self.theta_dot = 0.0  # For continuous ODE tracking
@@ -283,7 +260,6 @@ class APGIPipeline:
         )
         self.B_prev = 0
         self.t = 0.0  # Continuous time (phase tracking + SDE)
-
         # Initialize sliding-window stats if variance_method is "sliding_window"
         self.stats_e = None
         self.stats_i = None
@@ -291,7 +267,6 @@ class APGIPipeline:
             T_win = self.config.get("T_win", 50)
             self.stats_e = RunningStats(window_size=T_win)
             self.stats_i = RunningStats(window_size=T_win)
-
         # Hierarchical state if enabled
         self.hierarchical = None
         self.hierarchical_network = None
@@ -299,7 +274,6 @@ class APGIPipeline:
         if self.use_hierarchical:
             n_levels = self.config.get("n_levels", 3)
             self.hierarchical = HierarchicalState(n_levels=n_levels)
-
             # Per-level statistics for true hierarchical error processing
             self.n_levels = n_levels
             self.taus = build_timescales(
@@ -309,16 +283,13 @@ class APGIPipeline:
             self.mu_i_levels = np.zeros(n_levels)
             self.sigma2_e_levels = np.ones(n_levels)
             self.sigma2_i_levels = np.ones(n_levels)
-
             # Initialize hierarchical feature states for signal aggregation
             self.phi_e_levels = np.zeros(n_levels)
             self.phi_i_levels = np.zeros(n_levels)
             self.weights = multiscale_weights(n_levels, self.config.get("k", 1.6))
-
             # Initialize oscillatory phases for threshold modulation (basic mode)
             self.phase_levels = np.zeros(n_levels)
             self.omega_levels = 2 * np.pi / self.taus  # Natural frequencies from timescales
-
             # Initialize HierarchicalPrecisionNetwork for proper per-level error computation
             # Only enable when use_hierarchical_precision_ode is explicitly True
             if self.config.get("use_hierarchical_precision_ode", False):
@@ -352,7 +323,6 @@ class APGIPipeline:
             self.mu_i_levels = np.zeros(1)
             self.sigma2_e_levels = np.ones(1)
             self.sigma2_i_levels = np.ones(1)
-
         # Cross-Level Threshold Resonance (§8/§9) — Russian Doll architecture
         # Active by default whenever use_hierarchical=True (spec §8 canonical mode).
         # Per-level S_l accumulators and live phase-modulated thresholds replace the
@@ -369,10 +339,8 @@ class APGIPipeline:
                 kappa_up=self.config.get("resonance_kappa_up", 0.0),
                 phi_noise_std=self.config.get("resonance_phi_noise_std", 0.0),
             )
-
         # Somatic marker state if enabled
         self.M = self.config.get("M_somatic", 0.0)  # Somatic marker ∈ [-2, +2]
-
         # Reservoir layer if enabled (§10)
         self.reservoir = None
         if self.config.get("use_reservoir", False):
@@ -385,7 +353,6 @@ class APGIPipeline:
                 spectral_radius=self.config.get("reservoir_spectral_radius", 0.9),
                 input_scale=self.config.get("reservoir_input_scale", 0.1),
             )
-
         # Kuramoto oscillators if enabled (§9)
         self.kuramoto = None
         if self.config.get("use_kuramoto", False):
@@ -396,7 +363,6 @@ class APGIPipeline:
                 n_levels=n_levels,
                 config=self.config,
             )
-
         # Observable mapping if enabled (§14)
         self.neural_observables = None
         self.behavioral_observables = None
@@ -413,14 +379,12 @@ class APGIPipeline:
             self.prediction_validator = KeyTestablePredictionValidator(
                 tau_sigma=self.config.get("ignite_tau", 0.5)
             )
-
         # Stability analyzer if enabled (§7)
         self.stability_analyzer = None
         if self.config.get("use_stability_analysis", False):
             from analysis.stability import StabilityAnalyzer
 
             self.stability_analyzer = StabilityAnalyzer(self.config)
-
         # Active Inference Action Loop (§19)
         self.active_inference_agent: ActiveInferenceAgent | None = None
         if self.config.get("use_active_inference", False):
@@ -442,17 +406,14 @@ class APGIPipeline:
                 gamma_pos=self.config.get("gamma_plus", 2.0),
                 gamma_neg=self.config.get("gamma_minus", 2.0),
             )
-
         self.history = {
             "S": [],
             "theta": [],
             "B": [],
         }
-
         # Multiscale signal tracking for spectral validation
         self.multiscale_signal_history: list[float] = []
         self.per_level_history: list[list[float]] = []
-
         # Thermodynamic cost history if enabled (§11)
         if self.config.get("use_thermodynamic_cost", False):
             self.history["C_landauer"] = []
@@ -468,39 +429,32 @@ class APGIPipeline:
         # Use provided predictions or internalized ones per §1.4
         _x_hat_e = x_hat_e if x_hat_e is not None else self.x_hat_e
         _x_hat_i = x_hat_i if x_hat_i is not None else self.x_hat_i
-
         # 1) Raw prediction errors
         z_e = compute_prediction_error(x_e, _x_hat_e)
         z_i = compute_prediction_error(x_i, _x_hat_i)
-
         # 3) Proper z-score normalization: (z - μ) / (σ + eps)
         # Using previous stats for the current sample's normalization (standard filtering)
         eps = self.config["eps"]
         z_e_n_pre = (z_e - self.state.mu_e) / (self.state.sigma2_e**0.5 + eps)
         z_i_n_pre = (z_i - self.state.mu_i) / (self.state.sigma2_i**0.5 + eps)
-
         # 3a-φ) Signed nonlinear transform §6 — φ(ε) = α·tanh(γ·ε), valence-asymmetric
         _a_pos = self.config.get("alpha_plus", 1.0)
         _a_neg = self.config.get("alpha_minus", 1.0)
         _g_pos = self.config.get("gamma_plus", 2.0)
         _g_neg = self.config.get("gamma_minus", 2.0)
         phi_e_n = phi_transform(z_e_n_pre, _a_pos, _a_neg, _g_pos, _g_neg)
-
         # Interoceptive z-score includes dopamine bias if configured
         z_i_eff_pre = apply_dopamine_bias_to_error(z_i_n_pre, self.config["beta"])
         phi_i_eff = phi_transform(z_i_eff_pre, _a_pos, _a_neg, _g_pos, _g_neg)
-
         # 4) Online mean + variance update — spec Method A (preferred, two-step EMA)
         # Step 1: μ_e(t+1) = (1-α)·μ_e(t) + α·ε_e(t)
         # Step 2: σ²_e(t+1) = (1-α)·σ²_e(t) + α·(ε_e(t) − μ_e(t))²
         # Using raw errors (not φ-transformed) for unbiased variance estimation.
         alpha_e = self.config["alpha_e"]
         alpha_i = self.config["alpha_i"]
-
         # Step 1: update means from raw errors
         self.state.mu_e = update_mean_ema(self.state.mu_e, z_e, alpha_e)
         self.state.mu_i = update_mean_ema(self.state.mu_i, z_i, alpha_i)
-
         # Step 2: centered variance (ε − μ)² — omitting this step produces E[ε²], not variance
         self.state.sigma2_e = (1.0 - alpha_e) * self.state.sigma2_e + alpha_e * (
             z_e - self.state.mu_e
@@ -508,7 +462,6 @@ class APGIPipeline:
         self.state.sigma2_i = (1.0 - alpha_i) * self.state.sigma2_i + alpha_i * (
             z_i - self.state.mu_i
         ) ** 2
-
         # 5) Precision with clamping (§7.2)
         pi_e = compute_precision(
             self.state.sigma2_e,
@@ -524,15 +477,12 @@ class APGIPipeline:
         )
         self.state.pi_e = pi_e
         self.state.pi_i = pi_i
-
         # Final normalized signals for downstream use
         z_e_n = z_e_n_pre
         z_i_n = z_i_n_pre
         z_i_eff = z_i_eff_pre
-
         # 6) Neuromodulation (§8)
         pi_e_eff = apply_ach_gain(pi_e, self.config["g_ach"])
-
         # Interoceptive precision: exponential somatic form or linear NE gain
         if self.config.get("use_somatic_precision", False):
             pi_i_eff = compute_interoceptive_precision_exponential(
@@ -546,7 +496,6 @@ class APGIPipeline:
             pi_i_eff = apply_ne_gain(pi_i, self.config["g_ne"])
         else:
             pi_i_eff = pi_i
-
         # 5b) Hierarchical precision ODE if enabled
         if self.hierarchical_network is not None and self.config.get(
             "use_hierarchical_precision_ode", False
@@ -554,12 +503,10 @@ class APGIPipeline:
             dt = self.config.get("dt", 1.0)
             # Compute per-level z-scores for both channels via vectorized EMA (§7)
             z_e_levels, z_i_levels = self._compute_per_level_errors(z_e, z_i)
-
             # Full precision cascade: apply φ transform per level (§6, §7)
             epsilon_e_levels = phi_transform_array(z_e_levels, _a_pos, _a_neg, _g_pos, _g_neg)
             epsilon_i_levels = phi_transform_array(z_i_levels, _a_pos, _a_neg, _g_pos, _g_neg)
             epsilon_drive = epsilon_e_levels + epsilon_i_levels
-
             # Bottom-up ψ coupling can use a different channel than the drive term (§8)
             # Options: combined (default), extero, intero
             bu_source = self.config.get("precision_bottom_up_source", "combined")
@@ -573,7 +520,6 @@ class APGIPipeline:
                 raise ValueError(
                     "precision_bottom_up_source must be one of: 'combined', 'extero', 'intero'"
                 )
-
             # Step the hierarchical network using actual combined per-level errors
             pis_new, phi_new = self.hierarchical_network.step(
                 epsilon_new=epsilon_drive,
@@ -581,13 +527,11 @@ class APGIPipeline:
                 alpha_gain=self.config.get("alpha_gain", 0.1),
                 epsilon_bottom_up=epsilon_bottom_up,
             )
-
             # Update hierarchical state with both precision and phase
             if self.hierarchical is None:  # pragma: no cover  # Type guard for mypy
                 raise RuntimeError("hierarchical is None")
             self.hierarchical.pis = pis_new.tolist()
             self.hierarchical.phases = phi_new.tolist()
-
         # 5c) Update hierarchical feature states for signal aggregation
         if self.use_hierarchical:
             dt = self.config.get("dt", 1.0)
@@ -599,7 +543,6 @@ class APGIPipeline:
                 self.phi_i_levels[level] = update_multiscale_feature(
                     self.phi_i_levels[level], z_i_eff, self.taus[level]
                 )
-
             # Advance oscillatory phases every step in basic hierarchical mode.
             # Without this, phases stay at 0 (cos(0)=1 constant) and the PAC
             # threshold modulation from §8 produces no oscillatory windows.
@@ -616,14 +559,12 @@ class APGIPipeline:
                         _dphi += _kappa_ph * np.sin(_phases[_l + 1] - _phases[_l]) * dt
                     _phases[_l] = (_phases[_l] + _dphi) % (2.0 * np.pi)
                 self.hierarchical.phases = _phases.tolist()  # type: ignore[union-attr]
-
         # 6) Instantaneous signal (diagnostic) + SDE integration via ODE drift
         # Resolve tau_s / dt / adaptive_noise_std early — needed in both hierarchical
         # and single-scale paths.
         dt = self.config.get("dt", 1.0)
         tau_s = self.config.get("tau_s", 5.0)
         adaptive_noise_std = compute_precision_coupled_noise_std(pi_e_eff, pi_i_eff)
-
         # Step Kuramoto oscillators here (before S integration) so Γ gates S_inst
         # per spec §12 rather than being applied post-hoc to accumulated self.S.
         # Kuramoto phase dynamics are independent of the within-step APGI state,
@@ -633,7 +574,6 @@ class APGIPipeline:
         if self.kuramoto is not None:
             _kuramoto_result_cache = self.kuramoto.step(dt=dt)
             _kuramoto_gamma = self.kuramoto.oscillators.compute_gamma()
-
         # Use hierarchical aggregation if enabled, otherwise single-scale
         if self.use_hierarchical:
             # Spec §12: S_inst^(l) = Π_l · φ(ε_l) · Γ^(l)
@@ -646,7 +586,6 @@ class APGIPipeline:
             _phi_i_lev = phi_transform_array(_z_i_lev, _a_pos, _a_neg, _g_pos, _g_neg)
             # Combine exteroceptive and interoceptive per-level signals, then gate by Γ
             phi_combined = (_phi_e_lev + _phi_i_lev) * _kuramoto_gamma
-
             # Use hierarchical precision if available, otherwise compute from per-level variance
             if self.hierarchical_network is not None:
                 pi_levels = self.hierarchical_network.pi
@@ -664,9 +603,7 @@ class APGIPipeline:
                         for i in range(self.n_levels)
                     ]
                 )
-
             S_inst = aggregate_multiscale_signal_phi(phi_combined, pi_levels, self.weights)
-
             # Cross-Level Threshold Resonance (§8/§9): advance phases and thresholds.
             #
             # ARCHITECTURE: The resonance system owns two separate concerns:
@@ -698,14 +635,11 @@ class APGIPipeline:
                 self.hierarchical.pis = self.resonance_system.pi.tolist()
         else:
             S_inst = instantaneous_signal_phi(phi_e_n, phi_i_eff, pi_e_eff, pi_i_eff)
-
         # Gate single-scale ODE inputs by Γ so S_inst = Π·φ(ε)·Γ per spec §12.
         _phi_e_gated = phi_e_n * _kuramoto_gamma
         _phi_i_gated = phi_i_eff * _kuramoto_gamma
-
         # Wire dynamics.py (update_signal_ode) OR discrete leaky accumulation
         # dt, tau_s, and adaptive_noise_std already resolved above.
-
         # Choose between ODE (continuous) or discrete leaky accumulation.
         # When resonance is active it handles phases/thresholds only — S is always
         # accumulated via the ODE so that ignition dynamics are parameter-independent.
@@ -737,14 +671,11 @@ class APGIPipeline:
                 dt,
                 adaptive_noise_std,
             )
-
         self.S = stabilize_signal_log(self.S, enabled=self.config["signal_log_nonlinearity"])
-
         # 7) Cost/value and threshold update (canonical spec semantics)
         # Mode A: Standard allostatic threshold (default)
         # Mode B: Reservoir-as-threshold (spec-explicit alternative per §10)
         use_reservoir_threshold = self.config.get("reservoir_as_threshold", False)
-
         if self.config["use_realistic_cost"]:
             # Check if BOLD calibration should be used
             bold_calibration = None
@@ -755,7 +686,6 @@ class APGIPipeline:
                     "tissue_volume": self.config.get("bold_tissue_volume", 1.0),
                     "ignition_spike_factor": self.config.get("bold_ignition_spike_factor", 1.075),
                 }
-
             C_t = compute_metabolic_cost_realistic(
                 self.S,
                 self.B_prev,
@@ -771,7 +701,6 @@ class APGIPipeline:
             C_t = compute_metabolic_cost(
                 self.S, self.B_prev, self.config["c1"], self.config.get("c2", 0.0)
             )
-
         # 7a) Thermodynamic cost validation (§11)
         C_landauer = 0.0
         bits_erased = 0.0
@@ -789,10 +718,8 @@ class APGIPipeline:
             bits_erased = compute_information_bits(self.S, self.config["eps"])
             self.history["C_landauer"].append(C_landauer)
             self.history["bits_erased"].append(bits_erased)
-
         # V(t) = v1|z_e| + v2|z_i_eff| — raw prediction errors per spec
         V_t = compute_information_value(z_e_n, z_i_eff, self.config["v1"], self.config["v2"])
-
         # 7b/8) Threshold and Ignition: Standard or Reservoir-as-Threshold mode
         # Spec §10: Reservoir can serve as alternative execution path
         if use_reservoir_threshold:
@@ -840,7 +767,6 @@ class APGIPipeline:
                 else:
                     _ode_delta = 0.0
                     _ode_B = 0
-
                 theta_next = allostatic_threshold_ode(
                     theta=self.theta,
                     theta_0=self.config["theta_base"],
@@ -863,19 +789,16 @@ class APGIPipeline:
                     delta=0.0,  # Refractory handled in step 9
                     B_prev=0,  # Refractory handled in step 9
                 )
-
             # 7c) NE threshold modulation (per spec §4.4)
             if self.config.get("ne_on_threshold", False):
                 theta_next = apply_ne_threshold_modulation(
                     theta_next, self.config["g_ne"], self.config["gamma_ne"]
                 )
-
             # 7e) Serotonergic threshold offset: θ_eff = θ + β_5HT (spec §8.4)
             # 5-HT encodes patience/uncertainty-tolerance; β_5HT > 0 raises ignition bar.
             beta_5ht = self.config.get("beta_5ht", 0.0)
             if beta_5ht != 0.0:
                 theta_next = apply_serotonin_threshold_offset(theta_next, beta_5ht)
-
             # 7d) Hierarchical threshold modulation (PAC + Cascade) if enabled (§8.4)
             # Apply to ALL hierarchical modes for consistency
             if self.hierarchical is not None:
@@ -890,7 +813,6 @@ class APGIPipeline:
                     S_levels[1:] = phi_transform_array(
                         self.phi_e_levels[1:], _a_pos, _a_neg, _g_pos, _g_neg
                     ) + phi_transform_array(self.phi_i_levels[1:], _a_pos, _a_neg, _g_pos, _g_neg)
-
                 # Use hierarchical precision if available, otherwise compute from per-level variance
                 if self.hierarchical_network is not None:
                     _pi_levels = self.hierarchical_network.pi
@@ -906,7 +828,6 @@ class APGIPipeline:
                             for i in range(self.n_levels)
                         ]
                     )
-
                 if self.resonance_system is not None:
                     # Resonance system already computed phase-modulated thresholds (§8)
                     theta_next = self.resonance_system.primary_threshold
@@ -922,7 +843,6 @@ class APGIPipeline:
                         phases=np.array(self.hierarchical.phases),
                         kappa_down=self.config.get("kappa_phase", 0.1),
                     )
-
                     # Apply bottom-up cascade if enabled
                     if self.config.get("kappa_up", 0.0) > 0:
                         for level in range(1, self.n_levels):
@@ -932,28 +852,23 @@ class APGIPipeline:
                                 theta_ell_minus_1=thetas_mod[level - 1],
                                 kappa_up=self.config.get("kappa_up", 0.0),
                             )
-
                     # Use the modulated threshold for the primary ignition level (level 0)
                     theta_next = float(thetas_mod[0])
                     self.hierarchical.thetas = thetas_mod.tolist()
-
             # Global threshold clamping for stability (§7.4)
             theta_next = float(np.clip(theta_next, 0.1, 20.0))
-
             # 8) Ignition (§5)
             p_ignite = compute_ignition_probability(self.S, theta_next, self.config["ignite_tau"])
             if self.config["stochastic_ignition"]:
                 B_t = sample_ignition_state(p_ignite)
             else:
                 B_t = int(detect_ignition_event(self.S, theta_next))
-
         # 8b) Compute ignition margin using pre-reset values (§14)
         # Must compute BEFORE signal reset and refractory boost
         # Margin at ignition decision: Δ(t) = S(t) - θ(t) (pre-refractory)
         S_at_ignition = self.S  # Save pre-reset signal
         theta_at_ignition = theta_next  # Save pre-refractory threshold
         ignition_margin = S_at_ignition - theta_at_ignition
-
         # Post-ignition signal reset (§6)
         # Spec: S ← ρ_S·S on ignition, ρ_S ∈ [0.1, 0.5] (attentional blink bounds)
         if B_t == 1:
@@ -975,14 +890,12 @@ class APGIPipeline:
                     rho_S=float(self.config.get("RHO_RETAIN", reset_factor) or reset_factor),
                     delta_refractory=float(delta_ref_val),
                 )
-
         # 9) Post-ignition threshold dynamics (§6)
         # Canonical spec semantics:
         #   9a) Refractory boost: θ ← θ + δ·B(t)  [using CURRENT B_t]
         #   9b) Decay to baseline: θ ← θ_base + (θ - θ_base)·e^{-κ}
         theta_next = apply_refractory_boost(theta_next, B_t, self.config["delta"])
         theta_next = threshold_decay(theta_next, self.config["theta_base"], self.config["kappa"])
-
         # 10) Internal Prediction Update per §1.4 Generative Model Dynamics
         # Support both flag names for backward compatibility
         use_generative_update = self.config.get(
@@ -1003,7 +916,6 @@ class APGIPipeline:
                 self.config.get("kappa_i", 0.01),
                 self.config["pi_max"],
             )
-
         # 11) Reservoir layer update (§10) - add-on mode only
         # When reservoir_as_threshold=True, reservoir is handled in step 7b/8
         S_reservoir = 0.0
@@ -1025,7 +937,6 @@ class APGIPipeline:
             # Integrate reservoir contribution into the main signal accumulator.
             w_res = self.config.get("reservoir_weight", 0.1)
             self.S = self.S + w_res * S_reservoir
-
         # 18) Active Inference Action Loop (§19) — Step 18 of APGI Formulation.
         # Runs AFTER all signal-processing steps (including reservoir readout) so
         # that policy selection sees the fully updated state.  Fires on ignition
@@ -1071,16 +982,13 @@ class APGIPipeline:
                     "ai_delta_M": feedback.delta_M,
                     "ai_delta_sigma2_e": feedback.delta_sigma2_e,
                 }
-
         self.theta = theta_next
         self.B_prev = B_t
         self.t += self.config.get("dt", 1.0)
-
         # Update history for validation
         self.history["S"].append(self.S)
         self.history["theta"].append(self.theta)
         self.history["B"].append(float(B_t))
-
         result = {
             "z_e": z_e,
             "z_i": z_i,
@@ -1106,21 +1014,17 @@ class APGIPipeline:
             "x_hat_i": self.x_hat_i,
             "M_somatic": self.M,
         }
-
         # Add thermodynamic info if enabled
         if self.config.get("use_thermodynamic_cost", False):
             result["C_landauer"] = C_landauer
             result["bits_erased"] = bits_erased
-
         # Add BOLD calibration info if enabled
         if self.config.get("use_bold_calibration", False) and bold_calibration is not None:
             result["bold_calibration"] = bold_calibration
-
         # Add reservoir info if enabled
         if self.reservoir is not None:
             result["S_reservoir"] = S_reservoir
             result["reservoir_state_norm"] = float(np.linalg.norm(self.reservoir.x))
-
         # Add Kuramoto oscillator info if enabled (§9)
         # Oscillators were already stepped before S integration (above); use cached result.
         if self.kuramoto is not None and _kuramoto_result_cache is not None:
@@ -1128,7 +1032,6 @@ class APGIPipeline:
             result["kuramoto_synchronization"] = _kuramoto_result_cache["synchronization"]
             # Γ was already applied inside S_inst (not retroactively on accumulated self.S)
             result["kuramoto_gamma"] = _kuramoto_gamma
-
             # Apply phase reset on ignition
             if B_t == 1:
                 # Broadcast phase reset across the full hierarchy when enabled.
@@ -1145,7 +1048,6 @@ class APGIPipeline:
                 else:
                     # Default: reset only primary level 0
                     self.kuramoto.apply_ignition_reset(level=0)
-
         # Add observable mapping if enabled (§14)
         # Use pre-reset values for correct margin computation
         if self.neural_observables is not None:
@@ -1153,59 +1055,47 @@ class APGIPipeline:
             result["neural_gamma_power"] = neural_obs["gamma_power"]
             result["neural_erp_amplitude"] = neural_obs["erp_amplitude"]
             result["neural_ignition_rate"] = neural_obs["ignition_rate"]
-
         if self.behavioral_observables is not None:
             behavioral_obs = self.behavioral_observables.step(S_at_ignition, theta_at_ignition, B_t)
             result["behavioral_rt_variability"] = behavioral_obs["rt_variability"]
             result["behavioral_response_criterion"] = behavioral_obs["response_criterion"]
             result["behavioral_decision_rate"] = behavioral_obs["decision_rate"]
-
         if self.prediction_validator is not None:
             pred_result = self.prediction_validator.step(S_at_ignition, theta_at_ignition, B_t)
             result["prediction_margin"] = pred_result["delta"]
             result["prediction_p_ign"] = pred_result["p_ign"]
-
         # Add active inference output if enabled (§19)
         if ai_result is not None:
             result.update(ai_result)
-
         # Add stability analysis if enabled (§7)
         if self.stability_analyzer is not None:
             self.stability_analyzer.step(self.S, self.theta)
-
         if self.hierarchical is not None:
             result["hierarchical_pis"] = self.hierarchical.pis.copy()
             result["hierarchical_phases"] = self.hierarchical.phases.copy()
             result["hierarchical_thetas"] = self.hierarchical.thetas.copy()
-
         if self.resonance_system is not None:
             result["resonance_phases"] = self.resonance_system.phi.tolist()
             result["resonance_thetas"] = self.resonance_system.theta.tolist()
             result["resonance_S_levels"] = self.resonance_system.S.tolist()
             result["resonance_ignition_windows"] = self.resonance_system.ignition_windows.tolist()
             result["resonance_modulation_depth"] = self.resonance_system.modulation_depth.tolist()
-
         return result
 
     def validate(self) -> dict:
         """Perform statistical validation on the accumulated history."""
-
         if len(self.history["theta"]) < 64:
             return {"status": "insufficient_data"}
-
         # Validate threshold 1/f / fractal dynamics (§12/§22)
         theta_arr = np.array(self.history["theta"])
         fs = 1.0 / self.config.get("dt", 1.0)
-
         # Estimate Hurst exponent (robust spectral + DFA depending on implementation)
         hurst_val = estimate_hurst_robust(theta_arr, fs=fs)
-
         # Compute PSD once for downstream validators
         from stats.hurst import welch_periodogram
 
         freqs, psd = welch_periodogram(theta_arr, fs=fs)
         pink_stats = validate_pink_noise(freqs, psd)
-
         # Lorentzian superposition validation (§12)
         lorentzian_stats: dict | None = None
         if self.use_hierarchical:
@@ -1224,7 +1114,6 @@ class APGIPipeline:
                 }
             except Exception as e:
                 lorentzian_stats = {"status": "error", "error": str(e)}
-
         # Avalanche power-law validation (spec target exponent ~1.5) (§22)
         avalanche_stats: dict | None = None
         if "B" in self.history and len(self.history["B"]) >= 64:
@@ -1240,7 +1129,6 @@ class APGIPipeline:
                 )
             except Exception as e:
                 avalanche_stats = {"status": "error", "error": str(e)}
-
         return {
             "status": "success",
             "hurst_exponent": hurst_val,

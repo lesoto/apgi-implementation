@@ -1,5 +1,4 @@
 """Tests for stability analysis.
-
 Tests spec §7.5: Fixed-Point Stability Analysis
 """
 
@@ -23,21 +22,17 @@ class TestJacobianComputation:
     def test_jacobian_shape(self):
         """Test Jacobian has correct shape."""
         J = compute_jacobian_discrete(lam=0.2, kappa=0.15, c1=0.2, eta=0.1)
-
         assert J.shape == (2, 2)
 
     def test_jacobian_formula(self):
         """Test Jacobian matches spec formula.
-
         Spec §7.5: J = [[1-λ, 0], [ηc₁λ, e^{-κ}]]
         """
         lam = 0.2
         kappa = 0.15
         c1 = 0.2
         eta = 0.1
-
         J = compute_jacobian_discrete(lam, kappa, c1, eta)
-
         # Check elements
         assert np.isclose(J[0, 0], 1 - lam)
         assert np.isclose(J[0, 1], 0)
@@ -51,7 +46,6 @@ class TestJacobianComputation:
             (0.5, 0.5, 0.5, 0.5),
             (0.01, 1.0, 0.01, 0.01),
         ]
-
         for lam, kappa, c1, eta in params:
             J = compute_jacobian_discrete(lam, kappa, c1, eta)
             assert J.shape == (2, 2)
@@ -65,7 +59,6 @@ class TestEigenvalueComputation:
         """Test eigenvalues have correct shape."""
         J = compute_jacobian_discrete(0.2, 0.15, 0.2, 0.1)
         eigs, vecs = compute_eigenvalues(J)
-
         assert len(eigs) == 2
         assert vecs.shape == (2, 2)
 
@@ -73,10 +66,8 @@ class TestEigenvalueComputation:
         """Test eigenvalue magnitudes."""
         J = compute_jacobian_discrete(0.2, 0.15, 0.2, 0.1)
         eigs, _ = compute_eigenvalues(J)
-
         # For this system, eigenvalues should be real
         assert np.all(np.isreal(eigs))
-
         # Magnitudes should be positive
         assert np.all(np.abs(eigs) >= 0)
 
@@ -92,9 +83,7 @@ class TestStabilityChecking:
             "c1": 0.2,
             "eta": 0.1,
         }
-
         result = check_stability(config)
-
         assert result["stable"]
         assert result["max_eigenvalue"] < 1.0
 
@@ -109,9 +98,7 @@ class TestStabilityChecking:
             "c1": 0.2,
             "eta": 0.1,
         }
-
         result = check_stability(config)
-
         # Should detect instability
         assert not result["stable"]
         assert result["max_eigenvalue"] >= 1.0
@@ -124,9 +111,7 @@ class TestStabilityChecking:
             "c1": 0.2,
             "eta": 0.1,
         }
-
         result = check_stability(config)
-
         # Stability margin should be positive for stable system
         assert result["stability_margin"] > 0
 
@@ -138,9 +123,7 @@ class TestStabilityChecking:
             "c1": 0.2,
             "eta": 0.1,
         }
-
         result = check_stability(config)
-
         # All constraints should be satisfied
         constraints = result["constraints_satisfied"]
         assert constraints["lambda_positive"]
@@ -158,9 +141,7 @@ class TestFixedPointComputation:
             "lam": 0.2,
             "theta_base": 1.0,
         }
-
         fp = compute_fixed_point(config)
-
         assert "S_star" in fp
         assert "theta_star" in fp
 
@@ -170,12 +151,9 @@ class TestFixedPointComputation:
             "lam": 0.2,
             "theta_base": 1.0,
         }
-
         fp = compute_fixed_point(config)
-
         # S* should be positive
         assert fp["S_star"] > 0
-
         # θ* should equal θ_base
         assert np.isclose(fp["theta_star"], 1.0)
 
@@ -183,10 +161,8 @@ class TestFixedPointComputation:
         """Test fixed point varies with lambda."""
         config1 = {"lam": 0.1, "theta_base": 1.0}
         config2 = {"lam": 0.5, "theta_base": 1.0}
-
         fp1 = compute_fixed_point(config1)
         fp2 = compute_fixed_point(config2)
-
         # S* should be larger for smaller lambda
         assert fp1["S_star"] > fp2["S_star"]
 
@@ -202,14 +178,12 @@ class TestBifurcationAnalysis:
             "c1": 0.2,
             "eta": 0.1,
         }
-
         result = analyze_bifurcation(
             config,
             param_name="lam",
             param_range=(0.01, 0.99),
             n_points=20,
         )
-
         assert "parameter_name" in result
         assert "parameter_values" in result
         assert "eigenvalue_magnitudes" in result
@@ -224,17 +198,14 @@ class TestBifurcationAnalysis:
             "c1": 0.2,
             "eta": 0.1,
         }
-
         result = analyze_bifurcation(
             config,
             param_name="lam",
             param_range=(0.01, 1.5),
             n_points=50,
         )
-
         # Should find bifurcation around lam = 1
         bifurcation_points = result["bifurcation_points"]
-
         # There should be at least one bifurcation
         assert len(bifurcation_points) >= 0
 
@@ -251,14 +222,11 @@ class TestSystemDynamicsValidation:
             "eta": 0.1,
             "theta_base": 1.0,
         }
-
         # Generate synthetic data
         np.random.seed(42)
         S_history = np.random.normal(1.0, 0.5, 200)
         theta_history = np.random.normal(1.0, 0.2, 200)
-
         result = validate_system_dynamics(config, S_history, theta_history)
-
         assert "valid" in result
         if result["valid"]:
             assert "fixed_point" in result
@@ -274,13 +242,10 @@ class TestSystemDynamicsValidation:
             "c1": 0.2,
             "eta": 0.1,
         }
-
         # Only 50 samples
         S_history = np.random.normal(1.0, 0.5, 50)
         theta_history = np.random.normal(1.0, 0.2, 50)
-
         result = validate_system_dynamics(config, S_history, theta_history)
-
         assert not result["valid"]
 
 
@@ -295,9 +260,7 @@ class TestStabilityAnalyzer:
             "c1": 0.2,
             "eta": 0.1,
         }
-
         analyzer = StabilityAnalyzer(config)
-
         assert analyzer.config == config
         assert len(analyzer.history["S"]) == 0
 
@@ -309,13 +272,10 @@ class TestStabilityAnalyzer:
             "c1": 0.2,
             "eta": 0.1,
         }
-
         analyzer = StabilityAnalyzer(config)
-
         # Record some steps
         for t in range(100):
             analyzer.step(S=1.0 + 0.1 * np.sin(0.1 * t), theta=1.0)
-
         assert len(analyzer.history["S"]) == 100
         assert len(analyzer.history["theta"]) == 100
 
@@ -328,23 +288,18 @@ class TestStabilityAnalyzer:
             "eta": 0.1,
             "theta_base": 1.0,
         }
-
         analyzer = StabilityAnalyzer(config)
-
         # Record some steps
         np.random.seed(42)
         for t in range(200):
             S = 1.0 + 0.1 * np.sin(0.1 * t) + np.random.normal(0, 0.05)
             theta = 1.0 + 0.05 * np.cos(0.05 * t)
             analyzer.step(S, theta)
-
         # Analyze
         result = analyzer.analyze(verbose=False)
-
         assert "stability" in result
         assert "fixed_point" in result
         assert "dynamics_validation" in result
-
         # Check stability
         assert result["stability"]["stable"]
 
@@ -361,15 +316,12 @@ class TestStabilityIntegration:
             "eta": 0.1,
             "theta_base": 1.0,
         }
-
         # 1. Check stability
         stability = check_stability(config)
         assert stability["stable"]
-
         # 2. Compute fixed point
         fp = compute_fixed_point(config)
         assert fp["S_star"] > 0
-
         # 3. Analyze bifurcation
         bifurcation = analyze_bifurcation(
             config,
@@ -378,12 +330,10 @@ class TestStabilityIntegration:
             n_points=20,
         )
         assert "bifurcation_points" in bifurcation
-
         # 4. Validate dynamics
         np.random.seed(42)
         S_history = np.random.normal(1.0, 0.5, 200)
         theta_history = np.random.normal(1.0, 0.2, 200)
-
         dynamics = validate_system_dynamics(config, S_history, theta_history)
         assert "valid" in dynamics
 
@@ -393,7 +343,6 @@ class TestStabilityIntegration:
         np.random.seed(42)
         S_history = np.random.normal(1.0, 0.5, 200)
         theta_history = np.random.normal(1.0, 0.2, 200)
-
         dynamics = validate_system_dynamics(config, S_history, theta_history)
         assert "valid" in dynamics
         # Check that bifurcation analysis was performed
@@ -405,7 +354,6 @@ class TestStabilityIntegration:
         np.random.seed(42)
         S_history = np.random.normal(1.0, 0.5, 50)
         theta_history = np.random.normal(1.0, 0.2, 50)
-
         dynamics = validate_system_dynamics(config, S_history, theta_history)
         assert "valid" in dynamics
 

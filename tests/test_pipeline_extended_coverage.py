@@ -32,12 +32,10 @@ def test_pipeline_init_non_strict_auto_adjust():
     config["gamma_ne"] = 0.1
     config["kappa"] = 0.15
     config["strict_mode"] = False
-
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         p = APGIPipeline(config)
         assert any("threshold instability" in str(warning.message) for warning in w)
-
     # It adjusts gamma_ne, not ne_on_threshold
     assert p.config["gamma_ne"] == 0.01
     assert p.config["ne_on_threshold"] is True
@@ -157,7 +155,6 @@ def test_pipeline_validate_method():
     # Insufficient data
     res = p.validate()
     assert res["status"] == "insufficient_data"
-
     # Fill history with some variability and enough points
     t = np.linspace(0, 100, 1000)
     p.history["theta"] = (1.0 + 0.1 * np.sin(t) + np.random.normal(0, 0.01, 1000)).tolist()

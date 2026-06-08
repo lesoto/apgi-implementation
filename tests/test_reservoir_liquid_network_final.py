@@ -1,5 +1,4 @@
 """Final tests for reservoir/liquid_network.py to cover remaining lines 25-27.
-
 Lines 25-27 cover the fallback branch when LinAlgError occurs during spectral normalization.
 """
 
@@ -25,10 +24,8 @@ class TestLiquidNetworkFallbackBranch:
         """Test that invalid spectral_radius raises ValueError."""
         with pytest.raises(ValueError, match="spectral_radius must be in"):
             LiquidNetwork(n_units=100, spectral_radius=1.0)
-
         with pytest.raises(ValueError, match="spectral_radius must be in"):
             LiquidNetwork(n_units=100, spectral_radius=0.0)
-
         with pytest.raises(ValueError, match="spectral_radius must be in"):
             LiquidNetwork(n_units=100, spectral_radius=-0.1)
 
@@ -57,11 +54,9 @@ class TestLiquidNetworkAdaptiveTauEdgeCases:
     def test_adaptive_tau_clamping(self):
         """Test that tau is clamped to [tau_min, tau_max]."""
         network = LiquidNetwork(n_units=50)
-
         # Very low precision -> should be clamped to tau_max
         tau_low = network.compute_adaptive_tau(precision=0.001)
         assert tau_low == 500.0
-
         # Very high precision -> should be clamped to tau_min
         tau_high = network.compute_adaptive_tau(precision=100.0)
         assert tau_high == 10.0

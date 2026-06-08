@@ -238,7 +238,6 @@ class TestSaveResults:
         results = {"test": "data", "value": 42}
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
             filepath = f.name
-
         try:
             save_results(results, filepath)
             assert os.path.exists(filepath)
@@ -255,7 +254,6 @@ class TestSaveResults:
         }
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
             filepath = f.name
-
         try:
             save_results(results, filepath)
             with open(filepath, "r") as f:
@@ -274,7 +272,6 @@ class TestSaveResults:
         }
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
             filepath = f.name
-
         try:
             save_results(results, filepath)
             with open(filepath, "r") as f:

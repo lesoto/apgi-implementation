@@ -32,7 +32,6 @@ def test_allostatic_threshold_controller():
     ctrl = AllostaticThresholdController(theta_0=1.0, gamma=0.1, delta=0.5, dt=1.0)
     assert ctrl.theta == 1.0
     assert ctrl.B_prev == 0
-
     # Step 1: B=1. C=1.0, V=0.0, eta=0.1
     # B_prev is 0 initially.
     # reversion=0, refractory=0, allostatic=0.1 -> drift=0.1 -> theta=1.1
@@ -40,7 +39,6 @@ def test_allostatic_threshold_controller():
     new_theta = ctrl.step(C=1.0, V=0.0, eta=0.1, B=1, noise_std=0.0)
     assert pytest.approx(new_theta) == 1.1
     assert ctrl.B_prev == 1
-
     # Step 2:
     # reversion = -0.1*(1.1-1.0) = -0.01
     # refractory = 0.5 * 1 = 0.5
@@ -49,11 +47,9 @@ def test_allostatic_threshold_controller():
     # theta_new = 1.1 + 0.59 = 1.69
     new_theta_2 = ctrl.step(C=1.0, V=0.0, eta=0.1, B=0, noise_std=0.0)
     assert pytest.approx(new_theta_2) == 1.69
-
     # Reset
     ctrl.reset(theta=2.0)
     assert ctrl.theta == 2.0
     assert ctrl.B_prev == 0
-
     ctrl.reset()
     assert ctrl.theta == 1.0

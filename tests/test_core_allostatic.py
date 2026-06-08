@@ -1,5 +1,4 @@
 """Comprehensive unit tests for core/allostatic.py module.
-
 Tests cover:
 - allostatic_threshold_ode function
 - update_threshold_euler function
@@ -76,7 +75,6 @@ class TestAllostaticThresholdODE:
             dt=1.0,
             noise_std=0.0,
         )
-
         np.random.seed(42)
         result_without = allostatic_threshold_ode(
             theta=1.0,
@@ -90,7 +88,6 @@ class TestAllostaticThresholdODE:
             dt=1.0,
             noise_std=0.0,
         )
-
         assert result_with > result_without
 
     def test_cost_value_mismatch(self):
@@ -108,7 +105,6 @@ class TestAllostaticThresholdODE:
             dt=1.0,
             noise_std=0.0,
         )
-
         np.random.seed(42)
         result_high_value = allostatic_threshold_ode(
             theta=1.0,
@@ -122,7 +118,6 @@ class TestAllostaticThresholdODE:
             dt=1.0,
             noise_std=0.0,
         )
-
         assert result_high_cost > result_high_value
 
     def test_stochastic_noise(self):
@@ -143,7 +138,6 @@ class TestAllostaticThresholdODE:
             )
             for _ in range(10)
         ]
-
         # Results should vary due to noise
         assert len(set([round(r, 6) for r in results])) > 1
 
@@ -201,7 +195,6 @@ class TestAllostaticThresholdController:
             delta=0.6,
             dt=0.5,
         )
-
         assert controller.theta == 1.5
         assert controller.theta_0 == 1.5
         assert controller.gamma == 0.02
@@ -218,7 +211,6 @@ class TestAllostaticThresholdController:
             delta=0.5,
             dt=1.0,
         )
-
         result = controller.step(
             C=1.5,
             V=1.0,
@@ -226,7 +218,6 @@ class TestAllostaticThresholdController:
             B=0,
             noise_std=0.0,
         )
-
         # Should have updated theta
         assert result != 1.0
         assert controller.theta == result
@@ -234,10 +225,8 @@ class TestAllostaticThresholdController:
     def test_step_stores_B(self):
         """Should store ignition state for next step."""
         controller = AllostaticThresholdController(theta_0=1.0, gamma=0.01, delta=0.5, dt=1.0)
-
         controller.step(C=1.0, V=1.0, eta=0.0, B=1, noise_std=0.0)
         assert controller.B_prev == 1
-
         controller.step(C=1.0, V=1.0, eta=0.0, B=0, noise_std=0.0)
         assert controller.B_prev == 0
 
@@ -245,11 +234,9 @@ class TestAllostaticThresholdController:
         """Should reset to baseline."""
         np.random.seed(42)
         controller = AllostaticThresholdController(theta_0=1.0, gamma=0.01, delta=0.5, dt=1.0)
-
         # Step to change theta
         controller.step(C=2.0, V=1.0, eta=0.1, B=0, noise_std=0.0)
         assert controller.theta != 1.0
-
         # Reset
         controller.reset()
         assert controller.theta == 1.0
@@ -265,7 +252,6 @@ class TestAllostaticThresholdController:
         """Should maintain state across multiple steps."""
         np.random.seed(42)
         controller = AllostaticThresholdController(theta_0=1.0, gamma=0.01, delta=0.5, dt=1.0)
-
         thetas = []
         for i in range(10):
             theta = controller.step(
@@ -276,6 +262,5 @@ class TestAllostaticThresholdController:
                 noise_std=0.0,
             )
             thetas.append(theta)
-
         # Should have history of different values
         assert len(set([round(t, 6) for t in thetas])) > 1

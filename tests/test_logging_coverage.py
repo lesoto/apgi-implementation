@@ -10,7 +10,6 @@ def test_configure_logging():
     # Let's check for essential methods instead of strict isinstance if it's tricky
     assert hasattr(logger, "info")
     assert logger._context.get("audit_enabled") is True
-
     # JSON output
     logger_json = configure_logging(level="INFO", json_output=True, audit_logging=False)
     logger_json.info("test")
@@ -21,7 +20,6 @@ def test_get_logger():
     logger = get_logger("test_module")
     logger.info("test")
     assert hasattr(logger, "info")
-
     logger_default = get_logger()
     logger_default.info("test")
     assert hasattr(logger_default, "info")

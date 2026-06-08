@@ -1,26 +1,18 @@
 """Cross-Level Threshold Resonance — Russian Doll Architecture.
-
 Implements the nested resonance system from §8 / §9 of the APGI Full Specs:
-
   θ_l[t] = θ_{0,l} · [1 + κ_down · Π_{l+1} · cos(φ_{l+1})]   (§8 spec formula)
-
   dφ_l/dt = ω_l + κ_down · sin(φ_{l+1} − φ_l)                 (top-down entrainment)
-
   S_l[t+1] = (1 − λ_l) · S_l[t] + λ_l · S_inst_l[t]          (per-level accumulator)
-
 Each level l owns:
   φ_l  — oscillatory phase (advances at natural frequency ω_l = 2π / τ_l)
   θ_l  — threshold continuously re-shaped by the cosine of the level above
   S_l  — ignition signal accumulated from level-specific salience
-
 Higher levels oscillate more slowly (large τ_l).  The top-down phase-coupling
 term sin(φ_{l+1} − φ_l) pulls each level toward its superior's phase, creating
 nested rhythmic windows of ignition opportunity — the Russian Doll property.
-
 The primary ignition check (level 0, sensory) uses θ_0[t], which is
 continuously modulated by level 1's phase and precision.  Level 1's θ_1 is
 modulated by level 2's phase, etc., nesting the hierarchy.
-
 When an ignition event fires at level 0, a post-ignition refractory boost
 δ_refractory is added to θ_0 and the level-0 signal is partially reset (ρ_S),
 matching §17.
@@ -45,7 +37,6 @@ class LevelState:
 
 class NestedResonanceSystem:
     """Per-level phase-modulated threshold resonance (Russian Doll architecture).
-
     Parameters
     ----------
     n_levels : int
@@ -84,7 +75,6 @@ class NestedResonanceSystem:
     ) -> None:
         if n_levels < 1:
             raise ValueError("n_levels must be >= 1")
-
         self.n_levels = n_levels
         self.theta_0 = np.asarray(theta_0, dtype=float)
         self.omega = np.asarray(omega, dtype=float)
@@ -95,7 +85,6 @@ class NestedResonanceSystem:
         self.theta_max = float(theta_max)
         self.phi_noise_std = float(phi_noise_std)
         self.rng = rng or np.random.default_rng()
-
         # Per-level state
         self.S = np.zeros(n_levels)
         self.phi = np.zeros(n_levels)
@@ -106,7 +95,6 @@ class NestedResonanceSystem:
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
-
     def step(
         self,
         S_inst_levels: np.ndarray,
@@ -115,13 +103,11 @@ class NestedResonanceSystem:
         noise_std: float = 0.0,
     ) -> None:
         """Advance the full resonance system by one timestep.
-
         Execution order (matches §20 pipeline steps 9-14):
           1. Update per-level precisions from the precision pipeline.
           2. Advance oscillatory phases with top-down Kuramoto entrainment.
           3. Recompute per-level thresholds via the spec PAC formula.
           4. Accumulate per-level ignition signals (leaky integrators + SDE noise).
-
         Parameters
         ----------
         S_inst_levels : array-like (L,)
@@ -139,14 +125,11 @@ class NestedResonanceSystem:
         S_inst = np.asarray(S_inst_levels, dtype=float)
         pi = np.asarray(pi_levels, dtype=float)
         self.pi = pi.copy()
-
         # 1 — Phase advancement with top-down Kuramoto entrainment
         self.phi = self._advance_phases(dt)
-
         # 2 — Threshold update using the spec formula:
         #     θ_l = θ_{0,l} · (1 + κ_down · Π_{l+1} · cos(φ_{l+1}))
         self.theta = self._compute_thresholds()
-
         # 3 — Per-level leaky accumulation with optional SDE noise (spec §12):
         #     S_l(t+1) = max(0, (1 − λ_l)·S_l + λ_l·S_inst_l + σ·√dt·ξ_l)
         # The non-negativity floor keeps S as an evidence counter — negative accumulated
@@ -164,7 +147,6 @@ class NestedResonanceSystem:
         delta_refractory: float = 0.5,
     ) -> None:
         """Apply post-ignition refractory reset for the given level (§17).
-
         Parameters
         ----------
         level : int
@@ -200,7 +182,6 @@ class NestedResonanceSystem:
     @property
     def modulation_depth(self) -> np.ndarray:
         """Per-level modulation depth: Δθ_l / θ_{0,l} = κ · Π_{l+1} · cos(φ_{l+1}).
-
         Zero at the top level; positive when in an inhibitory half-cycle,
         negative when in an excitatory half-cycle.
         """
@@ -212,35 +193,27 @@ class NestedResonanceSystem:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-
     def _advance_phases(self, dt: float) -> np.ndarray:
         """Advance φ_l using natural frequency + top-down Kuramoto coupling.
-
         dφ_l/dt = ω_l + κ_down · sin(φ_{l+1} − φ_l)
-
         The coupling term pulls each level toward the phase of the level above
         it, creating nested synchrony windows (the Russian Doll property).
         """
         phi_new = np.zeros(self.n_levels)
         for level in range(self.n_levels):
             dphi = self.omega[level] * dt
-
             # Top-down entrainment from level level+1
             if level < self.n_levels - 1:
                 dphi += self.kappa_down * np.sin(self.phi[level + 1] - self.phi[level]) * dt
-
             # Optional biological phase jitter
             if self.phi_noise_std > 0.0:
                 dphi += self.phi_noise_std * self.rng.standard_normal() * np.sqrt(dt)
-
             phi_new[level] = (self.phi[level] + dphi) % (2.0 * np.pi)
         return phi_new
 
     def _compute_thresholds(self) -> np.ndarray:
         """Apply the §8 spec formula to all levels.
-
         θ_l = θ_{0,l} · (1 + κ_down · Π_{l+1} · cos(φ_{l+1}))
-
         The top level has no level above it, so it stays at its baseline θ_{0,L-1}.
         """
         thetas = np.empty(self.n_levels)
@@ -266,7 +239,6 @@ def build_resonance_system(
     rng: np.random.Generator | None = None,
 ) -> NestedResonanceSystem:
     """Convenience factory: build a NestedResonanceSystem from pipeline timescales.
-
     Parameters
     ----------
     n_levels : int

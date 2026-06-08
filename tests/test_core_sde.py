@@ -1,5 +1,4 @@
 """Comprehensive unit tests for core/sde.py module.
-
 Tests cover:
 - integrate_euler_maruyama function
 """
@@ -59,7 +58,6 @@ class TestIntegrateEulerMaruyama:
         """Should raise ValueError for non-positive dt."""
         with pytest.raises(ValueError, match="dt must be > 0"):
             integrate_euler_maruyama(1.0, 0.1, 0.1, 0.0, dt=0.0)
-
         with pytest.raises(ValueError, match="dt must be > 0"):
             integrate_euler_maruyama(1.0, 0.1, 0.1, 0.0, dt=-0.1)
 
@@ -73,7 +71,6 @@ class TestIntegrateEulerMaruyama:
             t=0.0,
             dt=0.01,
         )
-
         np.random.seed(42)
         result_large = integrate_euler_maruyama(
             x=1.0,
@@ -82,7 +79,6 @@ class TestIntegrateEulerMaruyama:
             t=0.0,
             dt=1.0,
         )
-
         # Change should be smaller with smaller dt
         change_small = abs(result_small - 1.0)
         change_large = abs(result_large - 1.0)
@@ -133,7 +129,6 @@ class TestIntegrateEulerMaruyama:
             t=0.0,
             dt=1.0,
         )
-
         np.random.seed(42)
         result2 = integrate_euler_maruyama(
             x=1.0,
@@ -142,7 +137,6 @@ class TestIntegrateEulerMaruyama:
             t=0.0,
             dt=1.0,
         )
-
         assert result1 == result2
 
     def test_negative_drift(self):

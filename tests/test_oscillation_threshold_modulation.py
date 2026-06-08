@@ -1,5 +1,4 @@
 """Comprehensive unit tests for oscillation/threshold_modulation.py module.
-
 Tests cover:
 - compute_modulation_factor function
 - modulate_threshold_by_phase function
@@ -123,14 +122,12 @@ class TestHierarchicalThresholdModulation:
         thetas = np.array([1.0, 1.0, 1.0])
         pis = np.array([1.0, 1.0, 1.0])
         phases = np.array([0.0, np.pi / 2, np.pi])
-
         result = hierarchical_threshold_modulation(
             thetas=thetas,
             pis=pis,
             phases=phases,
             kappa_down=0.1,
         )
-
         assert len(result) == 3
         # Top level should be unchanged
         assert result[2] == 1.0

@@ -1,5 +1,4 @@
 """Pytest configuration and shared fixtures for APGI test suite.
-
 This module provides:
 - Common fixtures for numpy arrays and random seeds
 - Configuration fixtures for all APGI components
@@ -18,7 +17,6 @@ import pytest
 warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*")
 warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*", category=RuntimeWarning)
 
-
 # =============================================================================
 # LAPACK Stderr Suppression
 # =============================================================================
@@ -29,7 +27,6 @@ warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*", category=Run
 @pytest.fixture(scope="session", autouse=True)
 def suppress_lapack_stderr_session() -> Generator[None, None, None]:
     """Suppress LAPACK stderr output during entire test session.
-
     LAPACK's DLASCL routine writes parameter warnings directly to stderr (fd 2)
     when matrices have extreme values. We redirect the file descriptor at OS level
     for the entire test session to capture all output.
@@ -39,18 +36,14 @@ def suppress_lapack_stderr_session() -> Generator[None, None, None]:
 
     # Save original stderr file descriptor
     original_stderr_fd = os.dup(2)
-
     # Create a pipe to capture stderr
     pipe_read, pipe_write = os.pipe()
     os.dup2(pipe_write, 2)
     os.close(pipe_write)
-
     yield
-
     # Restore original stderr
     os.dup2(original_stderr_fd, 2)
     os.close(original_stderr_fd)
-
     # Read and filter captured output (read in chunks to handle large output)
     chunks = []
     while True:
@@ -59,7 +52,6 @@ def suppress_lapack_stderr_session() -> Generator[None, None, None]:
             break
         chunks.append(chunk)  # pragma: no cover  # only reached when LAPACK writes stderr
     os.close(pipe_read)
-
     if chunks:  # pragma: no cover  # only reached when LAPACK writes stderr
         captured = b"".join(chunks).decode("utf-8", errors="replace")
         # Filter out LAPACK messages and write remaining content
@@ -85,10 +77,8 @@ def suppress_lapack_stderr_session() -> Generator[None, None, None]:
 @pytest.fixture
 def suppress_lapack() -> Generator[None, None, None]:
     """Suppress LAPACK DLASCL warnings from stderr.
-
     Use this fixture in tests that intentionally trigger LAPACK edge cases
     (e.g., singular matrices, duplicate frequencies) that cause DLASCL warnings.
-
     Example:
         def test_edge_case(suppress_lapack):
             with suppress_lapack:
@@ -100,7 +90,6 @@ def suppress_lapack() -> Generator[None, None, None]:
     pipe_read, pipe_write = os.pipe()
     os.dup2(pipe_write, 2)
     os.close(pipe_write)
-
     try:
         yield
     finally:

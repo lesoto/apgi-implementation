@@ -1,5 +1,4 @@
 """Comprehensive unit tests for core/signal.py module.
-
 Tests cover:
 - instantaneous_signal function
 - instantaneous_signal_with_dopamine function
@@ -138,7 +137,6 @@ class TestIntegrateSignalLeaky:
         """Should raise ValueError for lam outside (0,1)."""
         with pytest.raises(ValueError, match="lam must be in"):
             integrate_signal_leaky(1.0, 2.0, -0.1)
-
         with pytest.raises(ValueError, match="lam must be in"):
             integrate_signal_leaky(1.0, 2.0, 1.5)
 

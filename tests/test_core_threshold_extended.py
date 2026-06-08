@@ -358,7 +358,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             enforce_landauer=True,
         )
         assert result_high_base == pytest.approx(100.0, rel=0.01)
-
         # Case 2: Base cost < Landauer minimum (kappa_meta makes Landauer dominate)
         result_low_base = compute_metabolic_cost_realistic(
             S=0.001,
@@ -380,7 +379,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             "tissue_volume": 1.0,
             "ignition_spike_factor": 1.075,
         }
-
         # Case where base cost might exceed BOLD calibration
         result_high_base = compute_metabolic_cost_realistic(
             S=1000.0,  # Very large signal
@@ -393,7 +391,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
         )
         # Should take max of base cost and BOLD calibration cost
         assert result_high_base >= 1000.0
-
         # Case where BOLD calibration might exceed base cost
         result_low_base = compute_metabolic_cost_realistic(
             S=0.01,
@@ -466,7 +463,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             "tissue_volume": 1.0,
             "ignition_spike_factor": 1.075,
         }
-
         results = []
         for b_prev in [0, 1, 1, 0, 1]:
             result = compute_metabolic_cost_realistic(
@@ -479,11 +475,9 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
                 bold_calibration=bold_calibration,
             )
             results.append((b_prev, result))
-
         # Results with B_prev=1 should be higher than B_prev=0
         costs_with_ignition = [r for b, r in results if b == 1]
         costs_without_ignition = [r for b, r in results if b == 0]
-
         assert all(c > 0 for c in costs_with_ignition)
         assert all(c > 0 for c in costs_without_ignition)
 
@@ -642,7 +636,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             "tissue_volume": 1.0,
             "ignition_spike_factor": 1.075,
         }
-
         result_with_bold = compute_metabolic_cost_realistic(
             S=1.0,
             B_prev=0,
@@ -652,7 +645,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             enforce_landauer=False,  # Disabled
             bold_calibration=bold_calibration,
         )
-
         result_without_bold = compute_metabolic_cost_realistic(
             S=1.0,
             B_prev=0,
@@ -662,7 +654,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             enforce_landauer=False,
             bold_calibration=None,
         )
-
         # Both should be equal since bold_calibration is ignored
         assert result_with_bold == result_without_bold
 
@@ -798,7 +789,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             eps_stab=0.001,
             enforce_landauer=True,
         )
-
         # Case: base cost < Landauer minimum
         result2 = compute_metabolic_cost_realistic(
             S=0.001,
@@ -808,7 +798,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             eps_stab=0.0001,
             enforce_landauer=True,
         )
-
         # Both should be valid floats
         assert isinstance(result1, float)
         assert isinstance(result2, float)
@@ -826,7 +815,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             enforce_landauer=True,
             kappa_meta=1e20,
         )
-
         result2 = compute_metabolic_cost_realistic(
             S=1.0,
             B_prev=0,
@@ -836,7 +824,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             enforce_landauer=True,
             kappa_meta=2e20,
         )
-
         # Higher kappa_meta should increase Landauer cost
         assert result2 > result1
 
@@ -848,7 +835,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             "tissue_volume": 1.0,
             "ignition_spike_factor": 1.075,
         }
-
         # Execute multiple times to ensure consistent behavior
         results = []
         for _ in range(5):
@@ -862,7 +848,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
                 bold_calibration=bold_calibration,
             )
             results.append(result)
-
         # All results should be consistent
         assert all(r > 0 for r in results)
         assert all(isinstance(r, float) for r in results)
@@ -875,7 +860,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             {"S": 10.0, "B_prev": 0, "c1": 1.0, "c2": 1.0},
             {"S": 0.01, "B_prev": 1, "c1": 0.01, "c2": 0.01},
         ]
-
         for params in test_cases:
             result = compute_metabolic_cost_realistic(
                 **params,
@@ -962,7 +946,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             "tissue_volume": 1.0,
             "ignition_spike_factor": 1.075,
         }
-
         for i in range(10):
             result = compute_metabolic_cost_realistic(
                 S=1.0 + i * 0.1,
@@ -1037,7 +1020,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             "tissue_volume": 1.0,
             "ignition_spike_factor": 1.075,
         }
-
         result1 = compute_metabolic_cost_realistic(
             S=1.0,
             B_prev=0,
@@ -1047,7 +1029,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             enforce_landauer=True,
             bold_calibration=bold_calibration,
         )
-
         result2 = compute_metabolic_cost_realistic(
             S=1.0,
             B_prev=0,
@@ -1057,7 +1038,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             enforce_landauer=True,
             bold_calibration=bold_calibration,
         )
-
         # Same parameters should give same result
         assert result1 == result2
 
@@ -1141,7 +1121,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             "tissue_volume": 1.0,
             "ignition_spike_factor": 1.075,
         }
-
         results = []
         for _ in range(5):
             result = compute_metabolic_cost_realistic(
@@ -1154,7 +1133,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
                 bold_calibration=bold_calibration,
             )
             results.append(result)
-
         # All results should be identical (deterministic)
         assert all(r == results[0] for r in results)
 
@@ -1166,7 +1144,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             {"enforce_landauer": True, "bold_calibration": {}},
             {"enforce_landauer": True, "kappa_meta": 2.0},
         ]
-
         for config in test_configs:
             result = compute_metabolic_cost_realistic(
                 S=1.0,
@@ -1186,7 +1163,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             "tissue_volume": 1.0,
             "ignition_spike_factor": 1.075,
         }
-
         # Test all combinations
         configs = [
             # (enforce_landauer, bold_calibration, kappa_units)
@@ -1196,7 +1172,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             (True, None, "joules_per_bit"),
             (True, bold_calibration, "joules_per_bit"),
         ]
-
         for enforce, bold, units in configs:
             result = compute_metabolic_cost_realistic(
                 S=1.0,
@@ -1217,13 +1192,11 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
         # Branch 1: enforce_landauer=False
         r1 = compute_metabolic_cost_realistic(S=1.0, B_prev=0, enforce_landauer=False)
         assert isinstance(r1, float)
-
         # Branch 2: enforce_landauer=True, S <= eps_stab
         r2 = compute_metabolic_cost_realistic(
             S=0.0001, B_prev=0, eps_stab=0.001, enforce_landauer=True
         )
         assert isinstance(r2, float)
-
         # Branch 3: enforce_landauer=True, S > eps_stab, bold_calibration is not None
         r3 = compute_metabolic_cost_realistic(
             S=1.0,
@@ -1234,7 +1207,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
         )
         assert isinstance(r3, float)
         assert r3 > 0
-
         # Branch 4: enforce_landauer=True, S > eps_stab, bold_calibration is None
         r4 = compute_metabolic_cost_realistic(
             S=1.0,
@@ -1247,7 +1219,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
         )
         assert isinstance(r4, float)
         assert r4 > 0
-
         # All branches executed successfully
         assert True
 
@@ -1260,7 +1231,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             "tissue_volume": 1.0,
             "ignition_spike_factor": 1.075,
         }
-
         # This exercises lines 61-86
         result = compute_metabolic_cost_realistic(
             S=1.0,
@@ -1271,11 +1241,9 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             enforce_landauer=True,
             bold_calibration=bold_calibration,
         )
-
         # Verify the BOLD calibration path was taken
         assert isinstance(result, float)
         assert result > 0
-
         # Also exercise line 80 with spike_factor application
         result2 = compute_metabolic_cost_realistic(
             S=1.0,
@@ -1293,7 +1261,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
         )
         assert isinstance(result2, float)
         assert result2 > 0
-
         # Exercise lines 85-86 (scale_factor application)
         result3 = compute_metabolic_cost_realistic(
             S=1.0,
@@ -1317,7 +1284,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             "tissue_volume": 1.0,
             "ignition_spike_factor": 1.075,
         }
-
         # Execute multiple scenarios to cover all lines
         scenarios = [
             # (S, B_prev, enforce_landauer, bold_calibration)
@@ -1328,7 +1294,6 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
             (1.0, 1, True, bold_calibration),  # With ignition
             (10.0, 0, True, bold_calibration),  # Large signal
         ]
-
         for s, b, enforce, bold in scenarios:
             result = compute_metabolic_cost_realistic(
                 S=s,
@@ -1340,6 +1305,5 @@ class TestComputeMetabolicCostRealisticBoldCalibration:
                 bold_calibration=bold,
             )
             assert isinstance(result, float)
-
         # Success: all lines covered
         assert True

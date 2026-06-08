@@ -113,7 +113,6 @@ class TestValidateConfigExtended:
         config = {"eps": 0.0}
         with pytest.raises(ValidationError):
             validate_config(config)
-
         config = {"eps": 1.0}
         with pytest.raises(ValidationError):
             validate_config(config)
@@ -123,7 +122,6 @@ class TestValidateConfigExtended:
         config = {"eta": 0.0}
         with pytest.raises(ValidationError):
             validate_config(config)
-
         config = {"eta": 1.5}
         with pytest.raises(ValidationError):
             validate_config(config)

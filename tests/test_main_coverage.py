@@ -34,7 +34,6 @@ def test_analyze_signal_statistics_exception():
     with patch("main.estimate_hurst_robust", side_effect=Exception("Simulated Hurst failure")):
         signal = [1.0] * 300  # Long enough to trigger Hurst estimation
         stats = analyze_signal_statistics(signal, label="TestFailure")
-
     # Check if warning was logged (it goes to logger, but we can check if it returns stats without hurst_exponent if that's the logic)
     assert "hurst_exponent" not in stats
     # The logger warning is: logger.warning("hurst_estimation_failed", label=label, error=str(e))

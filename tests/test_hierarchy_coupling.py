@@ -1,5 +1,4 @@
 """Comprehensive unit tests for hierarchy/coupling.py module.
-
 Tests cover:
 - estimate_hierarchy_levels function
 - precision_coupling_ode function
@@ -42,10 +41,8 @@ class TestEstimateHierarchyLevels:
         """Should raise ValueError for invalid parameters."""
         with pytest.raises(ValueError):
             estimate_hierarchy_levels(tau_min=0, tau_max=100, k=1.6)
-
         with pytest.raises(ValueError):
             estimate_hierarchy_levels(tau_min=10, tau_max=0, k=1.6)
-
         with pytest.raises(ValueError):
             estimate_hierarchy_levels(tau_min=10, tau_max=100, k=1.0)
 

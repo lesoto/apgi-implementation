@@ -23,7 +23,6 @@ def test_compute_expected_free_energy():
         action_metabolic_cost=0.2,
     )
     assert isinstance(f, float)
-
     # Test low S case
     f2 = compute_expected_free_energy(
         sigma2_e=1.0,
@@ -48,17 +47,14 @@ def test_agent_initialization():
     # Test default
     agent = ActiveInferenceAgent()
     assert agent.n_actions == 3
-
     # Test custom n_actions
     agent2 = ActiveInferenceAgent(n_actions=5)
     assert agent2.n_actions == 5
     assert agent2.action_params.shape == (5, 3)
-
     # Test custom params
     params = np.random.rand(2, 3)
     agent3 = ActiveInferenceAgent(n_actions=2, action_params=params)
     assert np.allclose(agent3.action_params, params)
-
     # Test invalid shape
     with pytest.raises(ValueError, match="action_params must have shape"):
         ActiveInferenceAgent(n_actions=3, action_params=np.random.rand(2, 3))
@@ -70,7 +66,6 @@ def test_agent_policy_selection():
     assert isinstance(res, PolicyResult)
     assert 0 <= res.action_idx < 3
     assert len(res.F_values) == 3
-
     # Test with more actions to cover label fallback
     agent5 = ActiveInferenceAgent(n_actions=5)
     res5 = agent5.select_policy(sigma2_e=1.0, sigma2_i=1.0, S=1.0, theta=0.5)

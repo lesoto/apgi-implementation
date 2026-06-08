@@ -77,7 +77,6 @@ class TestLiquidStateMachineExtended:
         for i in range(5):
             lsm.step(u, tau=10.0, dt=1.0)
             lsm.collect_state(target=float(i))
-
         X, y = lsm.get_training_data()
         assert X.shape == (5, 50)
         assert y.shape == (5,)
@@ -88,7 +87,6 @@ class TestLiquidStateMachineExtended:
         u = np.array([1.0, 0.5])
         lsm.step(u, tau=10.0, dt=1.0)
         lsm.collect_state(target=1.0)
-
         assert len(lsm.history) > 0
         lsm.clear_history()
         assert len(lsm.history) == 0
@@ -99,7 +97,6 @@ class TestLiquidStateMachineExtended:
         lsm = LiquidStateMachine(N=50, M=2)
         u = np.array([1.0, 0.5])
         lsm.step(u, tau=10.0, dt=1.0)
-
         assert not np.allclose(lsm.x, 0)
         lsm.reset_state()
         assert np.allclose(lsm.x, 0)
@@ -109,7 +106,6 @@ class TestLiquidStateMachineExtended:
         lsm = LiquidStateMachine(N=50, M=2, tau_res=100.0)
         tau = lsm._compute_adaptive_tau(precision=0.0, tau_min=0.1, tau_max=10.0)
         assert tau == 10.0
-
         tau = lsm._compute_adaptive_tau(precision=-1.0, tau_min=0.1, tau_max=10.0)
         assert tau == 10.0
 

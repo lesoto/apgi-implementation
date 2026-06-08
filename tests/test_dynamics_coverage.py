@@ -15,7 +15,6 @@ def test_signal_drift():
     # dS/dt = -1/10 + 2*0.5 + 2*0.5 = -0.1 + 1 + 1 = 1.9
     drift = signal_drift(1.0, 0.5, 0.5, 2.0, 2.0, 10.0)
     assert drift == 1.9
-
     with pytest.raises(ValueError, match="tau_s must be > 0"):
         signal_drift(1.0, 0.5, 0.5, 2.0, 2.0, 0.0)
 
@@ -27,7 +26,6 @@ def test_update_signal_ode():
     # S_new = 1.0 + 1.9*0.1 = 1.19
     s_new = update_signal_ode(1.0, 0.5, 0.5, 2.0, 2.0, 10.0, dt=0.1, noise_std=0.0)
     assert pytest.approx(s_new) == 1.19
-
     with pytest.raises(ValueError, match="tau_s must be > 0"):
         update_signal_ode(1.0, 0.5, 0.5, 2.0, 2.0, 0.0)
 
@@ -55,6 +53,5 @@ def test_update_threshold_ode():
         1.0, 1.0, 1.0, 0.0, 10.0, 0.1, delta=0.5, B=1, dt=1.0, noise_std=0.0
     )
     assert pytest.approx(t_new) == 1.6
-
     with pytest.raises(ValueError, match="tau_theta must be > 0"):
         update_threshold_ode(1.0, 1.0, 1.0, 0.0, 0.0, 0.1)

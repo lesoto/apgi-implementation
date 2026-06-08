@@ -1,24 +1,17 @@
 """Thermodynamic constraints and Landauer's principle implementation.
-
 APGI Specification §11: Thermodynamic Constraints
-
 This module implements the connection between information processing and
 thermodynamic cost via Landauer's principle:
-
     E_min = κ_meta · N_erase · k_B · T_env · ln(2)
-
 where:
     - N_erase ≈ log₂(S / ε_stab) is the number of bits erased
     - k_B is Boltzmann's constant (1.38e-23 J/K)
     - T_env is environmental temperature (typically 310 K for biological systems)
     - κ_meta is a metabolic efficiency factor (typically 1.0-2.0)
     - ln(2) ≈ 0.693 is the natural log of 2
-
 The metabolic cost C(t) must satisfy:
     C(t) ≥ κ_meta · N_erase(t) · k_B · T_env · ln(2)
-
 This grounds the APGI metabolic cost model in fundamental thermodynamics.
-
 References:
     - Landauer, R. (1961). "Irreversibility and Heat Generation in the Computing Process"
     - Bennett, C. H. (1982). "The Thermodynamics of Computation"
@@ -44,15 +37,11 @@ def compute_landauer_cost(
     kappa_units: str = "dimensionless",
 ) -> float:
     """Compute thermodynamic cost per Landauer's principle.
-
     Implements APGI Spec §11: Connection to Metabolic Cost
-
     Two modes of operation:
     1. Dimensionless κ_meta (legacy): E_min = κ_meta · N_erase · k_B · T_env · ln(2)
     2. Calibrated κ_meta in J/bit: E_min = κ_meta · N_erase
-
     where N_erase ≈ log₂(S / ε_stab) is the number of bits erased.
-
     Args:
         S: Signal magnitude (bits of information)
         eps: Stability threshold ε_stab (minimum detectable signal)
@@ -62,19 +51,15 @@ def compute_landauer_cost(
             - If kappa_units="dimensionless": dimensionless factor (default: 1.0)
             - If kappa_units="joules_per_bit": energy per bit in Joules
         kappa_units: Units of kappa_meta ("dimensionless" or "joules_per_bit")
-
     Returns:
         Minimum thermodynamic cost E_min (in Joules)
-
     Raises:
         ValueError: If parameters are invalid
-
     Examples:
         >>> # Typical neural computation at body temperature (dimensionless κ)
         >>> cost = compute_landauer_cost(S=1.0, eps=0.01)
         >>> print(f"Cost: {cost:.2e} J")
         Cost: 3.21e-21 J
-
         >>> # With calibrated κ in J/bit (e.g., from BOLD fMRI)
         >>> kappa_calibrated = 3.21e-21  # J/bit (Landauer minimum at body temp)
         >>> cost = compute_landauer_cost(S=1.0, eps=0.01,
@@ -86,34 +71,26 @@ def compute_landauer_cost(
     if S <= eps:
         # No information to erase
         return 0.0
-
     if eps <= 0:
         raise ValueError(f"eps must be > 0, got {eps}")
-
     if k_b <= 0:
         raise ValueError(f"k_b must be > 0, got {k_b}")
-
     if T_env <= 0:
         raise ValueError(f"T_env must be > 0, got {T_env}")
-
     if kappa_meta <= 0:
         raise ValueError(f"kappa_meta must be > 0, got {kappa_meta}")
-
     if kappa_units not in ["dimensionless", "joules_per_bit"]:
         raise ValueError(
             f"kappa_units must be 'dimensionless' or 'joules_per_bit', got {kappa_units}"
         )
-
     # Number of bits erased: N_erase = log₂(S / ε_stab)
     n_erase = np.log2(S / eps)
-
     if kappa_units == "dimensionless":
         # Legacy mode: κ_meta is dimensionless efficiency factor
         e_min = kappa_meta * n_erase * k_b * T_env * LN2
     else:  # joules_per_bit
         # Calibrated mode: κ_meta is energy per bit in Joules
         e_min = kappa_meta * n_erase
-
     return float(e_min)
 
 
@@ -126,9 +103,7 @@ def compute_landauer_cost_batch(
     kappa_units: str = "dimensionless",
 ) -> np.ndarray:
     """Compute Landauer cost for a batch of signal values.
-
     Vectorized version of compute_landauer_cost for efficiency.
-
     Args:
         S_array: Array of signal magnitudes
         eps: Stability threshold
@@ -136,10 +111,8 @@ def compute_landauer_cost_batch(
         T_env: Environmental temperature
         kappa_meta: Metabolic efficiency factor
         kappa_units: Units of kappa_meta ("dimensionless" or "joules_per_bit")
-
     Returns:
         Array of costs with same shape as S_array
-
     Examples:
         >>> S_vals = np.array([0.1, 0.5, 1.0, 2.0])
         >>> costs = compute_landauer_cost_batch(S_vals, eps=0.01)
@@ -148,16 +121,13 @@ def compute_landauer_cost_batch(
     """
     S_array = np.asarray(S_array)
     costs = np.zeros_like(S_array, dtype=float)
-
     # Vectorized computation
     mask = S_array > eps
     n_erase = np.log2(S_array[mask] / eps)
-
     if kappa_units == "dimensionless":
         costs[mask] = kappa_meta * n_erase * k_b * T_env * LN2
     else:  # joules_per_bit
         costs[mask] = kappa_meta * n_erase
-
     return costs
 
 
@@ -171,9 +141,7 @@ def validate_thermodynamic_constraint(
     tolerance: float = 0.01,
 ) -> dict:
     """Validate that metabolic cost satisfies Landauer's principle.
-
     Checks: C_metabolic ≥ E_min (within tolerance)
-
     Args:
         C_metabolic: Actual metabolic cost from APGI model
         S: Signal magnitude
@@ -182,7 +150,6 @@ def validate_thermodynamic_constraint(
         T_env: Environmental temperature
         kappa_meta: Metabolic efficiency factor
         tolerance: Relative tolerance for constraint (default: 1%)
-
     Returns:
         Dictionary with validation results:
             - satisfied: bool, whether constraint is satisfied
@@ -191,7 +158,6 @@ def validate_thermodynamic_constraint(
             - ratio: C_metabolic / E_min
             - violation: max(0, E_min - C_metabolic)
             - message: human-readable status
-
     Examples:
         >>> result = validate_thermodynamic_constraint(
         ...     C_metabolic=1e-20, S=1.0, eps=0.01
@@ -202,7 +168,6 @@ def validate_thermodynamic_constraint(
         Ratio: 3.12
     """
     e_min = compute_landauer_cost(S, eps, k_b, T_env, kappa_meta)
-
     if e_min == 0:
         # No information to erase
         return {
@@ -213,11 +178,9 @@ def validate_thermodynamic_constraint(
             "violation": 0.0,
             "message": "No information to erase (S ≤ ε)",
         }
-
     ratio = C_metabolic / e_min
     violation = max(0.0, e_min - C_metabolic)
     satisfied = ratio >= (1.0 - tolerance)
-
     return {
         "satisfied": satisfied,
         "C_metabolic": C_metabolic,
@@ -235,22 +198,17 @@ def validate_thermodynamic_constraint(
 
 def compute_information_bits(S: float, eps: float) -> float:
     """Compute number of information bits represented by signal.
-
     Per Landauer's principle, the number of bits that must be erased is:
         N_bits = log₂(S / ε_stab)
-
     Args:
         S: Signal magnitude
         eps: Stability threshold
-
     Returns:
         Number of bits (non-negative)
-
     Examples:
         >>> bits = compute_information_bits(S=1.0, eps=0.01)
         >>> print(f"Bits: {bits:.1f}")
         Bits: 6.6
-
         >>> bits = compute_information_bits(S=0.005, eps=0.01)
         >>> print(f"Bits: {bits:.1f}")
         Bits: 0.0
@@ -268,24 +226,18 @@ def compute_metabolic_efficiency(
     T_env: float = T_ENV_DEFAULT,
 ) -> float:
     """Compute metabolic efficiency factor κ_meta from observed cost.
-
     Inverse of compute_landauer_cost: given C, S, ε, compute κ_meta.
-
     κ_meta = C / (N_erase · k_B · T_env · ln(2))
-
     Args:
         C_metabolic: Observed metabolic cost
         S: Signal magnitude
         eps: Stability threshold
         k_b: Boltzmann constant
         T_env: Environmental temperature
-
     Returns:
         Metabolic efficiency factor κ_meta
-
     Raises:
         ValueError: If S ≤ eps (no information to erase)
-
     Examples:
         >>> # If cost is 2x Landauer minimum, κ_meta = 2.0
         >>> kappa = compute_metabolic_efficiency(
@@ -296,13 +248,10 @@ def compute_metabolic_efficiency(
     """
     if S <= eps:
         raise ValueError(f"S must be > eps for information content (S={S}, eps={eps})")
-
     n_erase = np.log2(S / eps)
     denominator = n_erase * k_b * T_env * LN2
-
     if denominator == 0:
         raise ValueError("Denominator is zero (invalid parameters)")
-
     kappa_meta = C_metabolic / denominator
     return float(kappa_meta)
 
@@ -315,24 +264,18 @@ def estimate_temperature_from_cost(
     k_b: float = K_BOLTZMANN,
 ) -> float:
     """Estimate environmental temperature from observed metabolic cost.
-
     Inverse of compute_landauer_cost: given C, S, ε, κ_meta, compute T_env.
-
     T_env = C / (κ_meta · N_erase · k_B · ln(2))
-
     Args:
         C_metabolic: Observed metabolic cost
         S: Signal magnitude
         eps: Stability threshold
         kappa_meta: Metabolic efficiency factor
         k_b: Boltzmann constant
-
     Returns:
         Estimated environmental temperature (K)
-
     Raises:
         ValueError: If S ≤ eps or parameters invalid
-
     Examples:
         >>> # Estimate temperature from cost
         >>> T_est = estimate_temperature_from_cost(
@@ -343,13 +286,10 @@ def estimate_temperature_from_cost(
     """
     if S <= eps:
         raise ValueError(f"S must be > eps (S={S}, eps={eps})")
-
     n_erase = np.log2(S / eps)
     denominator = kappa_meta * n_erase * k_b * LN2
-
     if denominator == 0:
         raise ValueError("Denominator is zero (invalid parameters)")
-
     T_env = C_metabolic / denominator
     return float(T_env)
 
@@ -362,14 +302,12 @@ def thermodynamic_cost_trajectory(
     kappa_meta: float = 1.0,
 ) -> dict:
     """Analyze thermodynamic cost over a trajectory.
-
     Args:
         S_history: Time series of signal values
         eps: Stability threshold
         k_b: Boltzmann constant
         T_env: Environmental temperature
         kappa_meta: Metabolic efficiency factor
-
     Returns:
         Dictionary with trajectory statistics:
             - costs: array of costs at each time step
@@ -378,7 +316,6 @@ def thermodynamic_cost_trajectory(
             - max_cost: maximum cost
             - bits_history: bits at each time step
             - total_bits: cumulative bits erased
-
     Examples:
         >>> S_hist = np.array([0.1, 0.5, 1.0, 0.5, 0.1])
         >>> result = thermodynamic_cost_trajectory(S_hist, eps=0.01)
@@ -388,7 +325,6 @@ def thermodynamic_cost_trajectory(
     S_history = np.asarray(S_history)
     costs = compute_landauer_cost_batch(S_history, eps, k_b, T_env, kappa_meta)
     bits = np.array([compute_information_bits(s, eps) for s in S_history])
-
     return {
         "costs": costs,
         "total_cost": float(np.sum(costs)),

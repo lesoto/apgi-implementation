@@ -1,5 +1,4 @@
 """Comprehensive unit tests for core/dynamics.py module.
-
 Tests cover:
 - signal_drift function
 - update_signal_ode function
@@ -43,7 +42,6 @@ class TestSignalDrift:
         """Should raise ValueError for non-positive tau_s."""
         with pytest.raises(ValueError, match="tau_s must be > 0"):
             signal_drift(1.0, 0.5, 0.3, 2.0, 1.0, tau_s=0.0)
-
         with pytest.raises(ValueError, match="tau_s must be > 0"):
             signal_drift(1.0, 0.5, 0.3, 2.0, 1.0, tau_s=-1.0)
 
@@ -104,7 +102,6 @@ class TestUpdateSignalODE:
             dt=0.1,
             noise_std=0.01,
         )
-
         np.random.seed(42)
         result_large_dt = update_signal_ode(
             S=1.0,
@@ -116,7 +113,6 @@ class TestUpdateSignalODE:
             dt=1.0,
             noise_std=0.01,
         )
-
         # Changes should be smaller with smaller dt (deterministic part)
         drift_small_dt = result_small_dt - 1.0
         drift_large_dt = result_large_dt - 1.0
@@ -135,7 +131,6 @@ class TestUpdateSignalODE:
             dt=1.0,
             noise_std=0.0,
         )
-
         np.random.seed(999)  # Different seed
         result2 = update_signal_ode(
             S=1.0,
@@ -147,7 +142,6 @@ class TestUpdateSignalODE:
             dt=1.0,
             noise_std=0.0,
         )
-
         assert result1 == result2
 
 
@@ -251,7 +245,6 @@ class TestUpdateThresholdODE:
         """Should raise ValueError for non-positive tau_theta."""
         with pytest.raises(ValueError, match="tau_theta must be > 0"):
             update_threshold_ode(theta=1.0, theta_base=1.0, C=1.5, V=1.0, tau_theta=0.0, eta=0.1)
-
         with pytest.raises(ValueError, match="tau_theta must be > 0"):
             update_threshold_ode(theta=1.0, theta_base=1.0, C=1.5, V=1.0, tau_theta=-1.0, eta=0.1)
 
@@ -260,7 +253,6 @@ class TestUpdateThresholdODE:
         np.random.seed(42)
         theta = 2.0  # Above baseline
         theta_base = 1.0
-
         # Run multiple steps
         for _ in range(100):
             theta = update_threshold_ode(
@@ -273,7 +265,6 @@ class TestUpdateThresholdODE:
                 dt=1.0,
                 noise_std=0.0,
             )
-
         # Should be closer to baseline
         assert abs(theta - theta_base) < abs(2.0 - theta_base)
 

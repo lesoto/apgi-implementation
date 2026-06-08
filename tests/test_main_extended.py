@@ -84,11 +84,9 @@ class TestSaveResults:
         }
         filepath = tmp_path / "test_results.json"
         save_results(results, str(filepath))
-
         # Load and verify
         with open(filepath, "r") as f:
             loaded = json.load(f)
-
         assert loaded["n_steps"] == 100
         assert loaded["numpy_array"] == [1, 2, 3]
 

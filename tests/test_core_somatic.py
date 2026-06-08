@@ -1,5 +1,4 @@
 """Comprehensive unit tests for core/somatic.py module.
-
 Tests cover:
 - somatic_marker_arousal function
 - somatic_marker_valence function
@@ -196,11 +195,9 @@ class TestUpdateSomaticMarkerEuler:
         M = 0.0  # Start at baseline
         tau_M = 500.0
         dt = 1.0
-
         # Multiple steps toward high arousal target
         for _ in range(1000):
             M = update_somatic_marker_euler(M, arousal_target=1.0, tau_M=tau_M, dt=dt)
-
         # Should be closer to +2.0 (target marker for arousal=1.0)
         assert M > 0.0
 
@@ -209,11 +206,9 @@ class TestUpdateSomaticMarkerEuler:
         M = 2.0  # Start high
         tau_M = 500.0
         dt = 1.0
-
         # Multiple steps toward low arousal target
         for _ in range(1000):
             M = update_somatic_marker_euler(M, arousal_target=0.0, tau_M=tau_M, dt=dt)
-
         # Should be closer to -2.0 (target marker for arousal=0.0)
         assert M < 2.0
 
@@ -223,7 +218,6 @@ class TestUpdateSomaticMarkerEuler:
         M = 0.0
         for _ in range(10000):
             M = update_somatic_marker_euler(M, arousal_target=10.0, tau_M=10.0, dt=1.0)
-
         assert pytest.approx(M, abs=1e-10) == 2.0  # Clamped to max
 
     def test_no_change_at_target(self):
@@ -236,6 +230,5 @@ class TestUpdateSomaticMarkerEuler:
         """Should change faster with smaller tau_M."""
         M_slow = update_somatic_marker_euler(0.0, arousal_target=1.0, tau_M=1000.0, dt=100.0)
         M_fast = update_somatic_marker_euler(0.0, arousal_target=1.0, tau_M=100.0, dt=100.0)
-
         # Faster time constant should move further
         assert abs(M_fast) > abs(M_slow)

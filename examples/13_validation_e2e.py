@@ -1,5 +1,4 @@
 """End-to-end validation script for spectral and observable predictions on synthetic data.
-
 This script validates:
 1. Pink noise (1/f) spectral characteristics in threshold dynamics
 2. Hurst exponent estimation for long-range correlations
@@ -14,7 +13,6 @@ from pathlib import Path
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-
 import numpy as np
 
 from config import CONFIG
@@ -23,11 +21,9 @@ from pipeline import APGIPipeline
 
 def generate_synthetic_data(n_steps: int = 1000, dt: float = 0.5) -> tuple[np.ndarray, np.ndarray]:
     """Generate synthetic exteroceptive and interoceptive input signals.
-
     Args:
         n_steps: Number of timesteps
         dt: Time step size
-
     Returns:
         Tuple of (x_e array, x_i array) synthetic input signals
     """
@@ -38,15 +34,12 @@ def generate_synthetic_data(n_steps: int = 1000, dt: float = 0.5) -> tuple[np.nd
     for i in range(n_steps):
         # Sum of several octaves of white noise
         x_e[i] = np.sum([np.random.randn() / (2**j) for j in range(6)])
-
     # Generate oscillatory interoceptive signal with drift
     t = np.arange(n_steps) * dt
     x_i = 0.5 * np.sin(2 * np.pi * 0.1 * t) + 0.3 * np.random.randn(n_steps)
-
     # Normalize to zero mean, unit variance
     x_e = (x_e - np.mean(x_e)) / (np.std(x_e) + 1e-8)
     x_i = (x_i - np.mean(x_i)) / (np.std(x_i) + 1e-8)
-
     return x_e, x_i
 
 
@@ -57,10 +50,8 @@ def validate_spectral_characteristics(
     if len(pipeline.history["theta"]) < 64:
         print("Warning: Insufficient data for spectral validation")
         return 0.0, None
-
     theta_arr = np.array(pipeline.history["theta"])
     fs = 1.0 / pipeline.config.get("dt", 1.0)
-
     from stats.hurst import estimate_hurst_robust, welch_periodogram
     from stats.spectral_model import validate_pink_noise
 
@@ -68,10 +59,8 @@ def validate_spectral_characteristics(
     hurst = estimate_hurst_robust(theta_arr, fs=fs)
     print(f"Hurst exponent: {hurst:.4f}")
     print("  Expected for pink noise: ~0.7-1.0")
-
     hurst_pass = 0.7 <= hurst <= 1.0
     print(f"  Hurst validation: {'PASS' if hurst_pass else 'FAIL'}")
-
     # Validate pink noise (may fail due to numerical issues)
     try:
         freqs, psd = welch_periodogram(theta_arr, fs=fs)
@@ -92,14 +81,12 @@ def validate_observable_predictions(pipeline: APGIPipeline) -> None:
     if pipeline.neural_observables is None or pipeline.behavioral_observables is None:
         print("Observable mapping not enabled in config")
         return
-
     # Extract observable statistics
     gamma_powers = pipeline.history.get("neural_gamma_power", [])
     erp_amplitudes = pipeline.history.get("neural_erp_amplitude", [])
     ignition_rates = pipeline.history.get("neural_ignition_rate", [])
     rt_variability = pipeline.history.get("behavioral_rt_variability", [])
     response_criterion = pipeline.history.get("behavioral_response_criterion", [])
-
     if gamma_powers:
         print(f"Mean gamma power: {np.mean(gamma_powers):.4f}")
     if erp_amplitudes:
@@ -117,7 +104,6 @@ def main() -> None:
     print("=" * 70)
     print("APGI End-to-End Validation")
     print("=" * 70)
-
     # Configure pipeline with observable mapping and stability analysis
     config = dict(CONFIG)
     config["use_observable_mapping"] = True
@@ -127,20 +113,16 @@ def main() -> None:
     # Test spec-compliant parameter names
     config["beta_da"] = 0.0  # Spec-preferred dopamine bias
     config["tau_sigma"] = 0.5  # Spec-preferred ignition temperature
-
     # Initialize pipeline
     pipeline = APGIPipeline(config)
-
     # Generate synthetic data
     print("\nGenerating synthetic data...")
     n_steps = 1000
     x_e, x_i = generate_synthetic_data(n_steps=n_steps)
-
     # Run pipeline
     print(f"Running pipeline for {n_steps} steps...")
     for i in range(n_steps):
         pipeline.step(x_e[i], x_i[i])
-
     # Validate spectral characteristics
     print("\n" + "-" * 70)
     print("Spectral Validation")
@@ -151,13 +133,11 @@ def main() -> None:
         print(f"Spectral validation failed: {e}")
         print("  This is likely due to numerical issues with the synthetic data.")
         hurst, pink_stats = None, None
-
     # Validate observable predictions
     print("\n" + "-" * 70)
     print("Observable Predictions Validation")
     print("-" * 70)
     validate_observable_predictions(pipeline)
-
     # Stability analysis
     if pipeline.stability_analyzer is not None:
         print("\n" + "-" * 70)
@@ -167,7 +147,6 @@ def main() -> None:
         print(f"Fixed point S*: {stability_result['fixed_point']['S_star']:.4f}")
         print(f"Stability: {'STABLE' if stability_result['stability']['stable'] else 'UNSTABLE'}")
         print(f"Max eigenvalue magnitude: {stability_result['stability']['max_eigenvalue']:.4f}")
-
     print("\n" + "=" * 70)
     print("Validation Complete")
     print("=" * 70)
