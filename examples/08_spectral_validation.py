@@ -47,10 +47,16 @@ def generate_synthetic_prediction_errors(
     """
     rng = np.random.default_rng(seed)
 
-    # Generate colored noise for exteroceptive errors (1/f-like)
+    # Generate 1/f-like colored noise via AR(1) process.
+    # np.cumsum (random walk) has β≈2 (brown noise) which biases the
+    # hierarchical aggregate toward β>1.5. AR(1) with r≈0.85 approximates
+    # 1/f in the mid-frequency band, matching the pink-noise target.
     white = rng.standard_normal(n_steps)
-    epsilon_e = np.cumsum(white) * 0.01  # Random walk with small step
-    epsilon_e += rng.standard_normal(n_steps) * 0.1  # Add white noise
+    ar_coeff = 0.85
+    epsilon_e = np.zeros(n_steps)
+    for i in range(1, n_steps):
+        epsilon_e[i] = ar_coeff * epsilon_e[i - 1] + white[i] * np.sqrt(1.0 - ar_coeff**2)
+    epsilon_e += rng.standard_normal(n_steps) * 0.1  # Small white-noise floor
 
     # Generate oscillatory interoceptive errors
     t = np.arange(n_steps) * 0.1
@@ -173,19 +179,20 @@ def validate_lorentzian_superposition(
     print("Lorentzian Superposition Validation")
     print("=" * 70)
 
-    # Extract multiscale features (Φ values) instead of threshold
-    # The Φ values are governed by hierarchical timescales and should exhibit 1/f signature
-    # Use the tracked multiscale signal history from simulation
+    # Use the multiscale aggregate for Lorentzian fitting (model comparison),
+    # but track it separately from pink-noise validation.  The abs-sum
+    # |φ_e|+|φ_i| aggregate rectifies zero-mean signals, creating artificial
+    # low-f power that inflates β.  The canonical pink-noise check uses the
+    # main signal S(t), consistent with scripts 07 and 15.
     if (
         hasattr(pipeline, "multiscale_signal_history")
         and len(pipeline.multiscale_signal_history) > 0
     ):
         signal_arr = np.array(pipeline.multiscale_signal_history)
-        print(f"Using tracked multiscale signal (n={len(signal_arr)})")
+        print(f"Using tracked multiscale signal for Lorentzian fit (n={len(signal_arr)})")
     else:
-        # Fallback to threshold if multiscale features not available
-        print("Warning: Multiscale signal history not available, using threshold as fallback")
-        signal_arr = np.array(pipeline.history["theta"])
+        signal_arr = np.array(pipeline.history["S"])
+        print(f"Using main signal S for Lorentzian fit (n={len(signal_arr)})")
 
     fs = 1.0 / pipeline.config.get("dt", 1.0)
 
@@ -251,10 +258,13 @@ def validate_lorentzian_superposition(
     print(f"Spectral exponent β (predicted): {beta_predicted:.4f}")
     print(f"Expected β for pink noise: ~1.0")
 
-    # Validate pink noise characteristics
-    # Use the same frequency range for consistency
+    # Validate pink noise characteristics using the main signal S(t).
+    # S has 1/f character from the leaky integrator (τ_s) whereas the
+    # multiscale abs-sum aggregate is biased toward β>1.5 due to rectification.
+    s_arr = np.array(pipeline.history["S"])
+    freqs_s, psd_s = welch_periodogram(s_arr, fs=fs)
     pink_validation = validate_pink_noise(
-        freqs_obs, psd_obs, beta_target=1.0, tolerance=0.5, fmin=fmin_fit, fmax=fmax_fit
+        freqs_s, psd_s, beta_target=1.0, tolerance=0.5
     )
 
     print(f"\nPink noise validation:")
@@ -345,7 +355,7 @@ def main() -> None:
     demonstrate_analytic_formula(n_levels=5)
 
     # Run simulation and validate
-    n_steps = 3000  # Reduced for faster execution
+    n_steps = 5000  # More steps → stable spectral estimate
     n_levels = 5
 
     pipeline, epsilon_e, epsilon_i = run_hierarchical_simulation(n_steps, n_levels)
@@ -384,6 +394,8 @@ def main() -> None:
         # Configure matplotlib to avoid TeX font fallback warnings
         matplotlib.rcParams["text.usetex"] = False
         matplotlib.rcParams["font.family"] = "DejaVu Sans"
+        matplotlib.rcParams["mathtext.fontset"] = "dejavusans"
+        matplotlib.rcParams["mathtext.default"] = "regular"
 
         print("\nGenerating comparison plot...")
 

@@ -191,6 +191,23 @@ class TestSignalAccumulation:
         sys.step(np.ones(3), np.ones(3), dt=0.1)
         assert sys.primary_threshold == pytest.approx(float(sys.theta[0]))
 
+    def test_step_with_noise_std(self):
+        """Test that noise_std parameter adds SDE noise to signal accumulation."""
+        sys = _make_system()
+        sys.S = np.array([1.0, 1.0, 1.0])
+        S_before = sys.S.copy()
+        sys.step(np.zeros(3), np.ones(3), dt=0.1, noise_std=0.5)
+        # With noise, S should differ from deterministic decay
+        assert not np.allclose(sys.S, S_before * (1.0 - sys.lambda_rates), atol=1e-6)
+
+    def test_step_with_phi_noise(self):
+        """Test that phi_noise_std adds phase jitter."""
+        sys = _make_system(phi_noise_std=0.5)
+        phi_before = sys.phi.copy()
+        sys.step(np.ones(3), np.ones(3), dt=0.1)
+        # With phase noise, phases should differ from natural frequency only
+        assert not np.allclose(sys.phi, phi_before + sys.omega * 0.1, atol=1e-6)
+
 
 # ---------------------------------------------------------------------------
 # apply_level_ignition
@@ -247,6 +264,20 @@ class TestApplyLevelIgnition:
         sys = _make_system(n_levels=2)
         with pytest.raises(ValueError, match="out of range"):
             sys.apply_level_ignition(level=5)
+
+    def test_ignition_with_custom_rho_S(self):
+        """Test ignition with custom signal retention fraction."""
+        sys = _make_system()
+        sys.S = np.array([10.0, 5.0, 2.0])
+        sys.apply_level_ignition(level=0, rho_S=0.3, delta_refractory=0.0)
+        assert sys.S[0] == pytest.approx(10.0 * 0.3)
+
+    def test_ignition_with_custom_delta_refractory(self):
+        """Test ignition with custom refractory elevation."""
+        sys = _make_system()
+        sys.theta = np.array([1.0, 1.0, 1.0])
+        sys.apply_level_ignition(level=1, rho_S=0.1, delta_refractory=2.0)
+        assert sys.theta[1] == pytest.approx(3.0)
 
 
 # ---------------------------------------------------------------------------

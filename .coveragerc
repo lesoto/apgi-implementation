@@ -1,9 +1,25 @@
 [run]
+source =
+    active_inference
+    analysis
+    core
+    energy
+    hierarchy
+    oscillation
+    reservoir
+    stats
+    validation
 omit =
+    tests/*
+    examples/*
     delete_pycache.py
-    tests/temp_stderr_test.py
+    */__pycache__/*
+    */*.pyc
 
 [report]
 omit =
+    tests/*
+    examples/*
     delete_pycache.py
-    tests/temp_stderr_test.py
+    */__pycache__/*
+    */*.pyc
