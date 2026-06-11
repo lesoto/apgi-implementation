@@ -1,8 +1,19 @@
 """Allostatic threshold dynamics.
-Implements continuous-time ODE for dynamic threshold adaptation per APGI spec:
-dθ/dt = -γ_θ(θ - θ_base) + δ_reset·B(t) + η[C(t) - V(t)]
-Note: Derivative coupling to dS/dt was explicitly removed from the spec
-as it creates a second-order ODE system that is not required for APGI dynamics.
+Implements continuous-time ODE for dynamic threshold adaptation matching
+Paper §4.1.3 (Equation 3):
+
+    dθₜ/dt = −λ_θ(θₜ − θ₀) + κ_meta·Cₜ − Δ_info·Iₜ + η_NE·NE(t)
+
+where:
+  λ_θ     — restoring rate toward homeostatic baseline θ₀
+  κ_meta  — metabolic cost gain (raises threshold after costly ignitions)
+  Δ_info  — information-value gain (lowers threshold after informative events)
+  η_NE    — noradrenergic coupling (LC-NE phasic output)
+
+The refractory boost δ·B(t) is applied as a *separate* post-ignition step
+(spec §6 / pipeline step 9), not inside this ODE, consistent with the paper.
+Backward-compatible single-η form (η·[C−V]) is preserved when kappa_meta
+and delta_info are left at their None defaults.
 """
 
 from __future__ import annotations
@@ -21,34 +32,48 @@ def allostatic_threshold_ode(
     eta: float = 0.0,
     dt: float = 1.0,
     noise_std: float = 0.01,
+    kappa_meta: float | None = None,
+    delta_info: float | None = None,
+    ne: float = 0.0,
+    eta_ne: float = 0.0,
 ) -> float:
-    """Compute dθ/dt for allostatic threshold dynamics per APGI spec (§7.2).
-    Formula: dθ/dt = -γ_θ(θ - θ_base) + δ_reset·B(t) + η[C(t) - V(t)]
-    Implements Euler-Maruyama integration step:
-    θ(t+dt) = θ(t) + dθ/dt * dt + noise_std * sqrt(dt) * N(0,1)
-    Components:
-    - -γ_θ(θ - θ_base): Mean-reversion to baseline (exponential decay)
-    - δ_reset·B(t): Post-ignition refractory boost
-    - η[C(t) - V(t)]: Allostatic cost-value mismatch
-    - η_θ(t): Stochastic noise term
+    """Compute one Euler-Maruyama step of the allostatic threshold ODE.
+
+    Paper §4.1.3 (Eq. 3):
+        dθ/dt = −λ_θ(θ − θ₀) + κ_meta·C − Δ_info·V + η_NE·NE(t)
+
+    Backward-compatible form (when kappa_meta=None, delta_info=None):
+        dθ/dt = −γ_θ(θ − θ_base) + δ_reset·B(t) + η·(C − V)
+
+    The δ_reset·B(t) refractory term is retained for legacy code paths
+    that set use_ode_refractory_drift=True; new code should leave B_prev=0
+    and delta=0.0 here, applying the boost in pipeline step 9 instead.
+
     Args:
-        theta: Current threshold
-        theta_0: Baseline threshold (θ_base)
-        gamma: Mean-reversion rate (γ_θ = 1/τ_θ)
-        B_prev: Previous ignition state (0 or 1)
-        delta: Refractory boost magnitude (δ_reset)
-        C: Metabolic cost
-        V: Information value
-        eta: Allostatic learning rate
-        dt: Integration time step
-        noise_std: Noise amplitude
+        theta: Current threshold value.
+        theta_0: Homeostatic baseline θ₀.
+        gamma: Restoring rate λ_θ = 1/τ_θ.
+        B_prev: Previous ignition indicator (legacy refractory path only).
+        delta: Refractory boost magnitude (legacy; use 0.0 for paper-spec path).
+        C: Metabolic cost Cₜ.
+        V: Information value Iₜ.
+        eta: Shared allostatic gain (legacy; overridden by kappa_meta/delta_info).
+        dt: Integration time step (seconds).
+        noise_std: Euler-Maruyama noise amplitude (set to 0.0 for deterministic).
+        kappa_meta: Metabolic cost gain κ_meta (paper Eq. 3). Defaults to eta.
+        delta_info: Information-value gain Δ_info (paper Eq. 3). Defaults to eta.
+        ne: Noradrenergic signal NE(t). Zero by default.
+        eta_ne: Noradrenergic coupling η_NE (paper Eq. 3).
     Returns:
-        Updated threshold θ(t+dt)
+        Updated threshold θ(t+dt).
     """
+    _kappa = kappa_meta if kappa_meta is not None else eta
+    _delta_i = delta_info if delta_info is not None else eta
     mean_reversion = -gamma * (theta - theta_0)
     refractory = delta * B_prev
-    allostatic = eta * (C - V)
-    drift = mean_reversion + refractory + allostatic
+    allostatic = _kappa * C - _delta_i * V
+    ne_term = eta_ne * ne
+    drift = mean_reversion + refractory + allostatic + ne_term
     noise = float(np.random.normal(0.0, noise_std * np.sqrt(dt)))
     return float(theta + drift * dt + noise)
 

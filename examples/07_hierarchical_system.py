@@ -154,7 +154,7 @@ def run_hierarchical_simulation(
         if (t + 1) % 2000 == 0:
             print(f"  Step {t + 1}/{n_steps}")
     print("✅ Simulation complete\n")
-    # Extract results
+    # Extract results — including precision variables Πᵉ and Πⁱ_eff (paper §4.2)
     results = {
         "config": config,
         "outputs": outputs,
@@ -165,12 +165,16 @@ def run_hierarchical_simulation(
         "B": np.array([o["B"] for o in outputs]),
         "ignition_margin": np.array([o["ignition_margin"] for o in outputs]),
         "p_ignite": np.array([o["p_ignite"] for o in outputs]),
+        "pi_e_eff": np.array([o.get("pi_e_eff", o.get("pi_e", 1.0)) for o in outputs]),
+        "pi_i_eff": np.array([o.get("pi_i_eff", o.get("pi_i", 1.0)) for o in outputs]),
     }
-    # Validate spectral signature
+    # Validate spectral signature using correct sampling frequency (paper §12)
     print("Validating spectral signature...")
     from scipy.signal import welch  # type: ignore[import-untyped]
 
-    freqs, power = welch(results["S"], fs=1.0, nperseg=512)
+    _dt = float(config.get("dt", 1.0))
+    _fs = 1.0 / _dt  # Convert dt (seconds) to sampling frequency (Hz)
+    freqs, power = welch(results["S"], fs=_fs, nperseg=512)
     spectral_result = validate_pink_noise(freqs, power)
     results["spectral_result"] = spectral_result
     print(spectral_result.get("message", "Validation complete"))
@@ -194,20 +198,35 @@ def run_hierarchical_simulation(
     return results
 
 
-def plot_results(results: dict, title: str = "") -> None:
-    """Plot simulation results.
+def plot_results(results: dict, title: str = "", save_path: Path | None = None) -> None:
+    """Plot simulation results with calibrated time axis and precision traces.
+
+    Five panels matching the paper's observable variables:
+      1. Sₜ and θₜ (signal vs threshold, paper Eq. 1 and 3)
+      2. Πᵉ and Πⁱ_eff (precision weighting, paper §4.2)
+      3. Ignition margin Δ(t) = Sₜ − θₜ
+      4. P(ignition|Sₜ,θₜ) with ignition events (paper Eq. 2)
+      5. Power spectrum with 1/fᵝ reference (paper §7)
+
     Args:
-        results: Simulation results dictionary
+        results: Dictionary with simulation results
         title: Plot title
+        save_path: If provided, save plot to this path instead of showing
     """
-    fig, axes = plt.subplots(4, 1, figsize=(14, 10))
+    _dt = float(results["config"].get("dt", 1.0))
+    _fs = 1.0 / _dt
+    n = len(results["S"])
+    t_ms = np.arange(n) * _dt * 1000.0  # calibrated time axis in milliseconds
+
+    fig, axes = plt.subplots(5, 1, figsize=(14, 14))
     fig.suptitle(f"Hierarchical APGI: {title.upper()}", fontsize=14, fontweight="bold")
-    # Plot 1: Signal and Threshold
+
+    # Panel 1: Signal and Threshold
     ax = axes[0]
-    ax.plot(results["S"], label="Signal S(t)", linewidth=1, alpha=0.8)
-    ax.plot(results["theta"], label="Threshold θ(t)", linewidth=1, alpha=0.8)
+    ax.plot(t_ms, results["S"], label="Sₜ (signal)", linewidth=1, alpha=0.8)
+    ax.plot(t_ms, results["theta"], label="θₜ (threshold)", linewidth=1, alpha=0.8)
     ax.fill_between(
-        range(len(results["S"])),
+        t_ms,
         results["S"],
         results["theta"],
         where=(results["S"] > results["theta"]),
@@ -215,75 +234,118 @@ def plot_results(results: dict, title: str = "") -> None:
         color="red",
         label="Superthreshold",
     )
-    ax.set_ylabel("Signal / Threshold")
-    ax.legend(loc="upper right")
+    ax.set_ylabel("Amplitude (AU)")
+    ax.set_xlabel("Time (ms)")
+    ax.legend(loc="upper right", fontsize=8)
     ax.grid(True, alpha=0.3)
-    ax.set_title("Signal Accumulation and Dynamic Threshold")
-    # Plot 2: Ignition Margin
+    ax.set_title("Signal Sₜ and Dynamic Threshold θₜ  (paper Eq. 1, 3)")
+
+    # Panel 2: Effective precisions Πᵉ and Πⁱ_eff (paper §4.2)
     ax = axes[1]
-    ax.plot(results["ignition_margin"], label="Margin Δ(t) = S(t) - θ(t)", linewidth=1)
+    ax.plot(
+        t_ms,
+        results["pi_e_eff"],
+        label="Πᵉ (exteroceptive precision)",
+        linewidth=1,
+        alpha=0.8,
+        color="steelblue",
+    )
+    ax.plot(
+        t_ms,
+        results["pi_i_eff"],
+        label="Πⁱ_eff (interoceptive precision)",
+        linewidth=1,
+        alpha=0.8,
+        color="darkorange",
+    )
+    ax.set_ylabel("Precision (AU)")
+    ax.set_xlabel("Time (ms)")
+    ax.legend(loc="upper right", fontsize=8)
+    ax.grid(True, alpha=0.3)
+    ax.set_title("Precision Weights Πᵉ and Πⁱ_eff  (paper §4.2)")
+
+    # Panel 3: Ignition Margin
+    ax = axes[2]
+    ax.plot(t_ms, results["ignition_margin"], label="Δ(t) = Sₜ − θₜ", linewidth=1)
     ax.axhline(0, color="red", linestyle="--", linewidth=1, alpha=0.5)
     ax.fill_between(
-        range(len(results["ignition_margin"])),
+        t_ms,
         0,
         results["ignition_margin"],
         where=(results["ignition_margin"] > 0),
         alpha=0.3,
         color="green",
-        label="Superthreshold",
+        label="Superthreshold region",
     )
-    ax.set_ylabel("Ignition Margin")
-    ax.legend(loc="upper right")
+    ax.set_ylabel("Margin (AU)")
+    ax.set_xlabel("Time (ms)")
+    ax.legend(loc="upper right", fontsize=8)
     ax.grid(True, alpha=0.3)
-    ax.set_title("Distance from Ignition Boundary")
-    # Plot 3: Ignition Probability and Events
-    ax = axes[2]
-    ax.plot(results["p_ignite"], label="P_ign(t)", linewidth=1, alpha=0.7)
-    ignition_times = np.where(results["B"] == 1)[0]
+    ax.set_title("Ignition Margin Δ(t)")
+
+    # Panel 4: Ignition Probability and Events (paper Eq. 2)
+    ax = axes[3]
+    ax.plot(t_ms, results["p_ignite"], label="P(ignition|Sₜ,θₜ)", linewidth=1, alpha=0.7)
+    ignition_times_ms = t_ms[results["B"] == 1]
     ax.scatter(
-        ignition_times,
-        np.ones_like(ignition_times),
+        ignition_times_ms,
+        np.ones(len(ignition_times_ms)),
         color="red",
         s=50,
         marker="v",
-        label="Ignition events",
+        label="Ignition events Bₜ=1",
         zorder=5,
     )
-    ax.set_ylabel("Ignition Probability")
+    ax.set_ylabel("P(ignition)")
+    ax.set_xlabel("Time (ms)")
     ax.set_ylim([-0.1, 1.1])
-    ax.legend(loc="upper right")
+    ax.legend(loc="upper right", fontsize=8)
     ax.grid(True, alpha=0.3)
-    ax.set_title("Ignition Probability and Events")
-    # Plot 4: Spectral Analysis
-    ax = axes[3]
+    ax.set_title("Ignition Probability P(Bₜ=1|Sₜ,θₜ)  (paper Eq. 2, γ_sig=1/τ_σ)")
+
+    # Panel 5: Power Spectrum with correct fs and 1/fᵝ reference
+    ax = axes[4]
     from scipy.signal import welch  # type: ignore[import-untyped]
 
-    freqs, power = welch(results["S"], fs=1.0, nperseg=512)
-    ax.loglog(freqs[1:], power[1:], "b-", linewidth=2, label="Observed spectrum")
-    # Plot theoretical 1/f line
+    freqs, power = welch(results["S"], fs=_fs, nperseg=512)
+    ax.loglog(freqs[1:], power[1:], "b-", linewidth=2, label="Observed PSD")
     f_ref = freqs[len(freqs) // 2]
     p_ref = power[len(power) // 2]
-    f_theory = np.logspace(np.log10(freqs[1]), np.log10(freqs[-1]), 100)
+    f_theory = np.logspace(np.log10(freqs[1]), np.log10(freqs[-1]), 200)
     p_theory = p_ref * (f_theory / f_ref) ** (-results["spectral_result"]["beta"])
     ax.loglog(
         f_theory,
         p_theory,
         "r--",
         linewidth=2,
-        label=f"1/f^β (β={results['spectral_result']['beta']:.2f})",
+        label=f"1/fᵝ fit  β={results['spectral_result']['beta']:.2f}",
     )
     ax.set_xlabel("Frequency (Hz)")
-    ax.set_ylabel("Power")
-    ax.legend(loc="upper right")
+    ax.set_ylabel("Power Spectral Density")
+    ax.legend(loc="upper right", fontsize=8)
     ax.grid(True, alpha=0.3, which="both")
-    ax.set_title(f"Power Spectrum (H={results['spectral_result']['hurst_exponent']:.2f})")
+    ax.set_title(
+        f"Power Spectrum  H={results['spectral_result']['hurst_exponent']:.2f}  (paper §7 Lorentzian superposition)"
+    )
+
     plt.tight_layout()
-    plt.show()
+
+    if save_path:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Plot saved → {save_path}")
+    else:
+        plt.show()
+
+    plt.close(fig)
 
 
-def compare_modes() -> None:
+def compare_modes(save_path: Path | None = None) -> None:
     """Compare different hierarchical modes.
     Demonstrates the effect of hierarchical_mode on system behavior.
+
+    Args:
+        save_path: If provided, save comparison plot to this path instead of showing
     """
     print("\n" + "=" * 70)
     print("COMPARING HIERARCHICAL MODES")
@@ -313,47 +375,86 @@ def compare_modes() -> None:
             f"{n_ignitions:<12}"
         )
     print()
-    # Plot comparison
+    # Plot comparison — calibrated time axis in ms
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle("Hierarchical Mode Comparison", fontsize=14, fontweight="bold")
     for idx, mode in enumerate(modes):
         ax = axes[idx // 2, idx % 2]
         results = results_dict[mode]
-        ax.plot(results["S"][:2000], label="Signal", linewidth=1, alpha=0.8)
-        ax.plot(results["theta"][:2000], label="Threshold", linewidth=1, alpha=0.8)
-        ax.set_title(f"Mode: {mode.upper()} (β={results['spectral_result']['beta']:.2f})")
-        ax.set_ylabel("Signal / Threshold")
-        ax.legend(loc="upper right")
+        _dt = float(results["config"].get("dt", 1.0))
+        window = min(2000, len(results["S"]))
+        t_ms = np.arange(window) * _dt * 1000.0
+        ax.plot(t_ms, results["S"][:window], label="Sₜ", linewidth=1, alpha=0.8)
+        ax.plot(t_ms, results["theta"][:window], label="θₜ", linewidth=1, alpha=0.8)
+        ax.set_title(f"Mode: {mode.upper()}  β={results['spectral_result']['beta']:.2f}")
+        ax.set_ylabel("Amplitude (AU)")
+        ax.set_xlabel("Time (ms)")
+        ax.legend(loc="upper right", fontsize=8)
         ax.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.show()
+
+    if save_path:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Comparison plot saved → {save_path}")
+    else:
+        plt.show()
+
+    plt.close(fig)
 
 
-if __name__ == "__main__":
-    # Run individual simulations
+def main() -> None:
+    """Main function that saves plots to outputs directory."""
+    out_dir = project_root / "outputs"
+    out_dir.mkdir(exist_ok=True)
+
     print("\n" + "=" * 70)
     print("HIERARCHICAL APGI SYSTEM EXAMPLES")
     print("=" * 70)
+
     # Example 1: Single-scale (baseline)
     results_off = run_hierarchical_simulation(
         hierarchical_mode="off",
         n_steps=5000,
-        plot=True,
+        plot=False,
     )
+    plot_results(
+        results_off,
+        "off",
+        save_path=out_dir / "figure_07_off.png",
+    )
+
     # Example 2: Basic hierarchical
     results_basic = run_hierarchical_simulation(
         hierarchical_mode="basic",
         n_steps=5000,
-        plot=True,
+        plot=False,
     )
+    plot_results(
+        results_basic,
+        "basic",
+        save_path=out_dir / "figure_07_basic.png",
+    )
+
     # Example 3: Full hierarchical
     results_full = run_hierarchical_simulation(
         hierarchical_mode="full",
         n_steps=5000,
-        plot=True,
+        plot=False,
     )
+    plot_results(
+        results_full,
+        "full",
+        save_path=out_dir / "figure_07_full.png",
+    )
+
     # Example 4: Compare all modes
-    compare_modes()
+    compare_modes(save_path=out_dir / "figure_07_comparison.png")
+
     print("\n" + "=" * 70)
     print("✅ Examples complete!")
     print("=" * 70 + "\n")
+
+
+if __name__ == "__main__":
+    main()
