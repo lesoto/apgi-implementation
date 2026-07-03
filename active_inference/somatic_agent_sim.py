@@ -298,6 +298,7 @@ def compute_m_hat_lead_lag(log: TrialLog, max_lag: int = 5) -> dict:
         return {"peak_lag": None, "peak_corr": float("nan"), "leads": False}
     lags = range(-max_lag, max_lag + 1)
     corrs = []
+    informative = []
     for lag in lags:
         if lag < 0:
             a, c = m_hat[: n + lag], b[-lag:]
@@ -306,10 +307,24 @@ def compute_m_hat_lead_lag(log: TrialLog, max_lag: int = 5) -> dict:
         else:
             a, c = m_hat, b
         if np.std(a) < 1e-9 or np.std(c) < 1e-9:
-            corrs.append(0.0)
+            # Undefined correlation (constant series over this lag window) —
+            # not a genuine zero, so it must not compete in the argmax below.
+            corrs.append(float("nan"))
+            informative.append(False)
         else:
             corrs.append(float(np.corrcoef(a, c)[0, 1]))
-    peak_idx = int(np.argmax(corrs))
+            informative.append(True)
+    if not any(informative):
+        return {
+            "peak_lag": None,
+            "peak_corr": float("nan"),
+            "leads": False,
+            "all_lags": list(lags),
+            "all_corrs": corrs,
+            "indeterminate": True,
+        }
+    ranked = [c if inf else -np.inf for c, inf in zip(corrs, informative)]
+    peak_idx = int(np.argmax(ranked))
     peak_lag = list(lags)[peak_idx]
     return {
         "peak_lag": peak_lag,
@@ -317,6 +332,7 @@ def compute_m_hat_lead_lag(log: TrialLog, max_lag: int = 5) -> dict:
         "leads": peak_lag < 0,
         "all_lags": list(lags),
         "all_corrs": corrs,
+        "indeterminate": False,
     }
 
 

@@ -153,8 +153,12 @@ class APGIConfig(BaseModel):
     use_kuramoto: bool = Field(default=False, description="Enable Kuramoto oscillators")
     kuramoto_tau_xi: float = Field(default=1.0, gt=0, description="OU noise correlation timescale")
     kuramoto_sigma_xi: float = Field(default=0.1, ge=0, description="OU noise amplitude")
-    kuramoto_reset_amount: float = Field(
-        default=3.14159, gt=0, description="Phase reset on ignition (radians)"
+    kuramoto_reset_amount: float | None = Field(
+        default=None,
+        description="Legacy additive phase reset on ignition (radians). "
+        "None (default) selects the canonical zero-phase reset via "
+        "theta_coupling; a positive float restores the legacy additive "
+        "behavior.",
     )
     # Hierarchical mode
     hierarchical_mode: Literal["off", "basic", "advanced", "full"] | None = Field(

@@ -230,7 +230,13 @@ class NestedResonanceSystem:
         self.S[level] *= rho_S
         self.theta[level] = min(self.theta[level] + delta_refractory, self.theta_max)
         if reset_phase:
-            delta = (theta_coupling - self.phi[level]) % (2.0 * np.pi)
+            # Signed shortest-path correction, wrapped to (-pi, pi]. Using the
+            # unsigned [0, 2*pi) wrap here would still land the igniting level
+            # on theta_coupling (mod 2*pi), but would turn small negative
+            # corrections into large positive ones before the broadcast below
+            # scales them out to neighbors, propagating phase in the wrong
+            # direction across the hierarchy.
+            delta = (theta_coupling - self.phi[level] + np.pi) % (2.0 * np.pi) - np.pi
             self.phi[level] = (self.phi[level] + delta) % (2.0 * np.pi)
             decay = phase_broadcast_decay if phase_broadcast_decay is not None else (
                 self.kappa_up if self.kappa_up > 0.0 else 0.5

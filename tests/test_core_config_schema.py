@@ -8,6 +8,19 @@ from pydantic import ValidationError
 from core.config_schema import APGIConfig, create_production_config
 
 
+class TestAPGIConfigAcceptsRuntimeConfig:
+    """The shipped runtime CONFIG dict (config.py) must validate cleanly
+    through this schema — it's an optional validator layered on top of the
+    actual runtime config, not a competing source of truth, so it must never
+    reject values the pipeline itself ships and uses by default."""
+
+    def test_from_dict_accepts_shipped_config(self):
+        from config import CONFIG
+
+        config = APGIConfig.from_dict(CONFIG)
+        assert config.kuramoto_reset_amount is None
+
+
 class TestAPGIConfigDefaults:
     """Tests for APGIConfig default values."""
 
@@ -157,7 +170,7 @@ class TestAPGIConfigDefaults:
         assert config.use_kuramoto is False
         assert config.kuramoto_tau_xi == 1.0
         assert config.kuramoto_sigma_xi == 0.1
-        assert config.kuramoto_reset_amount == 3.14159
+        assert config.kuramoto_reset_amount is None
 
 
 class TestAPGIConfigValidation:
@@ -475,10 +488,17 @@ class TestAPGIConfigValidation:
         with pytest.raises(ValidationError):
             APGIConfig(kuramoto_sigma_xi=-0.1)
 
-    def test_kuramoto_reset_amount_must_be_positive(self):
-        """Should reject non-positive reset_amount."""
-        with pytest.raises(ValidationError):
-            APGIConfig(kuramoto_reset_amount=0)
+    def test_kuramoto_reset_amount_accepts_none_for_canonical_reset(self):
+        """None (the default) selects the canonical zero-phase reset and must
+        validate — it must not be rejected as if it were the legacy
+        positive-float-only field."""
+        config = APGIConfig(kuramoto_reset_amount=None)
+        assert config.kuramoto_reset_amount is None
+
+    def test_kuramoto_reset_amount_accepts_legacy_float(self):
+        """An explicit float still selects the legacy additive reset."""
+        config = APGIConfig(kuramoto_reset_amount=3.14159)
+        assert config.kuramoto_reset_amount == 3.14159
 
     def test_n_levels_range(self):
         """Should enforce 1 <= n_levels <= 10."""

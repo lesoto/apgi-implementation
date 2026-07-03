@@ -179,6 +179,37 @@ class TestMHatLeadLag:
         result = compute_m_hat_lead_lag(log, max_lag=5)
         assert result["peak_lag"] is None
 
+    def test_constant_series_is_indeterminate_not_leading(self):
+        """A flat m_hat/ignition series (e.g. no ignition events at all) has
+        undefined correlation at every lag. argmax over undefined ("0.0")
+        correlations used to pick the first lag (-max_lag) and report
+        leads=True, which could make Protocol 2.C look confirmed on runs
+        with no signal at all. It must report indeterminate instead."""
+        from active_inference.somatic_agent_sim import TrialLog
+
+        n = 20
+        log = TrialLog()
+        log.m_hat = [0.5] * n
+        log.ignition = [0] * n
+        result = compute_m_hat_lead_lag(log, max_lag=5)
+        assert result["peak_lag"] is None
+        assert result["leads"] is False
+        assert result["indeterminate"] is True
+
+    def test_genuine_signal_is_not_indeterminate(self):
+        from active_inference.somatic_agent_sim import TrialLog
+
+        rng = np.random.default_rng(0)
+        n = 100
+        m_hat = rng.normal(size=n)
+        b = np.zeros(n)
+        b[2:] = (m_hat[:-2] > 0).astype(float)
+        log = TrialLog()
+        log.m_hat = m_hat.tolist()
+        log.ignition = b.astype(int).tolist()
+        result = compute_m_hat_lead_lag(log, max_lag=5)
+        assert result["indeterminate"] is False
+
 
 class TestRunProtocol2:
     def test_all_five_agent_types_present(self):

@@ -2,6 +2,7 @@
 (oscillation.kuramoto, oscillation.threshold_modulation, hierarchy.resonance)."""
 
 import numpy as np
+import pytest
 
 from hierarchy.resonance import NestedResonanceSystem, build_resonance_system
 from oscillation.kuramoto import KuramotoOscillators
@@ -82,6 +83,23 @@ class TestResonanceSystemPhaseResetWiring:
         sys.apply_level_ignition(level=0)
         assert sys.phi[0] == 0.0
         assert sys.phi[1] != original_phi1
+
+    def test_broadcast_uses_signed_shortest_path_correction(self):
+        """A small negative correction (theta_coupling below the current
+        phase) must broadcast as a small negative-equivalent shift to
+        neighbors, not get inflated into a near-full-circle positive one by
+        an unsigned [0, 2*pi) wrap before the decay is applied."""
+        sys = build_resonance_system(
+            n_levels=3, taus=np.array([1.0, 10.0, 100.0]), theta_base=1.0, dt=1.0
+        )
+        sys.phi = np.array([2.0, 0.2, 4.0])
+        sys.apply_level_ignition(level=1, theta_coupling=0.0, phase_broadcast_decay=0.5)
+        # The reset lands on 0.0 mod 2*pi; floating-point subtraction can
+        # land a hair below zero, which the (0, 2*pi) wrap then reports as
+        # ~2*pi rather than ~0 — both are the same angle.
+        assert min(sys.phi[1], abs(sys.phi[1] - 2 * np.pi)) == pytest.approx(0.0, abs=1e-9)
+        assert sys.phi[0] == pytest.approx(1.9)
+        assert sys.phi[2] == pytest.approx(3.9)
 
 
 class TestOUPhaseNoiseDefault:
