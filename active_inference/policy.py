@@ -1,16 +1,20 @@
 """Active Inference Action Loop — §19 APGI Full Specs.
 Implements:
-  aₜ = argmin_a E[F(a)]       (policy selection)
-where Expected Free Energy decomposes as:
-  F(a) = w_epi · expected_surprise(a)
-       - w_prag · expected_salience_gain(a)
-       + w_met  · metabolic_cost(a)
+  aₜ = argmin_a EFE(a)       (policy selection)
+where Expected Free Energy (EFE) decomposes as:
+  EFE(a) = w_epi · expected_surprise(a)
+         - w_prag · expected_salience_gain(a)
+         + w_met  · metabolic_cost(a)
+NOTATION: EFE is the unique symbol for Expected Free Energy throughout the
+APGI series, and is explicitly DISTINCT from variational free energy F
+(nats; Friston) and Gibbs free energy G (joules). This module uses "EFE"
+throughout (not bare "F") to avoid the conflation the spec warns against.
 Actions feed back into ignition dynamics through three channels (§19):
   1. Sensory consequence   → Δx̂ₑ  (changes future εₜ)
   2. Interoceptive         → ΔM    (metabolic state → θₜ via allostatic ODE)
   3. Uncertainty reduction → ΔΣ   (reduces Σₜ, raises Πₜ)
 Policy posterior uses a Boltzmann softmax:
-  p(a) ∝ exp(−γ_policy · F(a))
+  p(a) ∝ exp(−γ_policy · EFE(a))
 The MAP action is returned as the selected policy.
 """
 
@@ -47,20 +51,33 @@ def default_action_params() -> np.ndarray:
 class PolicyResult:
     """Outcome of one policy-selection step."""
 
-    action_idx: int  # selected action index (argmin F)
+    action_idx: int  # selected action index (argmin EFE)
     action_label: str  # human-readable label if available
-    F_values: list[float]  # E[F(a)] for each candidate action
+    efe_values: list[float]  # EFE(a) for each candidate action
     p_policies: list[float]  # Boltzmann posterior p(a) over actions
-    expected_free_energy: float  # F of the selected action
+    expected_free_energy: float  # EFE of the selected action
 
 
 @dataclass
 class ActionFeedback:
-    """The three spec-mandated feedback effects of the selected action (§19)."""
+    """The three spec-mandated feedback effects of the selected action (§19).
+    NOTE on the M symbol collision (Notation Appendix: "M(c,a) vs M(t) —
+    Somatic marker vs metabolic state share the glyph M"): delta_M below
+    updates the SOMATIC MARKER M(c,a) (the precision-modulation variable,
+    range [-2, +2]); delta_metabolic_state updates the DISTINCT continuous
+    metabolic state M(t) (range [0, 1], Dynamical Formulation §13/§14) that
+    channel 2 is actually specified to affect: "motor actions change
+    metabolic state M, modulating θ_t via allostatic feedback." Both are
+    populated by this action-cost feedback since both are physiologically
+    plausible consequences of costly actions, but only metabolic_state
+    feeds the threshold (via C(t) in pipeline.py); the somatic marker
+    continues to feed interoceptive precision only, as before.
+    """
 
     delta_x_hat_e: float  # Sensory consequence: shift in exteroceptive prediction
     delta_x_hat_i: float  # Sensory consequence: shift in interoceptive prediction
-    delta_M: float  # Interoceptive consequence: metabolic state change
+    delta_M: float  # Interoceptive consequence: somatic marker M(c,a) change
+    delta_metabolic_state: float  # Interoceptive consequence: metabolic state M(t) change -> theta_t
     delta_sigma2_e: float  # Epistemic consequence: change in exteroceptive variance
     delta_sigma2_i: float  # Epistemic consequence: change in interoceptive variance
 
@@ -77,7 +94,9 @@ def compute_expected_free_energy(
     w_pragmatic: float = 1.0,
     w_metabolic: float = 0.5,
 ) -> float:
-    """Scalar Expected Free Energy F(a) for one candidate action.
+    """Scalar Expected Free Energy EFE(a) for one candidate action.
+    NOTATION: EFE, not F — F is reserved for variational free energy
+    (nats; Friston), a distinct quantity. See module docstring.
     Components
     ----------
     Epistemic:  expected residual variance after the action reduces uncertainty.
@@ -92,7 +111,7 @@ def compute_expected_free_energy(
     Metabolic:  direct ATP cost of executing the action (§14 cost model).
     Returns
     -------
-    F(a) — scalar. Smaller means the action is preferred.
+    EFE(a) — scalar. Smaller means the action is preferred.
     """
     total_sigma2 = sigma2_e + sigma2_i
     # Epistemic term: residual uncertainty after epistemic gain
@@ -100,12 +119,12 @@ def compute_expected_free_energy(
     # Pragmatic term: signed ignition margin (φ-space) — reward-seeking > 0, threat < 0
     ignition_margin = S - theta
     pragmatic_gain = action_sensory_shift * ignition_margin
-    F = (
+    efe = (
         w_epistemic * sigma2_after
         - w_pragmatic * pragmatic_gain
         + w_metabolic * action_metabolic_cost
     )
-    return float(F)
+    return float(efe)
 
 
 def _softmax(x: np.ndarray, gamma: float) -> np.ndarray:
@@ -191,7 +210,7 @@ class ActiveInferenceAgent:
         self.gamma_neg = float(gamma_neg)
         # Running history for diagnostics
         self.action_history: list[int] = []
-        self.F_history: list[list[float]] = []
+        self.efe_history: list[list[float]] = []
 
     def select_policy(
         self,
@@ -200,7 +219,7 @@ class ActiveInferenceAgent:
         S: float,
         theta: float,
     ) -> PolicyResult:
-        """Compute E[F(a)] for all actions and return the MAP policy.
+        """Compute EFE(a) for all actions and return the MAP policy.
         Parameters
         ----------
         sigma2_e, sigma2_i : float
@@ -211,9 +230,9 @@ class ActiveInferenceAgent:
             Current ignition threshold.
         Returns
         -------
-        PolicyResult with selected action, F values, and policy posterior.
+        PolicyResult with selected action, EFE values, and policy posterior.
         """
-        F_values = np.array(
+        efe_values = np.array(
             [
                 compute_expected_free_energy(
                     sigma2_e=sigma2_e,
@@ -231,18 +250,18 @@ class ActiveInferenceAgent:
             ],
             dtype=float,
         )
-        p_policies = _softmax(F_values, self.policy_precision)
-        action_idx = int(np.argmin(F_values))
+        p_policies = _softmax(efe_values, self.policy_precision)
+        action_idx = int(np.argmin(efe_values))
         label = ACTION_LABELS[action_idx] if action_idx < len(ACTION_LABELS) else str(action_idx)
         result = PolicyResult(
             action_idx=action_idx,
             action_label=label,
-            F_values=F_values.tolist(),
+            efe_values=efe_values.tolist(),
             p_policies=p_policies.tolist(),
-            expected_free_energy=float(F_values[action_idx]),
+            expected_free_energy=float(efe_values[action_idx]),
         )
         self.action_history.append(action_idx)
-        self.F_history.append(F_values.tolist())
+        self.efe_history.append(efe_values.tolist())
         return result
 
     def apply_action_feedback(
@@ -262,8 +281,15 @@ class ActiveInferenceAgent:
             transform (α⁺ for reward-seeking, α⁻ for threat-avoidance).
         Channel 2 — Interoceptive / metabolic consequence (§19 pt 2):
             ΔM = −metabolic_feedback_rate · action_metabolic_cost
+            Δmetabolic_state = −metabolic_feedback_rate · action_metabolic_cost
             Costly actions deplete metabolic state; epistemic gain partially
-            offsets the cost via reduced future surprise.
+            offsets the cost via reduced future surprise. Both the somatic
+            marker M(c,a) and the distinct continuous metabolic state M(t)
+            (Notation Appendix: "M(c,a) vs M(t) share the glyph M") receive
+            the same depletion signal here, since a costly action plausibly
+            affects both; only metabolic_state is wired to the threshold
+            (via C(t), see pipeline.py) — matching the spec text that
+            channel 2 modulates θ_t via allostatic feedback.
         Channel 3 — Uncertainty reduction (§19 pt 3):
             ΔΣₑ = −precision_update_rate · action_epistemic_gain · sigma2_e
             ΔΣᵢ = −precision_update_rate · action_epistemic_gain · sigma2_i
@@ -283,6 +309,10 @@ class ActiveInferenceAgent:
         delta_x_hat_i = self.sensory_feedback_rate * sensory_shift * phi_z_i
         # Channel 2: metabolic state change (negative = depletion)
         delta_M = -self.metabolic_feedback_rate * metabolic_cost
+        # Distinct continuous metabolic state M(t) — same depletion signal,
+        # but tracked separately so it can feed C(t)/theta_t without
+        # conflating it with the somatic marker's [-2,+2] range.
+        delta_metabolic_state = -self.metabolic_feedback_rate * metabolic_cost
         # Channel 3: variance reduction (bounded — cannot go below zero)
         reduction = self.precision_update_rate * epistemic_gain
         delta_sigma2_e = -reduction * sigma2_e
@@ -291,6 +321,7 @@ class ActiveInferenceAgent:
             delta_x_hat_e=delta_x_hat_e,
             delta_x_hat_i=delta_x_hat_i,
             delta_M=delta_M,
+            delta_metabolic_state=delta_metabolic_state,
             delta_sigma2_e=delta_sigma2_e,
             delta_sigma2_i=delta_sigma2_i,
         )
@@ -298,4 +329,4 @@ class ActiveInferenceAgent:
     def reset(self) -> None:
         """Clear history (call between trials or paradigm runs)."""
         self.action_history.clear()
-        self.F_history.clear()
+        self.efe_history.clear()

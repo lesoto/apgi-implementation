@@ -1,5 +1,14 @@
 """Pydantic configuration schema for type-safe APGI configuration.
 Provides strict validation with clear error messages for production deployments.
+ROLE — this schema is a distinct, OPTIONAL validation path from the one
+`APGIPipeline` actually runs at construction time. `APGIPipeline.__init__`
+calls `core.validation.validate_config()` (a plain-dict validator) directly;
+`APGIConfig` is not wired into the pipeline and must be invoked explicitly
+by callers who want Pydantic-style strict validation (e.g. before writing a
+config to disk, building a UI form, or validating user-supplied JSON) ahead
+of constructing a pipeline. Kept as a complete field-for-field mirror of
+config.py's CONFIG dict so it does not silently pass configs that are
+missing keys the pipeline actually reads.
 """
 
 from __future__ import annotations
@@ -89,10 +98,25 @@ class APGIConfig(BaseModel):
     kappa_e: float = Field(default=0.01, ge=0, description="Exteroceptive prediction rate")
     kappa_i: float = Field(default=0.01, ge=0, description="Interoceptive prediction rate")
     # Multi-scale parameters
-    timescale_k: float = Field(default=1.6, gt=1, lt=3, description="Timescale expansion factor")
+    # NOTE: k has two distinct spec meanings that must not be conflated
+    # (Notation Appendix, Cross-Series Notation Consistency table):
+    #   - Canonical inter-level coarse-graining ratio ≈133 (Δ≈2.1 log-decades
+    #     per level), spanning τ_min≈100ms to τ_max≈1yr across ~5 levels.
+    #   - Hasson et al. (2008) ~1.3-2.0 is the *within-level* adjacent
+    #     cortical-region gradient ratio — a distinct quantity that must
+    #     never be substituted for the inter-level ratio (doing so yields
+    #     L≈49 instead of L≈5 in the level-count formula).
+    # The upper bound here previously capped this field at <3, which made
+    # the spec-mandated ≈133 value impossible to configure. Bounded only by
+    # sane numerical limits now; see hierarchy.coupling.K_INTER_LEVEL_CANONICAL
+    # for the canonical constant and estimate_hierarchy_levels() for the
+    # level-count formula that uses it.
+    timescale_k: float = Field(default=1.6, gt=1, le=1000, description="Timescale expansion factor")
     # Thermodynamic constraints
     use_thermodynamic_cost: bool = Field(default=False, description="Enable Landauer cost")
-    k_boltzmann: float = Field(default=1.38e-23, gt=0, description="Boltzmann constant")
+    k_boltzmann: float = Field(
+        default=1.380649e-23, gt=0, description="Boltzmann constant (J/K), CODATA exact value"
+    )
     T_env: float = Field(default=310.0, gt=0, description="Environmental temperature (K)")
     kappa_meta: float = Field(
         default=1e20,
@@ -146,6 +170,107 @@ class APGIConfig(BaseModel):
     )
     # Stability analysis
     use_stability_analysis: bool = Field(default=False, description="Enable stability analysis")
+
+    # --- Fields below were previously missing from this schema even though
+    # they are live keys in config.py's CONFIG dict — this schema was an
+    # incomplete snapshot that would silently validate configs missing
+    # parameters the pipeline actually reads. Added for completeness so
+    # APGIConfig is an accurate (optional, strict-validation) mirror of the
+    # runtime config surface. ---
+
+    # Signed nonlinear error transform φ(ε) (§6)
+    alpha_plus: float = Field(default=1.0, ge=0.5, le=2.0, description="Reward/approach gain α+")
+    alpha_minus: float = Field(default=1.0, ge=0.5, le=2.0, description="Threat/avoidance gain α-")
+    gamma_plus: float = Field(default=2.0, ge=1.0, le=5.0, description="Reward saturation slope γ+")
+    gamma_minus: float = Field(
+        default=2.0, ge=1.0, le=5.0, description="Avoidance saturation slope γ-"
+    )
+    # Serotonin
+    beta_5ht: float = Field(default=0.0, description="5-HT patience/threshold offset")
+    # Somatic marker (β_SM, exponential gain — distinct from β_DA and the
+    # linear-form β_somatic; see Notation Appendix "β RANGE RECONCILIATION")
+    beta_sm: float = Field(default=0.3, ge=0.1, le=1.2, description="Somatic-marker gain β_SM")
+    use_somatic_precision: bool = Field(
+        default=False, description="Enable exponential somatic precision modulation"
+    )
+    M_somatic: float = Field(default=0.0, ge=-2.0, le=2.0, description="Initial somatic marker M(c,a)")
+    # Post-ignition reset (uppercase spec-mirroring aliases)
+    RHO_RETAIN: float = Field(default=0.1, gt=0, lt=1, description="Signal retention fraction ρ")
+    DELTA_RESET: float = Field(default=0.5, ge=0, description="Post-ignition threshold boost")
+    # Precision coupling ODE (hierarchical)
+    tau_pi: float = Field(default=1000.0, gt=0, description="Precision decay time constant")
+    C_down: float = Field(default=0.1, ge=0, description="Top-down precision coupling strength")
+    C_up: float = Field(default=0.05, ge=0, description="Bottom-up precision coupling strength")
+    psi_type: Literal["identity", "tanh", "softsign"] = Field(
+        default="identity", description="Bottom-up nonlinear transfer ψ(ε) type"
+    )
+    gamma_psi: float = Field(default=2.0, ge=1.0, le=5.0, description="Gain of ψ(ε)=tanh(γ_ψ·ε)")
+    # Hierarchical timescale configuration
+    tau_0: float = Field(default=10.0, gt=0, description="Base timescale for index-0 level (ms)")
+    k: float = Field(default=1.6, gt=1, description="Timescale ratio between levels")
+    hierarchical_timescale_mode: Literal["custom", "canonical"] = Field(
+        default="custom", description="Timescale derivation mode"
+    )
+    hierarchy_tau_min: float = Field(
+        default=100.0, gt=0, description="Canonical-mode tau_min (ms, spec Level 1)"
+    )
+    hierarchy_tau_max: float = Field(
+        default=3.0e10, gt=0, description="Canonical-mode tau_max (ms, spec Level 4)"
+    )
+    k_canonical: float = Field(
+        default=133.0, gt=1, description="Canonical inter-level coarse-graining ratio"
+    )
+    # Cross-Level Threshold Resonance (Russian Doll architecture)
+    use_resonance: bool = Field(default=True, description="Enable per-level resonance system")
+    resonance_kappa_down: float = Field(default=0.1, ge=0, description="Top-down PAC coupling")
+    resonance_kappa_up: float = Field(default=0.0, ge=0, description="Bottom-up suppression")
+    resonance_phi_noise_std: float = Field(default=0.0, ge=0, description="Per-step phase jitter")
+    # Reservoir extras
+    reservoir_weight: float = Field(default=0.1, ge=0, description="w_res in S_global formula")
+    reservoir_ridge_alpha: float = Field(
+        default=1e-6, gt=0, description="Ridge regression regularization"
+    )
+    reservoir_replaces_signal: bool = Field(
+        default=False, description="MathSpec step-15 replacement mode vs additive add-on mode"
+    )
+    reservoir_as_threshold: bool = Field(
+        default=False, description="Use reservoir as the threshold source (Mode B, spec §10)"
+    )
+    # Active Inference Action Loop (§19)
+    use_active_inference: bool = Field(default=False, description="Enable perception-action loop")
+    ai_on_ignition_only: bool = Field(default=True, description="Fire only on B_t=1")
+    ai_n_actions: int = Field(default=3, gt=0, description="Number of candidate policies K")
+    ai_policy_precision: float = Field(default=2.0, gt=0, description="Boltzmann sharpness γ_policy")
+    ai_w_epistemic: float = Field(default=1.0, ge=0, description="Weight on epistemic term")
+    ai_w_pragmatic: float = Field(default=1.0, ge=0, description="Weight on pragmatic term")
+    ai_w_metabolic: float = Field(default=0.5, ge=0, description="Weight on metabolic cost term")
+    ai_sensory_feedback_rate: float = Field(default=0.1, ge=0, description="Channel-1 scale")
+    ai_metabolic_feedback_rate: float = Field(default=0.1, ge=0, description="Channel-2 scale")
+    ai_precision_update_rate: float = Field(default=0.05, ge=0, description="Channel-3 scale")
+    ai_action_params: list[list[float]] | None = Field(
+        default=None, description="Custom action parameter table (K, 3), or None for default"
+    )
+    # Metabolic state M(t) — distinct from the somatic marker M(c,a) above
+    metabolic_state0: float = Field(default=0.5, ge=0, le=1, description="Initial metabolic state")
+    c_metabolic_state: float = Field(
+        default=0.0, ge=0, description="C(t) coefficient on metabolic_state(t)"
+    )
+    # Circadian/ultradian threshold modulation (§27, peripheral)
+    use_circadian_modulation: bool = Field(default=False, description="Enable circadian rhythm")
+    circadian_t0: float = Field(default=0.0, description="Initial circadian clock time (s)")
+    circadian_A_circ: float = Field(default=0.1, ge=0, description="Circadian amplitude")
+    circadian_T_circ: float = Field(default=86400.0, gt=0, description="Circadian period (s)")
+    circadian_phi_circ: float = Field(default=0.0, description="Circadian phase offset (rad)")
+    circadian_A_ultradian: float = Field(default=0.05, ge=0, description="Ultradian amplitude")
+    circadian_T_ultradian: float = Field(default=5400.0, gt=0, description="Ultradian period (s)")
+    circadian_phi_ultradian: float = Field(default=0.0, description="Ultradian phase offset (rad)")
+    # Reference range tuples (Notation Appendix canonical ranges; informational
+    # only — not consumed as scalar parameters anywhere in the pipeline)
+    BETA_SM_RANGE: tuple[float, float] = Field(default=(0.1, 1.2))
+    BETA_SM_WAKING_RANGE: tuple[float, float] = Field(default=(0.3, 0.8))
+    BETA_SOMATIC_LINEAR_RANGE: tuple[float, float] = Field(default=(0.5, 2.5))
+    TAU_THETA_ALLOSTATIC: float = Field(default=20.0, gt=0)
+    TAU_THETA_RECOVERY: float = Field(default=0.45, gt=0)
 
     @field_validator("pi_max")
     @classmethod

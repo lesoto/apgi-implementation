@@ -127,7 +127,7 @@ class TestAPGIConfigDefaults:
         """Should have correct default thermodynamic settings."""
         config = APGIConfig()
         assert config.use_thermodynamic_cost is False
-        assert config.k_boltzmann == 1.38e-23
+        assert config.k_boltzmann == 1.380649e-23
         assert config.T_env == 310.0
         assert config.kappa_meta == 1e20
         assert config.kappa_units == "dimensionless"
@@ -381,14 +381,17 @@ class TestAPGIConfigValidation:
             APGIConfig(kappa_i=-0.1)
 
     def test_timescale_k_range(self):
-        """Should enforce 1 < timescale_k < 3."""
+        """Should enforce 1 < timescale_k <= 1000 (spec canonical inter-level ratio is ~133)."""
         with pytest.raises(ValidationError):
             APGIConfig(timescale_k=1.0)
         with pytest.raises(ValidationError):
-            APGIConfig(timescale_k=3.0)
-        with pytest.raises(ValidationError):
             APGIConfig(timescale_k=0.5)
+        with pytest.raises(ValidationError):
+            APGIConfig(timescale_k=1001.0)
         APGIConfig(timescale_k=1.5)
+        # Canonical Notation Appendix inter-level ratio must be configurable
+        # (previously capped at <3, making the spec value impossible to set).
+        APGIConfig(timescale_k=133.0)
         APGIConfig(timescale_k=2.5)
 
     def test_k_boltzmann_must_be_positive(self):

@@ -6,6 +6,22 @@ K_B = 1.380649e-23  # Boltzmann constant (J/K)
 ATP_ENERGY = 5.2e-21  # Energy per ATP molecule at ~300K (~50 kJ/mol)
 TYPICAL_TEMP = 310.0  # Body temperature in Kelvin (~37°C)
 
+# Named biological reference constants (MathSpec §11 / Notation Appendix
+# "UNIT BRIDGE" / "EMPIRICAL TARGET" sections) — quoted directly from the
+# spec rather than re-derived, since they anchor the qualitative overhead
+# narrative independent of which ATP-energy convention a given calculation
+# uses internally.
+LANDAUER_MINIMUM_ATP_PER_BIT = 0.06  # ATP/bit at 310K (spec-cited: kT·ln2 / E_ATP)
+KAPPA_CANONICAL_ATP_PER_BIT = 100.0  # spec's order-of-magnitude κ estimate
+BIOLOGICAL_OVERHEAD_TYPICAL = 1700.0  # κ / Landauer-minimum ≈ 100 / 0.06 ≈ 1700×
+
+# Conditional consistency bands for κ (ATP/bit), Notation Appendix
+# "CONDITIONAL CONSISTENCY BANDS FOR κ": conditional on the network-state
+# bit-count convention; pending bit-count calibration these are consistency
+# targets, not a standalone falsifier.
+KAPPA_CONSISTENT_RANGE = (10.0, 1000.0)
+KAPPA_REQUIRES_EXPLANATION_RANGE = (1000.0, 10000.0)
+
 
 def estimate_bits_erased(S: float, eps_stab: float = 1e-6) -> float:
     """Estimate number of bits erased during ignition per §11.
@@ -101,6 +117,55 @@ def estimate_information_content(
     total_info = (info_e + info_i) * bits_per_unit
     # Cap at reasonable maximum (prevents infinite bits)
     return float(min(total_info, 100.0))
+
+
+def classify_kappa_consistency(kappa: float) -> dict:
+    """Classify a measured/estimated κ (ATP/bit) against the Notation
+    Appendix's conditional consistency bands.
+    Bands (conditional on the network-state bit-count convention; pending
+    bit-count calibration these are consistency targets, not a standalone
+    falsifier per §Empirical Target):
+      - "consistent":            κ ∈ [10, 1000]
+      - "requires_explanation":  κ ∈ (1000, 10000]
+      - "bridge_inconsistent":   κ < 10 or κ > 10000
+    Args:
+        kappa: Measured or estimated metabolic bridge coefficient (ATP/bit)
+    Returns:
+        Dictionary with the classification label, the κ value, the
+        overhead relative to the Landauer floor, and a human-readable note.
+    """
+    if kappa < 0:
+        raise ValueError(f"kappa must be >= 0, got {kappa}")
+    lo, hi = KAPPA_CONSISTENT_RANGE
+    _, hi_explain = KAPPA_REQUIRES_EXPLANATION_RANGE
+    if lo <= kappa <= hi:
+        label = "consistent"
+        note = (
+            f"κ={kappa:.3g} ATP/bit falls within the network-state consistency "
+            f"window [{lo:.0f}, {hi:.0f}]."
+        )
+    elif hi < kappa <= hi_explain:
+        label = "requires_explanation"
+        note = (
+            f"κ={kappa:.3g} ATP/bit exceeds {hi:.0f} but is within {hi_explain:.0f}; "
+            "requires explanation (e.g. inter-individual metabolic variability, "
+            "PET measurement uncertainty) but does not trigger automatic disconfirmation."
+        )
+    else:
+        label = "bridge_inconsistent"
+        note = (
+            f"κ={kappa:.3g} ATP/bit is outside [{lo:.0f}, {hi_explain:.0f}]; "
+            "bridge-inconsistent pending the prerequisite bit-count-fixing measurement."
+        )
+    overhead = kappa / LANDAUER_MINIMUM_ATP_PER_BIT if LANDAUER_MINIMUM_ATP_PER_BIT > 0 else float("inf")
+    return {
+        "kappa": kappa,
+        "classification": label,
+        "landauer_overhead": overhead,
+        "consistent_range": KAPPA_CONSISTENT_RANGE,
+        "requires_explanation_range": KAPPA_REQUIRES_EXPLANATION_RANGE,
+        "note": note,
+    }
 
 
 def check_thermodynamic_feasibility(

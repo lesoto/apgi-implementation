@@ -19,7 +19,7 @@ from typing import Any
 import numpy as np
 
 # Physical constants
-K_BOLTZMANN = 1.38e-23  # Boltzmann constant (J/K)
+K_BOLTZMANN = 1.380649e-23  # Boltzmann constant (J/K), CODATA exact value
 T_BODY = 310.0  # Body temperature (K, 37°C)
 LN2 = np.log(2.0)  # Natural log of 2
 # Empirical calibration constants from fMRI literature
@@ -27,14 +27,17 @@ LN2 = np.log(2.0)  # Natural log of 2
 # Typical BOLD signal changes: 1-5% for cognitive tasks
 # Energy spike during ignition: 5-10% increase
 # Conversion factors based on human neuroimaging studies
-# Default calibration values (can be adjusted based on specific fMRI data)
-# Calibrated to produce κ_meta ~ 1000× Landauer minimum (typical neural efficiency)
-# Target: κ_meta = 1000 × 2.97e-21 = 2.97e-18 J/bit
-# With trial data (baseline=1.0, ignition=2.5, bits=6.6, duration=1.0):
-#   total_energy = (1.0 + 2.5*0.5) * factor = 2.25 * factor
-#   κ_meta = 2.25 * factor / (6.6 * 2.97e-21) = 2.25 * factor / 1.96e-20
-#   For κ_meta = 2.97e-18: factor = 2.97e-18 * 1.96e-20 / 2.25 = 2.59e-38
-DEFAULT_BOLD_TO_ENERGY_FACTOR = 2.59e-38  # Joules per 1% BOLD signal change per cm³ tissue
+# MathSpec §11 "BOLD fMRI Calibration of κ_meta": CF is the conversion
+# factor (Joules per 1% BOLD change per cm³ tissue), empirically ~1.2e-18
+# J/(%·cm³) from fMRI literature. This module previously used a
+# reverse-engineered value (2.59e-38, ~20 orders of magnitude smaller) whose
+# own comment disclosed it was chosen post-hoc to hit a specific κ_meta
+# target for one internal test scenario rather than the literature value —
+# config.py and core/config_schema.py already used the correct spec value
+# (1.2e-18) for end-to-end pipeline runs, but direct callers of this
+# module's functions (calibration_utils.py, examples) got the mismatched
+# default. Corrected to match the spec-cited empirical value.
+DEFAULT_BOLD_TO_ENERGY_FACTOR = 1.2e-18  # Joules per 1% BOLD signal change per cm³ tissue
 DEFAULT_TISSUE_VOLUME = 1.0  # cm³ (typical voxel volume)
 DEFAULT_IGNITION_SPIKE_FACTOR = 1.075  # 7.5% energy spike during ignition (midpoint of 5-10%)
 # ATP conversion

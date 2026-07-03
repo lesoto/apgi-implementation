@@ -99,9 +99,14 @@ class TestUpdateMultiscaleFeature:
         with pytest.raises(ValueError, match="tau_i must be > 0"):
             update_multiscale_feature(phi_prev=0.5, z_t=1.0, tau_i=0.0)
 
-    def test_small_tau(self):
-        """Should handle very small tau."""
-        result = update_multiscale_feature(phi_prev=0.5, z_t=1.0, tau_i=0.1)
+    def test_small_tau_diverges(self):
+        """tau_i <= 0.5 must raise: |1 - 1/tau| >= 1 causes integrator divergence (MathSpec §8)."""
+        with pytest.raises(ValueError, match="divergence"):
+            update_multiscale_feature(phi_prev=0.5, z_t=1.0, tau_i=0.1)
+
+    def test_oscillatory_but_bounded_tau(self):
+        """tau_i in (0.5, 1] is sign-alternating but bounded (not divergent) — allowed."""
+        result = update_multiscale_feature(phi_prev=0.5, z_t=1.0, tau_i=0.75)
         assert isinstance(result, float)
 
     def test_large_tau(self):

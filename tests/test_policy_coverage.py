@@ -65,7 +65,7 @@ def test_agent_policy_selection():
     res = agent.select_policy(sigma2_e=1.0, sigma2_i=1.0, S=1.0, theta=0.5)
     assert isinstance(res, PolicyResult)
     assert 0 <= res.action_idx < 3
-    assert len(res.F_values) == 3
+    assert len(res.efe_values) == 3
     # Test with more actions to cover label fallback
     agent5 = ActiveInferenceAgent(n_actions=5)
     res5 = agent5.select_policy(sigma2_e=1.0, sigma2_i=1.0, S=1.0, theta=0.5)

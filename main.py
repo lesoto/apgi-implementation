@@ -98,7 +98,7 @@ def run_standard_pipeline(
     ignition_count = 0
     for t in range(n_steps):
         x_e, x_hat_e, x_i, x_hat_i = generate_synthetic_input(t)
-        result = pipeline.step(x_e, x_hat_e, x_i, x_hat_i)
+        result = pipeline.step(x_e, x_i, x_hat_e, x_hat_i)
         for key in history:
             history[key].append(result[key])
         if result["B"] == 1:
@@ -224,7 +224,7 @@ def run_multiscale_pipeline(
         ) + phi_transform_array(phi_i, _a_pos, _a_neg, _g_pos, _g_neg)
         S_multiscale = float(np.sum(weights * pi_levels * phi_combined))
         # Run standard pipeline for comparison
-        result = pipeline.step(x_e, x_hat_e, x_i, x_hat_i)
+        result = pipeline.step(x_e, x_i, x_hat_e, x_hat_i)
         # Store results
         history["S_multiscale"].append(S_multiscale)
         history["S_standard"].append(result["S"])
@@ -386,8 +386,17 @@ Examples:
         const=True,
         help="Show system information and configuration",
     )
-    parser.add_argument("--demo", action="store_true", help="Run quick demonstration")
-    parser.add_argument("--steps", type=int, default=1000, help="Number of simulation steps")
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Run quick demonstration (100 steps unless --steps is also given)",
+    )
+    parser.add_argument(
+        "--steps",
+        type=int,
+        default=None,
+        help="Number of simulation steps (default: 100 with --demo, else 1000)",
+    )
     parser.add_argument("--output", type=str, help="Save results to JSON file")
     parser.add_argument("--multiscale", action="store_true", help="Enable multi-scale hierarchy")
     parser.add_argument(
@@ -436,6 +445,12 @@ Examples:
         help="Enable strict validation (no auto-adjustments)",
     )
     args = parser.parse_args()
+    # --demo picks a small step count for a quick showcase run unless the
+    # caller explicitly overrides --steps. Previously this flag was parsed
+    # but never consulted (silent no-op — `--demo` ran the identical
+    # 1000-step standard pipeline as no flags at all).
+    if args.steps is None:
+        args.steps = 100 if args.demo else 1000
     # Configure logging
     configure_logging(level=args.log_level, json_output=args.json_logs)
     # Set random seed if provided
@@ -465,6 +480,7 @@ Examples:
     logger.info(
         "apgi_startup",
         version="1.0.0",
+        demo=args.demo,
         strict_mode=args.strict_mode,
         max_history=args.max_history,
     )

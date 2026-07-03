@@ -96,19 +96,30 @@ def compute_interoceptive_precision_exponential(
     pi_max: float = 10.0,
 ) -> float:
     """Compute interoceptive precision with exponential somatic modulation.
-    Formula: Π_i_eff = Π_i_baseline · exp(β · M(c,a))
+    Formula: Π_i_eff = Π_i_baseline · exp(β_SM · M(c,a))
+    This is the CANONICAL somatic-marker gain β_SM (Notation Appendix
+    canonical range [0.1, 1.2], typical waking sub-band [0.3, 0.8]) — kept
+    as the parameter name `beta_somatic` for backward compatibility, but
+    distinct from the *linear-form* weight the Notation Appendix separately
+    calls β_somatic (canonical range [0.5, 2.5], used in the alternate
+    reduced form S += β_somatic·Π_i·|ε_i|, valid only when |β·M| << 1 —
+    not implemented by this function). Also distinct from β_DA (dopaminergic
+    additive error bias, unconstrained real — see apply_dopamine_bias_to_error).
     Where:
     - Π_i_baseline: Baseline precision from variance estimation
-    - β: Somatic bias parameter (typically 0.1-0.5)
+    - β_SM: Somatic-marker exponential gain, canonical [0.1, 1.2]
     - M: Somatic marker ∈ [-2, +2]
+    The clamp is applied AFTER the exponential (not before) so it actually
+    bounds the blow-up: at β_SM=2.5, M=+2, exp(5)≈148, which the clamp caps
+    to pi_max.
     Args:
         pi_baseline: Baseline precision value
-        beta_somatic: Somatic bias weight
+        beta_somatic: β_SM, the exponential somatic-marker gain
         M: Somatic marker value ∈ [-2, +2]
         pi_min: Minimum precision (clamping)
         pi_max: Maximum precision (clamping)
     Returns:
-        Exponentially modulated precision
+        Exponentially modulated precision, clamped to [pi_min, pi_max]
     """
     modulation = np.exp(beta_somatic * M)
     pi_eff = pi_baseline * modulation

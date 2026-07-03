@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*")
 
 
 class LiquidNetwork:
-    def __init__(self, n_units: int = 500, spectral_radius: float = 0.9):
+    def __init__(self, n_units: int = 500, spectral_radius: float = 0.9, res_sparsity: float = 0.15):
         if not (0.7 <= spectral_radius <= 0.95):
             raise ValueError(
                 f"spectral_radius must be in [0.7, 0.95], got {spectral_radius}. "
@@ -18,8 +18,14 @@ class LiquidNetwork:
                 "Values < 0.7 produce insufficient temporal memory; "
                 "values > 0.95 produce non-fading dynamics."
             )
+        if not (0.0 < res_sparsity <= 1.0):
+            raise ValueError(f"res_sparsity must be in (0, 1], got {res_sparsity}")
         self.n = n_units
-        W_raw = np.random.randn(n_units, n_units) * 0.1
+        self.res_sparsity = res_sparsity
+        # Sparse and random (spec §10, density p=0.1-0.2) — previously fully
+        # dense. Masking before spectral normalization below.
+        res_mask = (np.random.rand(n_units, n_units) < res_sparsity).astype(float)
+        W_raw = np.random.randn(n_units, n_units) * 0.1 * res_mask
         # Normalize so ρ(W_res) = spectral_radius, guaranteeing echo state property
         try:
             with np.errstate(all="ignore"):
@@ -74,6 +80,8 @@ class LiquidNetwork:
         S_target: float | None = None,
         theta: float | None = None,
         A_amp: float = 0.0,
+        alpha_res: float | None = None,
+        saturating_amplification: bool = True,
     ) -> np.ndarray:
         """dx/dt = -x/τ + f(W_res x + W_in u) + A_amp * x * [S - θ]_+.
         Args:
@@ -85,6 +93,15 @@ class LiquidNetwork:
             S_target: Current signal for suprathreshold amplification (§10.3)
             theta: Threshold for suprathreshold amplification (§10.3)
             A_amp: Suprathreshold amplification strength (§10.3)
+            alpha_res: Reservoir leak rate α_res = 1/τ (optional; defaults to
+                1/tau_eff). Spec §10.3 stability requirement: the net leak
+                must stay positive, A_amp·[S-θ]_+ < α_res, for the duration
+                of broadcast — checked below when saturating_amplification=False.
+            saturating_amplification: If True (default), use the spec's
+                equivalent saturating form A_amp·x·tanh([S-θ]_+) instead of
+                the unbounded ReLU-gated term A_amp·x·[S-θ]_+. This was
+                previously unconditionally the unbounded form with no
+                stability safeguard at all.
         """
         # Determine time constant
         if tau is not None:
@@ -105,7 +122,23 @@ class LiquidNetwork:
         if S_target is not None and theta is not None and A_amp > 0:
             # [S - θ]_+ is the ReLU of the margin
             margin_plus = max(0.0, S_target - theta)
-            dx_dt += A_amp * self.x * margin_plus
+            if saturating_amplification:
+                # Spec-sanctioned saturating alternative: bounds the
+                # amplification term regardless of how large the margin
+                # grows, guaranteeing the suprathreshold mode decays rather
+                # than diverges without requiring a separate stability check.
+                dx_dt += A_amp * self.x * np.tanh(margin_plus)
+            else:
+                _alpha_res = alpha_res if alpha_res is not None else 1.0 / tau_eff
+                if A_amp * margin_plus >= _alpha_res:
+                    raise ValueError(
+                        f"Suprathreshold amplification unstable: A_amp*[S-θ]_+ "
+                        f"={A_amp * margin_plus:.4f} >= alpha_res={_alpha_res:.4f}. "
+                        "Spec §10.3 requires the net leak to remain positive "
+                        "for the duration of broadcast. Reduce A_amp, or use "
+                        "saturating_amplification=True (the default)."
+                    )
+                dx_dt += A_amp * self.x * margin_plus
         self.x += dt * dx_dt
         return self.x
 

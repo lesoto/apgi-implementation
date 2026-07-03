@@ -17,13 +17,15 @@ from typing import Callable
 
 import numpy as np
 
+from stats.hurst import hurst_from_slope
+
 
 @dataclass(frozen=True)
 class SpectralSignature:
     """Result of spectral signature extraction."""
 
     beta: float  # Spectral exponent
-    hurst: float  # Hurst exponent H = (β + 1) / 2
+    hurst: float  # Hurst exponent, regime-aware conversion (see hurst_from_slope)
     beta_ci_lower: float  # 95% confidence interval lower bound
     beta_ci_upper: float  # 95% confidence interval upper bound
     r_squared: float  # Goodness of fit
@@ -141,7 +143,7 @@ def estimate_spectral_exponent_welch(
     log_p = np.log(psd[mask])
     slope, _, r_squared = robust_log_regression(log_f, log_p)
     beta = -slope
-    hurst = (beta + 1) / 2
+    hurst = hurst_from_slope(beta, warn_near_boundary=False)
     return float(beta), float(r_squared), float(hurst)
 
 
@@ -177,7 +179,7 @@ def estimate_spectral_exponent_periodogram(
     log_p = np.log(psd[mask])
     slope, _, r_squared = robust_log_regression(log_f, log_p)
     beta = -slope
-    hurst = (beta + 1) / 2
+    hurst = hurst_from_slope(beta, warn_near_boundary=False)
     return float(beta), float(r_squared), float(hurst)
 
 
@@ -186,55 +188,42 @@ def estimate_hurst_dfa(
     min_lag: int = 10,
     max_lag: int | None = None,
 ) -> tuple[float, float]:
-    """Estimate Hurst exponent using Detrended Fluctuation Analysis (DFA).
+    """Estimate Hurst exponent using Detrended Fluctuation Analysis (DFA),
+    with a goodness-of-fit (R²) alongside the exponent.
+    Delegates the core DFA computation (integrated profile, windowed linear
+    detrending, RMS fluctuation F(n)) to stats.hurst.dfa_analysis — the
+    single canonical DFA implementation — rather than duplicating that loop
+    here. This function's value-add over the canonical one is the
+    min_lag/max_lag-driven scale selection (matching this module's other
+    spectral-exponent estimators' signature convention) and the R² from
+    robust_log_regression's outlier-resistant log-log fit.
     Args:
         signal: Time series data
-        min_lag: Minimum lag for analysis
+        min_lag: Minimum lag (window size) for analysis
         max_lag: Maximum lag for analysis (default: len(signal)//4)
     Returns:
-        (hurst, r_squared)
+        (hurst, r_squared); (nan, nan) if there is insufficient data for a
+        reliable fit (matching this function's original contract).
     """
+    from stats.hurst import dfa_analysis
+
     signal = np.asarray(signal, dtype=float)
     n = len(signal)
     if max_lag is None:
         max_lag = n // 4
-    # Integrate signal (cumulative sum)
-    y = np.cumsum(signal - np.mean(signal))
-    # Compute fluctuation at different scales
-    scales = np.logspace(np.log10(min_lag), np.log10(max_lag), 20, dtype=int)
-    scales = np.unique(scales)
-    fluctuations = np.zeros_like(scales, dtype=float)
-    valid_scales = []
-    for i, scale in enumerate(scales):
-        # Divide into segments
-        n_segments = n // scale
-        if n_segments < 2:  # Need at least 2 segments for meaningful DFA
-            continue
-        # Fit polynomial trend in each segment
-        fluct = 0
-        for j in range(n_segments):
-            segment = y[j * scale : (j + 1) * scale]
-            if len(segment) < 2:
-                continue
-            x = np.arange(len(segment))
-            try:
-                coeffs = np.polyfit(x, segment, 1)
-                trend = np.polyval(coeffs, x)
-                fluct += np.sum((segment - trend) ** 2)
-            except (np.linalg.LinAlgError, ValueError):
-                continue
-        if n_segments > 0 and fluct > 0:
-            fluctuations[i] = np.sqrt(fluct / (n_segments * scale))
-            valid_scales.append(i)
-    # Filter out invalid scales
-    if len(valid_scales) < 3:
+    if n < 16 or max_lag < min_lag:
         return float("nan"), float("nan")
-    valid_scales_arr = np.array(valid_scales)
-    log_scales = np.log(scales[valid_scales_arr])
-    log_fluct = np.log(fluctuations[valid_scales_arr])
+    scales = np.unique(np.logspace(np.log10(min_lag), np.log10(max_lag), 20, dtype=int))
+    try:
+        _, valid_scales_arr, F_arr = dfa_analysis(signal, scales=scales, order=1)
+    except ValueError:
+        return float("nan"), float("nan")
+    if len(valid_scales_arr) < 3:
+        return float("nan"), float("nan")
+    log_scales = np.log(valid_scales_arr.astype(float))
+    log_fluct = np.log(F_arr)
     slope, _, r_squared = robust_log_regression(log_scales, log_fluct)
-    hurst = float(slope)
-    return float(hurst), float(r_squared)
+    return float(slope), float(r_squared)
 
 
 def bootstrap_confidence_interval(
@@ -368,7 +357,7 @@ def extract_1f_signature(
     # Consensus: use median of estimates
     betas = np.array([e[1] for e in estimates])
     beta_consensus = float(np.median(betas))
-    hurst_consensus = (beta_consensus + 1) / 2
+    hurst_consensus = hurst_from_slope(beta_consensus, warn_near_boundary=False)
     # Use best method (highest R²) for detailed metrics
     best_method = max(estimates, key=lambda x: x[2])
     method_name, beta_best, r2_best, h_best = best_method

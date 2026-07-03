@@ -185,3 +185,41 @@ class TestHierarchicalKuramotoSystem:
         system = HierarchicalKuramotoSystem(n_levels=3)
         factor = system.get_phase_modulation_factor(level=10)
         assert factor == 0.0
+
+
+class TestComputeGammaPerLevel:
+    """Level-specific Gamma^(l) gate, distinct from the global scalar compute_gamma()."""
+
+    def test_shape_matches_n_levels(self):
+        osc = KuramotoOscillators(n_levels=4, frequencies=np.array([0.1, 0.2, 0.3, 0.4]))
+        gamma = osc.compute_gamma_per_level()
+        assert gamma.shape == (4,)
+
+    def test_differs_across_levels_when_phases_differ(self):
+        osc = KuramotoOscillators(n_levels=4, frequencies=np.array([0.1, 0.2, 0.3, 0.4]))
+        osc.set_phases(np.array([0.0, 0.0, np.pi, np.pi]))
+        gamma = osc.compute_gamma_per_level()
+        # Boundary levels (fully in-phase with their only neighbor) should
+        # differ from middle levels (torn between an in-phase and an
+        # anti-phase neighbor).
+        assert gamma[0] != gamma[1]
+        assert gamma[0] == pytest.approx(1.0)
+        assert gamma[1] == pytest.approx(0.0)
+
+    def test_single_level_returns_one(self):
+        osc = KuramotoOscillators(n_levels=1, frequencies=np.array([0.1]))
+        gamma = osc.compute_gamma_per_level()
+        assert gamma[0] == 1.0
+
+    def test_fully_synchronized_gives_all_ones(self):
+        osc = KuramotoOscillators(n_levels=3, frequencies=np.array([0.1, 0.2, 0.3]))
+        osc.set_phases(np.array([1.0, 1.0, 1.0]))
+        gamma = osc.compute_gamma_per_level()
+        assert np.allclose(gamma, 1.0)
+
+    def test_bounded_in_minus_one_to_one(self):
+        rng = np.random.default_rng(0)
+        osc = KuramotoOscillators(n_levels=5, frequencies=np.array([0.1, 0.2, 0.3, 0.4, 0.5]))
+        osc.set_phases(rng.uniform(0, 2 * np.pi, size=5))
+        gamma = osc.compute_gamma_per_level()
+        assert np.all(gamma >= -1.0) and np.all(gamma <= 1.0)

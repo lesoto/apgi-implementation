@@ -148,7 +148,7 @@ class TestSelectPolicy:
     def test_F_values_length_equals_n_actions(self):
         agent = self._agent()
         result = agent.select_policy(sigma2_e=1.0, sigma2_i=1.0, S=0.5, theta=1.0)
-        assert len(result.F_values) == 3
+        assert len(result.efe_values) == 3
 
     def test_p_policies_sum_to_one(self):
         agent = self._agent()
@@ -158,7 +158,7 @@ class TestSelectPolicy:
     def test_action_idx_is_argmin_F(self):
         agent = self._agent()
         result = agent.select_policy(sigma2_e=1.0, sigma2_i=1.0, S=0.5, theta=1.0)
-        assert result.action_idx == int(np.argmin(result.F_values))
+        assert result.action_idx == int(np.argmin(result.efe_values))
 
     def test_high_uncertainty_prefers_explore(self):
         """With large sigma2 and no ignition margin, epistemic term dominates → explore."""
@@ -188,7 +188,7 @@ class TestSelectPolicy:
         for _ in range(5):
             agent.select_policy(sigma2_e=1.0, sigma2_i=1.0, S=0.5, theta=1.0)
         assert len(agent.action_history) == 5
-        assert len(agent.F_history) == 5
+        assert len(agent.efe_history) == 5
 
     def test_reset_clears_history(self):
         agent = self._agent()

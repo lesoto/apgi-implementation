@@ -1,11 +1,18 @@
 """Observable mapping for neural and behavioral validation.
 Implements extraction of neural and behavioral observables from APGI
 dynamics, with key testable predictions per spec §14.
-Observable Mapping (§14):
-- S(t) → LFP/EEG gamma-band power
-- θ(t) → P300/N200 ERP amplitude
-- B(t) → Global ignition (gamma synchrony)
-- RT variability, response criterion, decision rate
+Observable Mapping (MathSpec §14, full table):
+- S(t)     → LFP/EEG gamma-band power                  | —
+- θ(t)     → P300/N200 ERP amplitude threshold          | RT variability; response criterion
+- B(t)     → Global ignition (gamma synchrony)          | Overt decision / button press
+- P_ign(t) → Pre-stimulus alpha-band suppression        | Hit rate in near-threshold detection
+- Π_e(t)   → Gamma/beta power ratio, sensory cortex     | Perceptual sensitivity (d')
+- Π_i(t)   → HRV-linked neural variability              | Interoceptive accuracy task score
+- β_DA(t)  → Striatal BOLD signal                       | Reward expectation bias
+- g_NE(t)  → Pupil diameter (LC-NE proxy)                | RT distribution shape (inverted U)
+- g_ACh(t) → EEG alpha power (inverse)                   | Cued attentional modulation
+- Δ(t)     → Pre-decision distance to neural boundary    | Decision confidence rating
+See OBSERVABLE_MAPPING_TABLE below for this table as structured data.
 """
 
 from __future__ import annotations
@@ -18,6 +25,94 @@ from scipy import signal  # type: ignore
 
 # Suppress LAPACK warnings
 warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*")
+
+
+OBSERVABLE_MAPPING_TABLE: tuple[dict[str, str], ...] = (
+    {
+        "apgi_variable": "S(t)",
+        "neural_observable": "LFP/EEG gamma-band power",
+        "behavioral_observable": "—",
+        "method": "Time-frequency (TF) analysis",
+        "extractor": "NeuralObservableExtractor.extract_gamma_power",
+    },
+    {
+        "apgi_variable": "theta(t)",
+        "neural_observable": "P300/N200 ERP amplitude threshold",
+        "behavioral_observable": "RT variability; response criterion",
+        "method": "ERP; signal detection theory (d')",
+        "extractor": "NeuralObservableExtractor.extract_erp_amplitude / "
+        "BehavioralObservableExtractor.extract_rt_variability, extract_response_criterion",
+    },
+    {
+        "apgi_variable": "B(t)",
+        "neural_observable": "Global ignition (widespread gamma synchrony)",
+        "behavioral_observable": "Overt decision / button press",
+        "method": "Single-trial EEG ignition markers",
+        "extractor": "NeuralObservableExtractor.extract_ignition_rate / "
+        "BehavioralObservableExtractor.extract_decision_rate",
+    },
+    {
+        "apgi_variable": "P_ign(t)",
+        "neural_observable": "Pre-stimulus alpha-band suppression",
+        "behavioral_observable": "Hit rate in near-threshold detection",
+        "method": "Single-trial EEG TF decomposition",
+        "extractor": "NeuralObservableExtractor.extract_prestimulus_alpha_suppression",
+    },
+    {
+        "apgi_variable": "Pi_e(t)",
+        "neural_observable": "Gamma/beta power ratio, sensory cortex",
+        "behavioral_observable": "Perceptual sensitivity (d')",
+        "method": "TF decomposition",
+        "extractor": "NeuralObservableExtractor.extract_gamma_beta_ratio / "
+        "BehavioralObservableExtractor.extract_perceptual_sensitivity",
+    },
+    {
+        "apgi_variable": "Pi_i(t)",
+        "neural_observable": "HRV-linked neural variability",
+        "behavioral_observable": "Interoceptive accuracy task score",
+        "method": "HRV + cardiac timing",
+        "extractor": "NeuralObservableExtractor.extract_hrv_proxy / "
+        "BehavioralObservableExtractor.extract_interoceptive_accuracy",
+    },
+    {
+        "apgi_variable": "beta_DA(t)",
+        "neural_observable": "Striatal BOLD signal",
+        "behavioral_observable": "Reward expectation bias",
+        "method": "fMRI; pupillometry",
+        "extractor": "NeuralObservableExtractor.extract_striatal_bold_proxy / "
+        "BehavioralObservableExtractor.extract_reward_expectation_bias",
+    },
+    {
+        "apgi_variable": "g_NE(t)",
+        "neural_observable": "Pupil diameter (LC-NE proxy)",
+        "behavioral_observable": "RT distribution shape (inverted U)",
+        "method": "Pupillometry",
+        "extractor": "NeuralObservableExtractor.extract_pupil_diameter_proxy / "
+        "BehavioralObservableExtractor.extract_rt_distribution_shape",
+    },
+    {
+        "apgi_variable": "g_ACh(t)",
+        "neural_observable": "EEG alpha power (inverse)",
+        "behavioral_observable": "Cued attentional modulation",
+        "method": "EEG alpha power",
+        "extractor": "NeuralObservableExtractor.extract_alpha_power_proxy / "
+        "BehavioralObservableExtractor.extract_cued_attention_modulation",
+    },
+    {
+        "apgi_variable": "Delta(t)",
+        "neural_observable": "Pre-decision distance to neural boundary",
+        "behavioral_observable": "Decision confidence rating",
+        "method": "EEG + confidence",
+        "extractor": "KeyTestablePredictionValidator (delta history) / "
+        "BehavioralObservableExtractor.extract_decision_confidence",
+    },
+)
+
+
+def get_observable_mapping_table() -> tuple[dict[str, str], ...]:
+    """Return the full APGI Variable -> Neural/Behavioral Observable mapping
+    table (MathSpec §14) as structured data."""
+    return OBSERVABLE_MAPPING_TABLE
 
 
 class NeuralObservableExtractor:
@@ -116,6 +211,91 @@ class NeuralObservableExtractor:
         recent = B_history[-window_size:]
         ignition_rate = np.mean(recent)
         return float(ignition_rate)
+
+    def extract_prestimulus_alpha_suppression(
+        self,
+        p_ign_history: np.ndarray,
+        window_size: int = 50,
+    ) -> float:
+        """Extract pre-stimulus alpha-band suppression proxy.
+        Spec §14: P_ign(t) → Pre-stimulus alpha-band suppression
+        Higher ignition probability is associated with GREATER pre-stimulus
+        alpha suppression (lower raw alpha power) — this proxy returns the
+        windowed mean P_ign(t) directly, since alpha suppression and P_ign
+        are monotonically related by construction of the mapping (higher
+        suppression = higher P_ign).
+        """
+        if len(p_ign_history) == 0:
+            return 0.0
+        recent = p_ign_history[-window_size:]
+        return float(np.mean(recent))
+
+    def extract_gamma_beta_ratio(
+        self,
+        pi_e_history: np.ndarray,
+        window_size: int = 50,
+    ) -> float:
+        """Extract gamma/beta power ratio proxy from exteroceptive precision.
+        Spec §14: Π_e(t) → Gamma/beta power ratio, sensory cortex
+        """
+        if len(pi_e_history) == 0:
+            return 0.0
+        recent = pi_e_history[-window_size:]
+        return float(np.mean(recent))
+
+    def extract_hrv_proxy(
+        self,
+        pi_i_history: np.ndarray,
+        window_size: int = 50,
+    ) -> float:
+        """Extract HRV-linked neural variability proxy from interoceptive precision.
+        Spec §14: Π_i(t) → HRV-linked neural variability
+        """
+        if len(pi_i_history) == 0:
+            return 0.0
+        recent = pi_i_history[-window_size:]
+        return float(np.mean(recent))
+
+    def extract_striatal_bold_proxy(
+        self,
+        beta_da_history: np.ndarray,
+        window_size: int = 50,
+    ) -> float:
+        """Extract striatal BOLD signal proxy from dopaminergic bias.
+        Spec §14: β_DA(t) → Striatal BOLD signal
+        """
+        if len(beta_da_history) == 0:
+            return 0.0
+        recent = beta_da_history[-window_size:]
+        return float(np.mean(recent))
+
+    def extract_pupil_diameter_proxy(
+        self,
+        g_ne_history: np.ndarray,
+        window_size: int = 50,
+    ) -> float:
+        """Extract pupil diameter (LC-NE) proxy from noradrenergic gain.
+        Spec §14: g_NE(t) → Pupil diameter (LC-NE proxy)
+        """
+        if len(g_ne_history) == 0:
+            return 0.0
+        recent = g_ne_history[-window_size:]
+        return float(np.mean(recent))
+
+    def extract_alpha_power_proxy(
+        self,
+        g_ach_history: np.ndarray,
+        window_size: int = 50,
+        eps: float = 1e-6,
+    ) -> float:
+        """Extract EEG alpha power proxy from cholinergic gain (inverse
+        relationship: ACh suppresses alpha power).
+        Spec §14: g_ACh(t) → EEG alpha power (inverse)
+        """
+        if len(g_ach_history) == 0:
+            return 0.0
+        recent = np.asarray(g_ach_history[-window_size:], dtype=float)
+        return float(np.mean(1.0 / (recent + eps)))
 
     def step(
         self,
@@ -237,6 +417,93 @@ class BehavioralObservableExtractor:
         recent = B_history[-window_size:]
         decision_rate = np.mean(recent)
         return float(decision_rate)
+
+    def extract_perceptual_sensitivity(
+        self,
+        pi_e_history: np.ndarray,
+        window_size: int = 100,
+    ) -> float:
+        """Extract perceptual sensitivity (d') proxy from exteroceptive precision.
+        Spec §14: Π_e(t) → Perceptual sensitivity (d')
+        """
+        if len(pi_e_history) == 0:
+            return 0.0
+        recent = pi_e_history[-window_size:]
+        return float(np.mean(recent))
+
+    def extract_interoceptive_accuracy(
+        self,
+        pi_i_history: np.ndarray,
+        window_size: int = 100,
+    ) -> float:
+        """Extract interoceptive accuracy task score proxy from interoceptive precision.
+        Spec §14: Π_i(t) → Interoceptive accuracy task score
+        """
+        if len(pi_i_history) == 0:
+            return 0.0
+        recent = pi_i_history[-window_size:]
+        return float(np.mean(recent))
+
+    def extract_reward_expectation_bias(
+        self,
+        beta_da_history: np.ndarray,
+        window_size: int = 100,
+    ) -> float:
+        """Extract reward expectation bias proxy from dopaminergic bias.
+        Spec §14: β_DA(t) → Reward expectation bias
+        """
+        if len(beta_da_history) == 0:
+            return 0.0
+        recent = beta_da_history[-window_size:]
+        return float(np.mean(recent))
+
+    def extract_rt_distribution_shape(
+        self,
+        g_ne_history: np.ndarray,
+        window_size: int = 100,
+        optimal_g_ne: float = 1.0,
+    ) -> float:
+        """Extract RT-distribution-shape proxy from noradrenergic gain.
+        Spec §14: g_NE(t) → RT distribution shape (inverted U)
+        The Yerkes-Dodson-style inverted-U relationship between arousal
+        (g_NE) and performance is modeled as a quadratic penalty around
+        optimal_g_ne: performance (inverse of RT-shape distortion) peaks at
+        optimal_g_ne and degrades symmetrically on either side. Returns a
+        [0, 1] "distortion" score where 0 = optimal, larger = more distorted.
+        """
+        if len(g_ne_history) == 0:
+            return 0.0
+        recent = np.asarray(g_ne_history[-window_size:], dtype=float)
+        distortion = float(np.mean((recent - optimal_g_ne) ** 2))
+        return distortion
+
+    def extract_cued_attention_modulation(
+        self,
+        g_ach_history: np.ndarray,
+        window_size: int = 100,
+    ) -> float:
+        """Extract cued attentional modulation proxy from cholinergic gain.
+        Spec §14: g_ACh(t) → Cued attentional modulation
+        """
+        if len(g_ach_history) == 0:
+            return 0.0
+        recent = g_ach_history[-window_size:]
+        return float(np.mean(recent))
+
+    def extract_decision_confidence(
+        self,
+        delta_history: np.ndarray,
+        window_size: int = 100,
+    ) -> float:
+        """Extract decision confidence rating proxy from the ignition margin Δ(t).
+        Spec §14: Δ(t) → Decision confidence rating
+        Confidence increases with |Δ(t) = S(t) - θ(t)|, the pre-decision
+        distance to the ignition boundary; bounded to [0, 1) via tanh.
+        """
+        if len(delta_history) == 0:
+            return 0.0
+        recent = np.asarray(delta_history[-window_size:], dtype=float)
+        return float(np.mean(np.tanh(np.abs(recent))))
 
     def step(
         self,

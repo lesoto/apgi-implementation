@@ -10,6 +10,8 @@ from typing import Any
 
 import numpy as np
 
+from stats.hurst import hurst_from_slope
+
 
 def lorentzian_spectrum(f: np.ndarray, tau: float, sigma2: float) -> np.ndarray:
     """Single-level Lorentzian power spectrum.
@@ -108,7 +110,7 @@ def compute_psd_1f_exponent_analytic(
     log_p = np.log(psd[mask])
     slope, _ = np.polyfit(log_f, log_p, 1)
     beta = -slope
-    hurst = (beta + 1) / 2
+    hurst = hurst_from_slope(beta, warn_near_boundary=False)
     return {
         "beta": float(beta),
         "hurst": float(hurst),
@@ -219,8 +221,8 @@ def validate_pink_noise(
             "frequency_range": (fmin, fmax),
             "message": "SVD did not converge in Linear Least Squares",
         }
-    # Hurst exponent from spectral slope: H = (β + 1) / 2
-    H = (beta + 1) / 2
+    # Hurst exponent from spectral slope (regime-aware; MathSpec §12)
+    H = hurst_from_slope(beta, warn_near_boundary=False)
     # Pink noise typically has β ∈ [0.5, 1.5] → H ∈ [0.75, 1.25]
     is_pink = abs(beta - beta_target) <= tolerance
     return {
@@ -381,26 +383,36 @@ def generate_predicted_spectrum_from_hierarchy(
 
 def validate_hurst_dfa(
     signal: np.ndarray,
-    h_min: float = 0.8,
-    h_max: float = 1.1,
+    h_min: float = 0.85,
+    h_max: float = 0.95,
     scales: np.ndarray | list[int] | None = None,
     order: int = 1,
+    falsifier_threshold: float = 0.55,
 ) -> dict:
     """Validate that a signal's Hurst exponent lies in the APGI-predicted range.
-    Spec §22 predicts H ≈ 0.8–1.1 for coupled threshold dynamics exhibiting
-    1/f (pink noise) structure. This function uses DFA — the gold-standard
-    method — to verify that prediction against observed or simulated signals.
+    Notation Appendix / MathSpec §12 predicts H ≈ 0.85–0.95 (fGn convention,
+    long-range-correlated near-critical dynamics) for the full hierarchy, with
+    a lower partial-hierarchy range of ~0.65–0.75. This function uses DFA —
+    the gold-standard method — to verify that prediction against observed or
+    simulated signals, and separately checks the Severity-B falsifier from the
+    Dynamical Formulation §27 falsification table: α_DFA < 0.55 (effectively
+    uncorrelated/anti-persistent fluctuations) disconfirms long-range temporal
+    correlations predicted by the framework, independent of the in-range check.
     Args:
         signal: Input time series (threshold fluctuations, salience, etc.)
-        h_min: Lower bound of predicted Hurst range (default: 0.8)
-        h_max: Upper bound of predicted Hurst range (default: 1.1)
+        h_min: Lower bound of predicted Hurst range (default: 0.85)
+        h_max: Upper bound of predicted Hurst range (default: 0.95)
         scales: DFA window sizes (None → automatic log-spaced)
         order: DFA polynomial detrending order (1 = linear)
+        falsifier_threshold: α_DFA below this value falsifies long-range
+            correlations per the Severity-B falsification criterion (default: 0.55)
     Returns:
         Dictionary with:
         - hurst: Estimated Hurst exponent (DFA)
         - h_min, h_max: Expected range from spec
         - in_range: bool — whether H falls in [h_min, h_max]
+        - falsifier_threshold: the α_DFA<0.55 falsifier bound
+        - falsified: bool — whether H falls below the falsifier threshold
         - scales: DFA window sizes used
         - F_values: DFA fluctuation function values
         - message: Human-readable verdict
@@ -415,21 +427,30 @@ def validate_hurst_dfa(
             "h_min": h_min,
             "h_max": h_max,
             "in_range": False,
+            "falsifier_threshold": falsifier_threshold,
+            "falsified": False,
             "scales": np.array([], dtype=int),
             "F_values": np.array([], dtype=float),
             "message": f"DFA failed: {exc}",
         }
     in_range = h_min <= alpha <= h_max
-    verdict = (
-        f"H={alpha:.3f} is within predicted range [{h_min}, {h_max}]"
-        if in_range
-        else f"H={alpha:.3f} is OUTSIDE predicted range [{h_min}, {h_max}]"
-    )
+    falsified = alpha < falsifier_threshold
+    if falsified:
+        verdict = (
+            f"H={alpha:.3f} is BELOW the falsifier threshold "
+            f"({falsifier_threshold}) — long-range correlations disconfirmed"
+        )
+    elif in_range:
+        verdict = f"H={alpha:.3f} is within predicted range [{h_min}, {h_max}]"
+    else:
+        verdict = f"H={alpha:.3f} is OUTSIDE predicted range [{h_min}, {h_max}]"
     return {
         "hurst": float(alpha),
         "h_min": h_min,
         "h_max": h_max,
         "in_range": in_range,
+        "falsifier_threshold": falsifier_threshold,
+        "falsified": falsified,
         "scales": scales_used,
         "F_values": F_values,
         "message": verdict,
@@ -497,8 +518,8 @@ class SpectralValidator:
             "beta_observed": beta_obs,
             "beta_predicted": self.predicted_beta,
             "beta_error": beta_error,
-            "hurst_observed": (beta_obs + 1) / 2,
-            "hurst_predicted": (self.predicted_beta + 1) / 2,
+            "hurst_observed": hurst_from_slope(beta_obs, warn_near_boundary=False),
+            "hurst_predicted": hurst_from_slope(self.predicted_beta, warn_near_boundary=False),
             "matches_prediction": beta_error < 0.3,
             "frequencies": freqs_obs,
             "psd_observed": psd_obs,

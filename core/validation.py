@@ -421,3 +421,114 @@ def print_constraint_summary() -> None:
         >>> print_constraint_summary()  # Prints constraint summary
     """
     print(format_constraint_summary())
+
+
+# ---------------------------------------------------------------------------
+# Canonical Parameter Ranges (Notation Appendix, "Canonical parameters
+# table") — a REPORT-style compliance checker, distinct from validate_config()
+# above.
+#
+# validate_config() enforces numerical-stability constraints (signs, bounds
+# that keep the ODE/SDE integrators well-behaved) and MUST pass for every
+# config the pipeline runs with — including this repo's lightweight/demo
+# defaults (theta_0=1.0, pi_min=0.01, k=1.6, ...), which are deliberately
+# NOT spec-canonical (see config.py's own documentation of this choice).
+# Turning the Notation Appendix's canonical *scientific* ranges below into
+# hard errors would make the shipped defaults unusable.
+#
+# check_canonical_parameter_ranges() instead reports compliance against
+# those canonical ranges without raising, so they are checkable/testable
+# (per the Notation Appendix's Canonical Parameters table) without breaking
+# any existing configuration.
+#
+# IMPORTANT — symbol collision warning: this repo's config["kappa"] is the
+# threshold EXPONENTIAL DECAY RATE (dimensionless, roughly (0,1)), NOT the
+# ATP/bit metabolic bridge parameter κ the Notation Appendix table means by
+# "kappa ≈ 100 (10-1000 ATP/bit)". That κ lives separately, e.g. in
+# energy.thermodynamics.ThermodynamicTracker.kappa or as an argument to
+# metabolic_cost(). This checker therefore takes each canonical quantity as
+# an EXPLICIT keyword argument rather than guessing from a raw config dict,
+# to avoid silently checking the wrong "kappa" against the wrong range.
+# ---------------------------------------------------------------------------
+
+CANONICAL_PARAMETER_RANGES: dict[str, tuple[float, float]] = {
+    "gamma_sig": (2.0, 7.5),
+    "theta_0": (0.25, 0.85),
+    "pi_min": (0.1, 10.0),
+    "pi_max": (0.1, 10.0),
+    "beta_sm": (0.1, 1.2),
+    "beta_somatic_linear": (0.5, 2.5),
+    "c_theta": (0.001, 0.5),
+    "kappa_atp_per_bit": (10.0, 1000.0),
+    "lambda_allo": (0.001, 0.05),
+    "rho_res": (0.7, 0.95),
+    "k_inter_level": (50.0, 680.0),  # k≈133, Δ∈[1.7,2.8] sensitivity band
+}
+
+
+def check_canonical_parameter_ranges(**values: float | None) -> dict[str, Any]:
+    """Report compliance of given values against the Notation Appendix's
+    Canonical Parameters table. Does not raise — returns a per-parameter
+    report so canonical-range compliance is checkable/testable.
+    Only parameters actually passed as keyword arguments (non-None) are
+    checked; recognized names are the keys of CANONICAL_PARAMETER_RANGES.
+    Args:
+        **values: Any subset of CANONICAL_PARAMETER_RANGES' keys, e.g.
+            check_canonical_parameter_ranges(gamma_sig=1.0/config["ignite_tau"],
+                                              theta_0=config["theta_base"])
+    Returns:
+        Dictionary with a per-parameter "results" report and an overall
+        "all_in_range" boolean (True only if every CHECKED parameter is
+        within its canonical range; parameters not passed are not counted
+        either way).
+    Raises:
+        ValueError: If a keyword argument name is not a recognized
+            canonical parameter.
+    """
+    unknown = set(values) - set(CANONICAL_PARAMETER_RANGES)
+    if unknown:
+        raise ValueError(
+            f"unknown canonical parameter(s): {sorted(unknown)}. "
+            f"Recognized: {sorted(CANONICAL_PARAMETER_RANGES)}"
+        )
+    results: dict[str, dict[str, Any]] = {}
+    for name, value in values.items():
+        if value is None:
+            continue
+        lo, hi = CANONICAL_PARAMETER_RANGES[name]
+        in_range = lo <= value <= hi
+        results[name] = {
+            "value": value,
+            "canonical_range": (lo, hi),
+            "in_range": in_range,
+        }
+    all_in_range = all(r["in_range"] for r in results.values()) if results else True
+    return {"results": results, "all_in_range": all_in_range}
+
+
+def check_canonical_compliance_for_config(config: dict) -> dict[str, Any]:
+    """Convenience wrapper: extract the UNAMBIGUOUS canonical parameters
+    from a pipeline config dict and check them against
+    CANONICAL_PARAMETER_RANGES.
+    Only maps config keys with a one-to-one, unambiguous correspondence to a
+    Notation Appendix canonical symbol:
+        gamma_sig            <- 1 / config["ignite_tau"]  (γ_sig = 1/τ_σ)
+        theta_0               <- config["theta_base"]
+        pi_min, pi_max         <- config["pi_min"], config["pi_max"]
+        beta_sm                <- config["beta_sm"] (if present)
+    Deliberately excluded (symbol collisions or no direct representation in
+    this codebase — see module docstring above): kappa (config["kappa"] is
+    the threshold decay rate, not ATP/bit), c_theta, lambda_allo, rho_res
+    (lives on the reservoir object, not in the top-level pipeline config),
+    k_inter_level (config["k"] is a lightweight/demo value by default; see
+    hierarchy.coupling.K_INTER_LEVEL_CANONICAL for the canonical constant).
+    """
+    ignite_tau = config.get("ignite_tau", config.get("tau_sigma"))
+    gamma_sig = (1.0 / ignite_tau) if ignite_tau else None
+    return check_canonical_parameter_ranges(
+        gamma_sig=gamma_sig,
+        theta_0=config.get("theta_base"),
+        pi_min=config.get("pi_min"),
+        pi_max=config.get("pi_max"),
+        beta_sm=config.get("beta_sm"),
+    )

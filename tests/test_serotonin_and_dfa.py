@@ -187,28 +187,51 @@ class TestValidateHurstDFA:
 
     def test_returns_dict_keys(self, pink_noise):
         result = validate_hurst_dfa(pink_noise)
-        for key in ("hurst", "h_min", "h_max", "in_range", "scales", "F_values", "message"):
+        for key in (
+            "hurst",
+            "h_min",
+            "h_max",
+            "in_range",
+            "falsifier_threshold",
+            "falsified",
+            "scales",
+            "F_values",
+            "message",
+        ):
             assert key in result
 
-    def test_pink_noise_in_apgi_range(self, pink_noise):
-        """Pink noise H ≈ 1.0 should fall in the default APGI range [0.8, 1.1]."""
+    def test_pink_noise_near_apgi_range(self, pink_noise):
+        """Pink noise H ≈ 1.0 should be well clear of the falsifier threshold,
+        even though it overshoots the canonical [0.85, 0.95] range (pure 1/f
+        pink noise is steeper than the coupled-threshold-dynamics prediction)."""
         result = validate_hurst_dfa(pink_noise)
-        assert result["in_range"], f"Expected H in [0.8, 1.1] but got H={result['hurst']:.3f}"
+        assert not result["falsified"]
+        assert result["hurst"] > result["h_max"]
 
-    def test_white_noise_outside_range(self):
-        """White noise H ≈ 0.5 is outside APGI range [0.8, 1.1]."""
+    def test_white_noise_outside_range_and_falsified(self):
+        """White noise H ≈ 0.5 is outside the APGI range [0.85, 0.95] and
+        below the α_DFA<0.55 falsifier threshold."""
         rng = np.random.default_rng(6)
         sig = rng.standard_normal(1024)
         result = validate_hurst_dfa(sig)
         assert not result["in_range"]
+        assert result["falsified"]
 
     def test_custom_range(self, pink_noise):
         result = validate_hurst_dfa(pink_noise, h_min=0.0, h_max=2.0)
         assert result["in_range"]
 
+    def test_falsifier_threshold_is_independent_of_range(self, pink_noise):
+        """A signal can be out of the predicted range without being falsified
+        (falsification only triggers below the 0.55 severity-B bound)."""
+        result = validate_hurst_dfa(pink_noise, h_min=0.0, h_max=0.5)
+        assert not result["in_range"]
+        assert not result["falsified"]
+
     def test_short_signal_fails_gracefully(self):
         result = validate_hurst_dfa(np.array([1.0, 2.0, 3.0]))
         assert not result["in_range"]
+        assert not result["falsified"]
         assert "DFA failed" in result["message"]
 
     def test_hurst_nan_for_bad_input(self):

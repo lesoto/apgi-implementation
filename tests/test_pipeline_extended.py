@@ -23,7 +23,7 @@ class TestAPGIPipelineExtended:
             x_hat_e = 0.0
             x_i = 0.5
             x_hat_i = 0.5
-            result = pipeline.step(x_e, x_hat_e, x_i, x_hat_i)
+            result = pipeline.step(x_e, x_i, x_hat_e, x_hat_i)
             results.append(result)
         # Should have ignition decisions
         ignition_count = sum(r["B"] for r in results)
@@ -41,7 +41,7 @@ class TestAPGIPipelineExtended:
         x_hat_e = 0.0
         x_i = 0.5
         x_hat_i = 0.5
-        result = pipeline.step(x_e, x_hat_e, x_i, x_hat_i)
+        result = pipeline.step(x_e, x_i, x_hat_e, x_hat_i)
         # Should have deterministic ignition decision
         assert "B" in result
         assert isinstance(result["B"], (int, np.integer))

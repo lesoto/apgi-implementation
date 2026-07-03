@@ -19,7 +19,7 @@ import numpy.typing as npt
 from config import CONFIG
 from hierarchy.multiscale import aggregate_multiscale_signal, build_timescales
 from pipeline import APGIPipeline
-from stats.hurst import welch_periodogram
+from stats.hurst import hurst_from_slope, welch_periodogram
 from stats.spectral_model import (
     SpectralValidator,
     estimate_1f_exponent,
@@ -273,7 +273,7 @@ def demonstrate_analytic_formula(n_levels: int = 5) -> None:
     psd = hierarchical_spectral_superposition(freqs, taus, sigma2s)
     # Estimate 1/f exponent
     beta = estimate_1f_exponent(freqs, psd, fmin=0.01, fmax=10.0)
-    hurst = (beta + 1) / 2
+    hurst = hurst_from_slope(beta, warn_near_boundary=False)
     print(f"\nPredicted spectral characteristics:")
     print(f"  Spectral exponent β: {beta:.4f}")
     print(f"  Hurst exponent H: {hurst:.4f}")

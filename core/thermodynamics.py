@@ -23,7 +23,7 @@ from __future__ import annotations
 import numpy as np
 
 # Physical constants
-K_BOLTZMANN = 1.38e-23  # Boltzmann constant (J/K)
+K_BOLTZMANN = 1.380649e-23  # Boltzmann constant (J/K), CODATA exact value
 T_ENV_DEFAULT = 310.0  # Body temperature (K)
 LN2 = np.log(2.0)  # Natural log of 2
 

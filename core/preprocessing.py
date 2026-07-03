@@ -31,6 +31,11 @@ class RunningStats:
         if not self.window:
             return 1.0
         if bessel_correction:
+            # N-1 (Bessel-corrected) variance is undefined for a single
+            # sample (dof=0); fall back to the biased (ddof=0) estimator
+            # rather than propagating NaN through precision downstream.
+            if len(self.window) < 2:
+                return float(np.var(self.window, ddof=0))
             return float(np.var(self.window, ddof=1))
         else:
             return float(np.var(self.window, ddof=0))
@@ -54,10 +59,13 @@ class EMAStats:
         self._var = initial_var
 
     def update(self, value: float) -> None:
-        # Update mean first
+        # MathSpec §1 literal indexing: Step 2's variance term uses μ(t), the
+        # mean BEFORE Step 1's update — capture it first.
+        prev_mean = self._mean
+        # Step 1: update mean
         self._mean = (1.0 - self.alpha) * self._mean + self.alpha * value
-        # Update variance using centered deviation
-        self._var = (1.0 - self.alpha) * self._var + self.alpha * (value - self._mean) ** 2
+        # Step 2: variance using the PRE-update mean μ(t), per spec
+        self._var = (1.0 - self.alpha) * self._var + self.alpha * (value - prev_mean) ** 2
 
     def mean(self) -> float:
         return float(self._mean)

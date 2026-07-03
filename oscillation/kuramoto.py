@@ -143,25 +143,44 @@ class KuramotoOscillators:
     def reset_phase_on_ignition(
         self,
         level: int,
-        reset_amount: float = np.pi,
+        reset_amount: float | None = None,
         broadcast: bool = False,
         broadcast_decay: float = 0.5,
+        theta_coupling: float = 0.0,
     ) -> None:
         """Reset phase on ignition event.
-        Spec §9: Phase reset on ignition
+        Spec §9: Phase reset on ignition. "The canonical reset target is
+        Δφ_reset = −φ_level(t) (reset to zero-phase); alternative:
+        Δφ_reset = θ_coupling − φ_level(t) where θ_coupling is the preferred
+        coupling phase (default θ_coupling = 0)."
         When ignition occurs at level ℓ, reset its phase. If broadcast is True,
         propagate the reset to other levels with exponential decay based on
-        hierarchical distance.
+        hierarchical distance, using the same correction delta computed at
+        the reset level (per spec: "Δφ_j = Δφ_reset · d^|j-level|").
         Args:
             level: Level index where ignition occurred
-            reset_amount: Amount to reset phase (default π)
+            reset_amount: If None (default), apply the spec-canonical
+                reset-to-theta_coupling (phases[level] ends up exactly at
+                theta_coupling regardless of its prior value). If a float is
+                given explicitly, use the legacy fixed-additive semantics
+                (new_phase = (old_phase + reset_amount) % 2π) — kept for
+                backward compatibility with callers that want a specific
+                phase kick rather than a reset to a fixed target.
             broadcast: If True, propagate reset to all levels
             broadcast_decay: Decay factor for propagation (0-1)
+            theta_coupling: Target phase for the canonical (reset_amount=None)
+                reset (default 0, i.e. zero-phase)
         """
         if not (0 <= level < self.n_levels):
             return
-        # Core level reset
-        self.phases[level] = (self.phases[level] + reset_amount) % (2 * np.pi)
+        if reset_amount is None:
+            # Canonical: Δφ_reset = θ_coupling − φ_level(t), so phases[level]
+            # ends up exactly at theta_coupling.
+            delta = (theta_coupling - self.phases[level]) % (2 * np.pi)
+        else:
+            # Legacy: fixed additive kick, independent of current phase.
+            delta = reset_amount
+        self.phases[level] = (self.phases[level] + delta) % (2 * np.pi)
         self.noise_processes[level].reset()
         if broadcast:
             for j in range(self.n_levels):
@@ -169,7 +188,7 @@ class KuramotoOscillators:
                     continue
                 # Hierarchical distance |j - level|
                 distance = abs(j - level)
-                effective_reset = reset_amount * (broadcast_decay**distance)
+                effective_reset = delta * (broadcast_decay**distance)
                 self.phases[j] = (self.phases[j] + effective_reset) % (2 * np.pi)
                 # Partial noise reset based on proximity
                 if np.random.random() < (broadcast_decay**distance):
@@ -210,17 +229,50 @@ class KuramotoOscillators:
         return coherence
 
     def compute_gamma(self) -> float:
-        """Compute oscillatory synchrony gate Γ⁽ˡ⁾(t) per spec §12.
-        Γ⁽ˡ⁾(t) = (1/N²) · Σᵢ,ⱼ G_φ(i,j,t)
-               = (1/N²) · Σᵢ,ⱼ cos(φᵢ − φⱼ)
-        This is the mean pairwise phase coherence (signed), which acts as a
-        multiplicative gate on the instantaneous signal:
-            S_inst^(l) = Π · φ(ε) · Γ^(l)(t)
+        """Compute the GLOBAL oscillatory synchrony gate — a single scalar
+        averaged over every pair of levels. Spec §8/§12 defines Γ^(l)(t) as
+        a LEVEL-SPECIFIC index, distinct per level; this global scalar is
+        retained for backward compatibility and as a convenience summary,
+        but callers that need the per-level gate that actually modulates
+        S_inst^(l) = Π^(l)·φ(ε^(l))·Γ^(l)(t) at level l specifically should
+        use compute_gamma_per_level() instead — applying this single global
+        number uniformly to every level collapses the level-specific
+        structure the spec requires.
+        Γ = (1/N²) · Σᵢ,ⱼ G_φ(i,j,t) = (1/N²) · Σᵢ,ⱼ cos(φᵢ − φⱼ), averaged
+        over ALL level pairs (i,j).
         Returns:
             Γ ∈ [−1, 1]; positive = synchronised (gates access), negative = anti-phase
         """
         G = self.get_phase_coherence()
         return float(np.mean(G))
+
+    def compute_gamma_per_level(self) -> np.ndarray:
+        """Compute the LEVEL-SPECIFIC oscillatory synchrony gate Γ^(l)(t)
+        for every level l (spec §8/§12), rather than one global scalar
+        applied uniformly everywhere.
+        This architecture represents each hierarchical level as a single
+        oscillator (one phase per level), rather than a population of N
+        sub-level units as in the literal Γ^(l)=(1/N²)Σᵢ,ⱼ cos(φᵢ−φⱼ) formula
+        (which sums over N units WITHIN level l). Given that
+        simplification, Γ^(l) here is defined as level l's mean phase
+        coherence with its immediate hierarchical neighbors (l-1, l+1) —
+        i.e. how synchronized level l currently is with the levels
+        immediately above/below it, which is the level-specific quantity
+        that should gate S_inst^(l) rather than a single number shared by
+        every level regardless of its own local synchrony state.
+        Returns:
+            Array (n_levels,) of per-level Γ^(l) ∈ [-1, 1]
+        """
+        coherence = self.get_phase_coherence()
+        gamma = np.zeros(self.n_levels)
+        for level in range(self.n_levels):
+            neighbors = [j for j in (level - 1, level + 1) if 0 <= j < self.n_levels]
+            if neighbors:
+                gamma[level] = float(np.mean([coherence[level, j] for j in neighbors]))
+            else:
+                # Single-level system: no neighbors, self-coherence is 1
+                gamma[level] = 1.0
+        return gamma
 
     def get_history(self) -> np.ndarray:
         """Get phase history as array (T, n_levels)."""
@@ -278,7 +330,10 @@ class HierarchicalKuramotoSystem:
             level: Level where ignition occurred
             broadcast: Override config broadcast setting
         """
-        reset_amount = self.config.get("kuramoto_reset_amount", np.pi)
+        # None (the config.py default) triggers the spec-canonical
+        # reset-to-zero-phase; an explicit numeric override uses the legacy
+        # fixed-additive-kick semantics.
+        reset_amount = self.config.get("kuramoto_reset_amount", None)
         do_broadcast = (
             broadcast
             if broadcast is not None

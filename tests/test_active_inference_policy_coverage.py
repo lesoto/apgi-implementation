@@ -61,14 +61,14 @@ def test_select_policy():
     res = agent.select_policy(sigma2_e=0.1, sigma2_i=0.1, S=1.0, theta=0.5)
     assert isinstance(res, PolicyResult)
     assert res.action_idx in [0, 1, 2]
-    assert len(res.F_values) == 3
+    assert len(res.efe_values) == 3
     assert len(res.p_policies) == 3
     assert len(agent.action_history) == 1
     # Test high precision -> near-MAP
     agent_high = ActiveInferenceAgent(policy_precision=100.0)
     res_high = agent_high.select_policy(0.1, 0.1, 1.0, 0.5)
     # argmin of F should have p near 1.0
-    best_idx = np.argmin(res_high.F_values)
+    best_idx = np.argmin(res_high.efe_values)
     assert res_high.p_policies[best_idx] > 0.99
     # Out of labels case
     agent_many = ActiveInferenceAgent(n_actions=10)

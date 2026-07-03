@@ -1,6 +1,13 @@
 """Compliance and audit controls for APGI production deployments.
 Provides audit logging, data lifecycle management, and compliance hooks
 for enterprise environments requiring SOC2/ISO27001/GDPR/HIPAA-style controls.
+NOT the scientific falsification framework: this module's "compliance"
+means operational/regulatory audit logging (who ran what, when, data
+retention), unrelated to the APGI spec's Severity A/B/C falsification
+hierarchy (Dynamical Formulation §27) despite the naming overlap. For the
+spec's falsification claims/thresholds (γ_sig, α_psy, α_DFA, κ consistency
+bands, phase-transition signatures, etc.) as checkable code, see
+validation.falsification_registry.
 """
 
 from __future__ import annotations

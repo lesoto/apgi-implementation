@@ -95,9 +95,23 @@ def estimate_hierarchy_levels_from_data(
 
 
 def update_multiscale_feature(phi_prev: float, z_t: float, tau_i: float) -> float:
-    """Φ_i(t+1) = (1-1/τ_i)Φ_i(t) + (1/τ_i) z(t)."""
+    """Φ_i(t+1) = (1-1/τ_i)Φ_i(t) + (1/τ_i) z(t).
+    MathSpec §8 design constraint: τ_ℓ > 1 is required to remain in the
+    standard leaky-integration regime (multiplier m = 1-1/τ ∈ (0,1)). At
+    τ_ℓ ∈ (0.5, 1], m ∈ [-1, 0) gives sign-alternating (oscillatory-decay,
+    still bounded) rather than smooth decay; τ_ℓ ≤ 0.5 gives |m| ≥ 1, true
+    divergence. τ_ℓ = τ_0·k^ℓ with τ_0 > 1 and k > 1 keeps every level in the
+    intended regime by construction — this guard catches misconfiguration
+    (e.g. τ_0 ≤ 1) before it silently produces divergent or oscillatory
+    integrator behavior.
+    """
     if tau_i <= 0:
         raise ValueError("tau_i must be > 0")
+    if tau_i <= 0.5:
+        raise ValueError(
+            f"tau_i={tau_i} <= 0.5 causes integrator divergence (|1-1/tau| >= 1); "
+            "spec design constraint requires tau_ell > 1 (see MathSpec §8)"
+        )
     a = 1.0 / tau_i
     return float((1.0 - a) * phi_prev + a * z_t)
 

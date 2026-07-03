@@ -10,11 +10,22 @@ Each level l owns:
 Higher levels oscillate more slowly (large τ_l).  The top-down phase-coupling
 term sin(φ_{l+1} − φ_l) pulls each level toward its superior's phase, creating
 nested rhythmic windows of ignition opportunity — the Russian Doll property.
-The primary ignition check (level 0, sensory) uses θ_0[t], which is
-continuously modulated by level 1's phase and precision.  Level 1's θ_1 is
-modulated by level 2's phase, etc., nesting the hierarchy.
-When an ignition event fires at level 0, a post-ignition refractory boost
-δ_refractory is added to θ_0 and the level-0 signal is partially reset (ρ_S),
+
+Index-0 convention (Notation Appendix, "Level Architecture"): the per-level
+arrays here (θ, S, φ, Π) represent spec levels 1..L only, i.e. the APGI
+*ignition* hierarchy (sensory through abstract/self). Index 0 corresponds to
+spec Level 1 (first APGI ignition level, primary sensory), never to spec
+Level 0 (the sub-APGI reflexive brainstem/collicular substrate). Level 0 does
+not participate in the precision-gated ignition mechanism and is never
+allocated a slot in this system — it is architecturally excluded, not merely
+weighted low.
+
+The primary ignition check uses θ_0[t] (index 0 = spec Level 1), which is
+continuously modulated by the phase and precision of index 1 (spec Level 2).
+Index 1's θ_1 is modulated by index 2 (spec Level 3), etc., nesting the
+hierarchy.
+When an ignition event fires at index 0, a post-ignition refractory boost
+δ_refractory is added to θ_0 and its signal is partially reset (ρ_S),
 matching §17.
 """
 
@@ -55,7 +66,16 @@ class NestedResonanceSystem:
     theta_min, theta_max : float
         Hard clamps on modulated thresholds.
     phi_noise_std : float
-        Per-step Gaussian noise on phases (biological phase jitter).
+        Per-step phase jitter amplitude (biological phase jitter). 0.0
+        (default) disables noise entirely (deterministic phase advancement).
+    use_ou_phase_noise : bool
+        When phi_noise_std > 0, use an Ornstein-Uhlenbeck (colored) noise
+        process per level (default True) rather than white noise. MathSpec
+        §9: "The OU process produces coloured phase noise more consistent
+        with neural oscillation variability than white noise" — white noise
+        was previously the only option in this (default, non-Kuramoto)
+        pathway, contrary to that guidance. Set False to use the legacy
+        white-noise behavior.
     rng : numpy Generator | None
         Random number generator for reproducible phase noise.
     """
@@ -71,6 +91,8 @@ class NestedResonanceSystem:
         theta_min: float = 0.1,
         theta_max: float = 20.0,
         phi_noise_std: float = 0.0,
+        use_ou_phase_noise: bool = True,
+        ou_tau_xi: float = 1.0,
         rng: np.random.Generator | None = None,
     ) -> None:
         if n_levels < 1:
@@ -84,7 +106,16 @@ class NestedResonanceSystem:
         self.theta_min = float(theta_min)
         self.theta_max = float(theta_max)
         self.phi_noise_std = float(phi_noise_std)
+        self.use_ou_phase_noise = bool(use_ou_phase_noise)
         self.rng = rng or np.random.default_rng()
+        self._ou_noise = None
+        if self.use_ou_phase_noise and self.phi_noise_std > 0.0:
+            from oscillation.kuramoto import OrnsteinUhlenbeckNoise
+
+            self._ou_noise = [
+                OrnsteinUhlenbeckNoise(tau_xi=ou_tau_xi, sigma_xi=self.phi_noise_std)
+                for _ in range(n_levels)
+            ]
         # Per-level state
         self.S = np.zeros(n_levels)
         self.phi = np.zeros(n_levels)
@@ -140,11 +171,32 @@ class NestedResonanceSystem:
             self.S += self.rng.normal(0.0, noise_std * np.sqrt(dt), size=self.n_levels)
         self.S = np.maximum(0.0, self.S)
 
+    def set_baseline(self, level: int, value: float) -> None:
+        """Update the baseline threshold θ_{0,level} in place and immediately
+        recompute all phase-modulated thresholds.
+        This is the composition point required by MathSpec §4 / §8: the PAC
+        formula θ_l = θ_{0,l}·(1 + κ_down·Π_{l+1}·cos(φ_{l+1})) modulates a
+        baseline θ_{0,l} that is *itself* governed by the allostatic ODE
+        θ(t+1) = θ(t) + η_θ·[C(t) − V(t)] + δ_reset·B(t) for the primary
+        (level-0) ignition level. Callers must feed the freshly-computed
+        allostatic/NE/5-HT-corrected threshold in here every step *before*
+        reading `primary_threshold`, rather than leaving θ_{0,level} pinned
+        to the static config baseline — otherwise the allostatic update is
+        silently discarded whenever hierarchical mode is active.
+        """
+        if not (0 <= level < self.n_levels):
+            raise ValueError(f"level {level} out of range [0, {self.n_levels})")
+        self.theta_0[level] = float(value)
+        self.theta = self._compute_thresholds()
+
     def apply_level_ignition(
         self,
         level: int,
         rho_S: float = 0.1,
         delta_refractory: float = 0.5,
+        reset_phase: bool = True,
+        theta_coupling: float = 0.0,
+        phase_broadcast_decay: float | None = None,
     ) -> None:
         """Apply post-ignition refractory reset for the given level (§17).
         Parameters
@@ -155,11 +207,39 @@ class NestedResonanceSystem:
             Signal retention fraction after reset (ρ_S ∈ [0.1, 0.5]).
         delta_refractory : float
             Temporary threshold elevation δ_refractory.
+        reset_phase : bool
+            If True (default), also reset the igniting level's phase to
+            theta_coupling (spec §9 canonical Δφ_reset = θ_coupling − φ(t),
+            default θ_coupling=0 -> zero-phase reset), with an optional
+            decayed broadcast to neighboring levels. This was previously
+            missing from this (default, non-Kuramoto) resonance pathway —
+            S and θ were reset on ignition but φ was left to drift
+            independently, so the PAC mechanism in §8 never produced the
+            rhythmic ignition windows the phase reset is "necessary" for.
+        theta_coupling : float
+            Target phase for the canonical reset (default 0).
+        phase_broadcast_decay : float | None
+            Decay coefficient d ∈ (0,1) for propagating a fraction of the
+            phase correction to neighboring levels (Δφ_j = Δφ_reset·d^|j-level|).
+            Defaults to self.kappa_up if not given (reusing the existing
+            bottom-up cascade strength as a reasonable default coupling), or
+            0.5 if kappa_up is 0.
         """
         if not (0 <= level < self.n_levels):
             raise ValueError(f"level {level} out of range [0, {self.n_levels})")
         self.S[level] *= rho_S
         self.theta[level] = min(self.theta[level] + delta_refractory, self.theta_max)
+        if reset_phase:
+            delta = (theta_coupling - self.phi[level]) % (2.0 * np.pi)
+            self.phi[level] = (self.phi[level] + delta) % (2.0 * np.pi)
+            decay = phase_broadcast_decay if phase_broadcast_decay is not None else (
+                self.kappa_up if self.kappa_up > 0.0 else 0.5
+            )
+            for j in range(self.n_levels):
+                if j == level:
+                    continue
+                effective = delta * (decay ** abs(j - level))
+                self.phi[j] = (self.phi[j] + effective) % (2.0 * np.pi)
         # Bottom-up cascade: lower-level ignition suppresses the level above
         if level + 1 < self.n_levels and self.kappa_up > 0.0:
             self.theta[level + 1] *= 1.0 - self.kappa_up
@@ -205,8 +285,11 @@ class NestedResonanceSystem:
             # Top-down entrainment from level level+1
             if level < self.n_levels - 1:
                 dphi += self.kappa_down * np.sin(self.phi[level + 1] - self.phi[level]) * dt
-            # Optional biological phase jitter
-            if self.phi_noise_std > 0.0:
+            # Optional biological phase jitter — OU (colored) by default
+            # when enabled, per MathSpec §9's preference over white noise.
+            if self._ou_noise is not None:
+                dphi += self._ou_noise[level].step(dt) * np.sqrt(dt)
+            elif self.phi_noise_std > 0.0:
                 dphi += self.phi_noise_std * self.rng.standard_normal() * np.sqrt(dt)
             phi_new[level] = (self.phi[level] + dphi) % (2.0 * np.pi)
         return phi_new
@@ -236,6 +319,7 @@ def build_resonance_system(
     theta_min: float = 0.1,
     theta_max: float = 20.0,
     phi_noise_std: float = 0.0,
+    use_ou_phase_noise: bool = True,
     rng: np.random.Generator | None = None,
 ) -> NestedResonanceSystem:
     """Convenience factory: build a NestedResonanceSystem from pipeline timescales.
@@ -245,6 +329,8 @@ def build_resonance_system(
     taus : array (L,)  — timescale per level (increasing with level index)
     theta_base : float — common baseline threshold for all levels
     dt : float         — integration step (used to derive λ_l = dt/τ_l)
+    use_ou_phase_noise : bool — colored (OU) vs white phase noise when
+        phi_noise_std > 0 (default True, per MathSpec §9)
     """
     theta_0 = np.full(n_levels, theta_base)
     omega = 2.0 * np.pi / taus
@@ -260,5 +346,6 @@ def build_resonance_system(
         theta_min=theta_min,
         theta_max=theta_max,
         phi_noise_std=phi_noise_std,
+        use_ou_phase_noise=use_ou_phase_noise,
         rng=rng,
     )

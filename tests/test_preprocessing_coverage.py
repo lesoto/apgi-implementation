@@ -36,11 +36,12 @@ def test_ema_stats():
     ema = EMAStats(alpha=0.1, initial_mean=0.0, initial_var=1.0)
     # update with 1.0
     # mean = 0.9*0 + 0.1*1 = 0.1
-    # var = 0.9*1 + 0.1*(1 - 0.1)**2 = 0.9 + 0.1*0.81 = 0.9 + 0.081 = 0.981
+    # var uses the PRE-update mean μ(t)=0.0 (MathSpec §1 Step 2 literal indexing):
+    # var = 0.9*1 + 0.1*(1 - 0.0)**2 = 0.9 + 0.1*1.0 = 1.0
     ema.update(1.0)
     assert pytest.approx(ema.mean()) == 0.1
-    assert pytest.approx(ema.variance()) == 0.981
-    assert pytest.approx(ema.std()) == np.sqrt(0.981)
+    assert pytest.approx(ema.variance()) == 1.0
+    assert pytest.approx(ema.std()) == np.sqrt(1.0)
     with pytest.raises(ValueError, match="alpha must be in"):
         EMAStats(1.5)
 

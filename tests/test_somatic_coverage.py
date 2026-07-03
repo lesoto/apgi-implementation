@@ -28,10 +28,15 @@ def test_somatic_marker_valence():
 
 
 def test_compute_precision_with_somatic_marker():
-    # pi = 10 * exp(0.5 * 2) = 10 * e ~ 27.18
-    res = compute_precision_with_somatic_marker(10.0, 0.5, 2.0)
+    # pi = 10 * exp(0.5 * 2) = 10 * e ~ 27.18, but the spec-mandated default
+    # pi_max=10.0 clamps it (Notation Appendix Pi ceiling; MathSpec beta*M
+    # saturation warning) — pass an explicit wide bound to observe the raw
+    # unclamped exponential value.
+    res = compute_precision_with_somatic_marker(10.0, 0.5, 2.0, pi_max=1e4)
     assert pytest.approx(res) == 10.0 * np.exp(1.0)
-    # Clamping
+    # Default pi_max=10.0 clamps the same computation
+    assert compute_precision_with_somatic_marker(10.0, 0.5, 2.0) == 10.0
+    # Explicit clamping
     assert compute_precision_with_somatic_marker(1.0, 10.0, 2.0, pi_max=100.0) == 100.0
 
 

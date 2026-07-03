@@ -11,18 +11,31 @@ from typing import Callable
 
 import numpy as np
 
+# Canonical inter-level coarse-graining ratio (Notation Appendix, Canonical
+# Parameters table): k ≈ 133, Δ = log10(k) ≈ 2.1 log-decades per level.
+# Spans τ_min ≈ 100 ms (Level 1) to τ_max ≈ 1 year (~3e10 ms, Level 4)
+# across ≈5 levels: L ≈ floor(log(3e10/100)/log(133)) + 1 ≈ 5.
+# DO NOT substitute Hasson et al.'s (2008) ~1.3-2.0 adjacent-region gradient
+# ratio for this constant — that is a distinct, within-level quantity; doing
+# so mis-scales the level count formula below by roughly an order of
+# magnitude (k=1.5 gives L≈49, not L≈5).
+K_INTER_LEVEL_CANONICAL = 133.0
+TAU_MIN_CANONICAL_MS = 100.0  # Level 1 lower bound (Notation Appendix)
+TAU_MAX_CANONICAL_MS = 3.0e10  # ~1 year, Level 4 upper bound
+
 
 def estimate_hierarchy_levels(
-    tau_min: float,
-    tau_max: float,
-    k: float = 1.6,
+    tau_min: float = TAU_MIN_CANONICAL_MS,
+    tau_max: float = TAU_MAX_CANONICAL_MS,
+    k: float = K_INTER_LEVEL_CANONICAL,
 ) -> int:
     """Estimate optimal number of hierarchical levels L per APGI spec.
     Formula: L = floor( log(τ_max/τ_min) / log(k) ) + 1
     Args:
-        tau_min: Minimum timescale (fastest level, e.g., 10ms)
-        tau_max: Maximum timescale (slowest level, e.g., years)
-        k: Timescale separation factor (default: 1.6)
+        tau_min: Minimum timescale (fastest level, e.g., 100ms — spec Level 1)
+        tau_max: Maximum timescale (slowest level, e.g., ~1 year — spec Level 4)
+        k: Inter-level coarse-graining ratio (default: the canonical ≈133,
+            NOT the Hasson et al. within-level gradient ratio of ~1.3-2.0)
     Returns:
         Exact number of hierarchy levels L
     """
@@ -31,6 +44,24 @@ def estimate_hierarchy_levels(
     ratio = tau_max / tau_min
     L = int(np.floor(np.log(ratio) / np.log(k))) + 1
     return L
+
+
+def build_canonical_hierarchy_timescales(
+    tau_min: float = TAU_MIN_CANONICAL_MS,
+    tau_max: float = TAU_MAX_CANONICAL_MS,
+    k: float = K_INTER_LEVEL_CANONICAL,
+) -> np.ndarray:
+    """Build the spec-canonical timescale array τ_ℓ = τ_min·k^ℓ for ℓ=0..L-1.
+    The returned array represents the APGI *ignition* hierarchy only —
+    spec levels 1..L (sensory through abstract/self). The sub-APGI
+    reflexive substrate (spec Level 0, 10-100ms, brainstem/colliculus) is
+    architecturally distinct: it does not participate in the precision-gated
+    ignition mechanism and is deliberately excluded from this array (Notation
+    Appendix, "Level Architecture" / "Discreteness Caveat"). Index 0 of the
+    returned array therefore corresponds to spec Level 1, not spec Level 0.
+    """
+    n_levels = estimate_hierarchy_levels(tau_min, tau_max, k)
+    return np.array([tau_min * (k**i) for i in range(n_levels)], dtype=float)
 
 
 def precision_coupling_ode(

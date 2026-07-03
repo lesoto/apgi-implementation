@@ -15,6 +15,15 @@ The reservoir implements:
     f_drive = tanh(drive)                           # nonlinear pre-activation
     r = f_drive / (σ_inh² + W_inh·|f_drive|)       # divisive normalization (§9)
     dx/dt = -x/τ_res + r + A_amp·x·[S-θ]₊          # leaky integrator + amplification
+APPROXIMATION NOTICE (Notation Appendix, Reservoir substrate section): the
+single scalar τ_res above is the HOMOGENEOUS form — "appropriate for
+theoretical analysis only." All implementation/simulation use is required to
+use the HETEROGENEOUS form (τ distributed across reservoir units, or
+multiple reservoir layers spanning τ₀≈10-100ms and τ₁≈100-3000ms) for
+biological fidelity at Levels 0-1. Pass `heterogeneous_tau` (an array of N
+per-unit time constants) to `LiquidStateMachine.__init__` to use the
+spec-required form; results obtained with the default scalar `tau_res` are
+the homogeneous simplification and must be labeled approximate.
 where:
     - x ∈ ℝ^N is the reservoir state
     - W_res is fixed random recurrent weights, ρ(W_res) ∈ [0.7, 0.95]
@@ -72,13 +81,16 @@ class LiquidStateMachine:
         inh_sparsity: float = 0.1,
         inh_scale: float = 0.2,
         sigma_inh2: float = 0.1,
+        res_sparsity: float = 0.15,
+        heterogeneous_tau: Optional[np.ndarray] = None,
         seed: Optional[int] = None,
     ):
         """Initialize liquid state machine.
         Args:
             N: Reservoir size (default: 100)
             M: Input dimension (default: 2 for [z_e, z_i])
-            tau_res: Base time constant (default: 1.0 ms)
+            tau_res: Base (homogeneous) time constant (default: 1.0 ms).
+                Ignored if heterogeneous_tau is provided.
             spectral_radius: Spectral radius of W_res (default: 0.9)
                 Must be in [0.7, 0.95] per spec §17 (biologically grounded bounds)
             input_scale: Scaling of input weights (default: 0.1)
@@ -87,6 +99,21 @@ class LiquidStateMachine:
             inh_scale: Mean non-zero weight in W_inh (default: 0.2)
             sigma_inh2: Semi-saturation constant for divisive normalization (default: 0.1)
                 Corresponds to background inhibitory drive; prevents division by zero
+            res_sparsity: Fraction of non-zero entries in W_res (default: 0.15,
+                within the spec §10 density range p=0.1-0.2). W_res was
+                previously fully dense, contrary to "W_res is fixed and
+                random (not trained); ... sparse (density p=0.1-0.2)".
+                The spectral-radius normalization below is applied AFTER
+                masking, so ρ(W_res)=spectral_radius holds for the actual
+                sparse matrix, not the pre-masked dense one.
+            heterogeneous_tau: Optional array (N,) of per-unit time constants
+                (Notation Appendix: e.g. spanning τ₀≈10-100ms and
+                τ₁≈100-3000ms across units). When provided, `step()` uses
+                this per-unit vector for the leak term instead of the scalar
+                `tau_res`/adaptive-τ path, satisfying the spec's requirement
+                that implementation/simulation use the heterogeneous form.
+                When None (default), the homogeneous scalar form is used —
+                labeled here and in the module docstring as an approximation.
             seed: Random seed for reproducibility (optional)
         Raises:
             ValueError: If spectral_radius not in [0.7, 0.95]
@@ -107,6 +134,16 @@ class LiquidStateMachine:
             raise ValueError(f"tau_res must be > 0, got {tau_res}")
         if input_scale <= 0:
             raise ValueError(f"input_scale must be > 0, got {input_scale}")
+        self.heterogeneous_tau: Optional[np.ndarray] = None
+        if heterogeneous_tau is not None:
+            heterogeneous_tau = np.asarray(heterogeneous_tau, dtype=float)
+            if heterogeneous_tau.shape != (N,):
+                raise ValueError(
+                    f"heterogeneous_tau must have shape ({N},), got {heterogeneous_tau.shape}"
+                )
+            if np.any(heterogeneous_tau <= 0):
+                raise ValueError("all heterogeneous_tau entries must be > 0")
+            self.heterogeneous_tau = heterogeneous_tau
         self.N = N
         self.M = M
         self.tau_res = tau_res
@@ -116,9 +153,16 @@ class LiquidStateMachine:
         # Set random seed if provided
         if seed is not None:
             np.random.seed(seed)
+        if not (0.0 < res_sparsity <= 1.0):
+            raise ValueError(f"res_sparsity must be in (0, 1], got {res_sparsity}")
+        self.res_sparsity = res_sparsity
         # Initialize fixed random weights
-        # Recurrent weights: normalize to desired spectral radius
-        W_raw = np.random.randn(N, N)
+        # Recurrent weights: sparse and random (spec §10, density p=0.1-0.2),
+        # then normalized to the desired spectral radius. Masking BEFORE
+        # normalization ensures rho(W_res)=spectral_radius holds for the
+        # actual sparse matrix used in dynamics, not a pre-masked dense one.
+        res_mask = (np.random.rand(N, N) < res_sparsity).astype(float)
+        W_raw = np.random.randn(N, N) * res_mask
         try:
             with np.errstate(all="ignore"):
                 eigs = np.linalg.eigvals(W_raw)
@@ -158,6 +202,8 @@ class LiquidStateMachine:
         A_amp: float = 0.0,
         use_divisive_normalization: bool = False,
         use_subtractive_inhibition: bool = True,
+        alpha_res: Optional[float] = None,
+        saturating_amplification: bool = True,
     ) -> np.ndarray:
         """Update reservoir state via Euler integration.
         Spec-compliant dynamics (attractor dynamics equation):
@@ -181,6 +227,15 @@ class LiquidStateMachine:
             A_amp: Suprathreshold amplification strength (default: 0.0)
             use_divisive_normalization: Use Carandini-Heeger divisive form (non-spec)
             use_subtractive_inhibition: Use spec-canonical subtractive I_t (default: True)
+            alpha_res: Reservoir leak rate α_res = 1/τ (optional; defaults to
+                1/tau_eff). Spec §10.3 stability requirement when
+                saturating_amplification=False: A_amp·[S-θ]_+ < α_res must
+                hold for the duration of broadcast.
+            saturating_amplification: If True (default), use the spec's
+                equivalent saturating form A_amp·x·tanh([S-θ]_+) instead of
+                the unbounded ReLU-gated term — guarantees the suprathreshold
+                mode decays rather than diverges without a separate stability
+                check. Previously this was unconditionally unbounded.
         Returns:
             Updated reservoir state (N,)
         Raises:
@@ -206,14 +261,20 @@ class LiquidStateMachine:
                 u = np.broadcast_to(u, (self.M,))
             else:
                 raise ValueError(f"Input dimension mismatch: expected {self.M}, got {u.shape[0]}")
-        # Determine effective time constant
+        # Determine effective time constant. An explicit per-call `tau` or
+        # `precision` override always takes precedence (both scalar); only
+        # when neither is given do we fall back to the constructor-time
+        # heterogeneous per-unit vector (if configured) or the homogeneous
+        # scalar tau_res.
         if tau is not None:
             tau_eff = tau
         elif precision is not None:
             tau_eff = self._compute_adaptive_tau(precision)
+        elif self.heterogeneous_tau is not None:
+            tau_eff = self.heterogeneous_tau
         else:
             tau_eff = self.tau_res
-        if tau_eff <= 0:
+        if np.any(np.asarray(tau_eff) <= 0):
             raise ValueError(f"tau must be > 0, got {tau_eff}")
         # 1) Pre-activation: f(W_res·x + W_in·u)
         recurrent_input = self.W_res @ self.x
@@ -240,7 +301,23 @@ class LiquidStateMachine:
         # 4) Suprathreshold amplification (§10.3): dx/dt += A_amp·x·[S-θ]₊
         if S_target is not None and theta is not None and A_amp > 0:
             margin_plus = max(0.0, S_target - theta)
-            dx_dt += A_amp * self.x * margin_plus
+            if saturating_amplification:
+                dx_dt += A_amp * self.x * np.tanh(margin_plus)
+            else:
+                _alpha_res = alpha_res if alpha_res is not None else 1.0 / tau_eff
+                # With heterogeneous (per-unit) tau, alpha_res is a vector;
+                # the binding (hardest-to-satisfy) constraint is the
+                # smallest alpha_res (slowest unit, least leak).
+                _alpha_res_min = float(np.min(np.atleast_1d(_alpha_res)))
+                if A_amp * margin_plus >= _alpha_res_min:
+                    raise ValueError(
+                        f"Suprathreshold amplification unstable: A_amp*[S-θ]_+"
+                        f"={A_amp * margin_plus:.4f} >= min(alpha_res)={_alpha_res_min:.4f}. "
+                        "Spec §10.3 requires the net leak to remain positive "
+                        "for the duration of broadcast. Reduce A_amp, or use "
+                        "saturating_amplification=True (the default)."
+                    )
+                dx_dt += A_amp * self.x * margin_plus
         # 5) Euler integration
         self.x = self.x + dt * dx_dt
         return self.x.copy()

@@ -40,23 +40,29 @@ def compute_precision_with_somatic_marker(
     pi_baseline: float,
     beta: float,
     M: float,
-    pi_min: float = 1e-4,
-    pi_max: float = 1e4,
+    pi_min: float = 0.01,
+    pi_max: float = 10.0,
 ) -> float:
     """Apply exponential somatic modulation to precision.
-    Formula: Π^eff = Π^baseline · exp(β · M)
+    Formula: Π^eff = Π^baseline · exp(β_SM · M)
     Where:
     - Π^baseline: Baseline precision from variance estimation
-    - β: Somatic bias parameter (typically 0.1-0.5)
+    - β_SM: Somatic-marker exponential gain, canonical range [0.1, 1.2]
     - M: Somatic marker ∈ [-2, +2]
+    Default clamp bounds match the spec-mandated precision ceiling
+    (Notation Appendix: Π ∈ [0.1, 10] AU; MathSpec §2: Π_min=0.01,
+    Π_max=10). The MathSpec β×M saturation warning is explicit that this
+    clamp is not optional: at β_SM=2.5, M=+2, exp(5)≈148 — callers must not
+    widen these defaults without an explicit reason, or the exponential
+    blow-up is left unbounded.
     Args:
         pi_baseline: Baseline precision value
-        beta: Somatic bias weight
+        beta: β_SM, the somatic-marker exponential gain
         M: Somatic marker value ∈ [-2, +2]
         pi_min: Minimum precision (clamping)
         pi_max: Maximum precision (clamping)
     Returns:
-        Exponentially modulated precision
+        Exponentially modulated precision, clamped to [pi_min, pi_max]
     """
     # Exponential modulation
     modulation = np.exp(beta * M)

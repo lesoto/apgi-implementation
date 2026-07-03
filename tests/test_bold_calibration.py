@@ -18,7 +18,7 @@ def test_compute_landauer_energy_per_bit():
     # At body temperature (310K)
     e_min = compute_landauer_energy_per_bit(310.0)
     assert e_min > 0
-    assert np.isclose(e_min, 1.38e-23 * 310.0 * np.log(2.0))
+    assert np.isclose(e_min, 1.380649e-23 * 310.0 * np.log(2.0))
     # At room temperature (300K)
     e_min_room = compute_landauer_energy_per_bit(300.0)
     assert e_min_room < e_min  # Lower temperature = lower minimum energy

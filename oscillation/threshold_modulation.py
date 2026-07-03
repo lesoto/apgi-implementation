@@ -161,20 +161,31 @@ class HierarchicalPhaseModulator:
     def reset_phase_on_ignition(
         self,
         level: int,
-        reset_amount: float,
+        reset_amount: float | None = None,
         broadcast: bool = False,
+        theta_coupling: float = 0.0,
     ) -> None:
         """Reset phase at a specific level, optionally broadcasting to others.
+        Spec §9 canonical reset target: Δφ_reset = θ_coupling − φ_level(t)
+        (default θ_coupling=0, i.e. reset to zero-phase).
         Args:
             level: Level to reset
-            reset_amount: Amount to add to phase (modulo 2*pi)
+            reset_amount: If None (default), apply the canonical
+                reset-to-theta_coupling. If given explicitly, use the legacy
+                fixed-additive semantics (amount added to phase, mod 2π) —
+                kept for backward compatibility.
             broadcast: If True, also reset neighboring levels with decay
+            theta_coupling: Target phase for the canonical reset (default 0)
         """
         # Line 196: Check for invalid level
         if level < 0 or level >= self.n_levels:
             return
+        if reset_amount is None:
+            delta = (theta_coupling - self.phases[level]) % (2 * np.pi)
+        else:
+            delta = reset_amount
         # Reset the target level
-        self.phases[level] = (self.phases[level] + reset_amount) % (2 * np.pi)
+        self.phases[level] = (self.phases[level] + delta) % (2 * np.pi)
         # Lines 203-212: Broadcast to other levels
         if broadcast:
             for other_level in range(self.n_levels):
@@ -182,7 +193,7 @@ class HierarchicalPhaseModulator:
                     continue
                 # Calculate distance from reset level
                 distance = abs(other_level - level)
-                effective_reset = reset_amount * (self.broadcast_decay**distance)
+                effective_reset = delta * (self.broadcast_decay**distance)
                 self.phases[other_level] = (self.phases[other_level] + effective_reset) % (
                     2 * np.pi
                 )

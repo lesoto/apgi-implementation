@@ -82,13 +82,13 @@ class TestEMAStats:
         assert ema._mean == pytest.approx(expected)
 
     def test_update_variance_calculation(self):
-        """Should update variance correctly using centered deviation."""
+        """Should update variance using the PRE-update mean μ(t), per MathSpec §1 Step 2."""
         ema = EMAStats(alpha=0.5, initial_mean=1.0, initial_var=1.0)
         ema.update(2.0)
-        # After mean update: mean = 1.5
-        # Variance uses new mean: (value - new_mean)^2 = (2 - 1.5)^2 = 0.25
-        # σ²(t+1) = (1-α)σ²(t) + α·(z-μ)² = 0.5*1.0 + 0.5*0.25 = 0.625
-        assert ema._var == pytest.approx(0.625)
+        # Variance uses the OLD mean μ(t)=1.0 (before this update), not the
+        # new mean: (value - μ(t))^2 = (2 - 1.0)^2 = 1.0
+        # σ²(t+1) = (1-α)σ²(t) + α·(z-μ(t))² = 0.5*1.0 + 0.5*1.0 = 1.0
+        assert ema._var == pytest.approx(1.0)
 
     def test_mean_returns_float(self):
         """Should return mean as float."""
