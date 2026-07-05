@@ -53,7 +53,8 @@ def make_recurrent_matrix(
     W_raw = generator.normal(size=(n_units, n_units)) * mask
     rho_raw = compute_rho_crit(W_raw)
     rho_raw = max(rho_raw, 1e-8)
-    return W_raw * (target_rho_crit / rho_raw)
+    result: np.ndarray = W_raw * (target_rho_crit / rho_raw)
+    return result
 
 
 @dataclass
@@ -118,7 +119,5 @@ class HierarchicalCriticalityTracker:
             }
             for lf in self.fields
         }
-        fraction_critical = float(
-            np.mean([v["near_critical"] for v in per_level.values()])
-        )
+        fraction_critical = float(np.mean([v["near_critical"] for v in per_level.values()]))
         return {"per_level": per_level, "fraction_near_critical": fraction_critical}

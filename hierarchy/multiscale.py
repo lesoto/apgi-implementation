@@ -167,17 +167,52 @@ def phase_signal(omega: float, t: float, phi0: float = 0.0) -> float:
 
 
 def modulate_threshold(theta_0: float, pi_above: float, phi_above: float, k_down: float) -> float:
-    """Phase-coupled top-down threshold modulation:
-    θ_mod = θ_0 · (1 + k_down · Π_above · cos(ϕ_above)).
+    """Phase-coupled top-down threshold modulation.
+
+    θ_mod = θ_0 · (1 + k_down · Π_above · cos(ϕ_above))
+
+    Args:
+        theta_0: Baseline threshold
+        pi_above: Precision at higher level
+        phi_above: Phase at higher level
+        k_down: Top-down coupling strength
+
+    Returns:
+        Modulated threshold
     """
     return float(theta_0 * (1.0 + k_down * pi_above * np.cos(phi_above)))
 
 
 def bottom_up_cascade(theta: float, S_lower: float, theta_lower: float, k_up: float) -> float:
-    """Hierarchical ignition suppression: θ' = θ·(1 - k_up) if S_lower > θ_lower."""
+    """Hierarchical ignition suppression via bottom-up cascade.
+
+    θ' = θ·(1 - k_up) if S_lower > θ_lower, else θ
+
+    Implements bottom-up threshold cascade where a superthreshold signal
+    at a lower level suppresses the threshold at the current level.
+
+    Args:
+        theta: Current threshold
+        S_lower: Signal at lower level
+        theta_lower: Threshold at lower level
+        k_up: Cascade suppression strength
+
+    Returns:
+        Modified threshold
+    """
     if S_lower > theta_lower:
         return float(theta * (1.0 - k_up))
     return float(theta)
+
+
+# NOTE: Primary cascade implementations are now in hierarchy.coupling module
+# for a single canonical location (hierarchy/coupling.py) to avoid divergence.
+#
+# Use from hierarchy.coupling for primary implementations:
+#   - phase_locked_threshold()
+#   - bottom_up_threshold_cascade()
+#   - bidirectional_threshold_cascade()
+#   - HierarchicalPrecisionNetwork.compute_thresholds()
 
 
 class MultiscaleWeightScheduler:

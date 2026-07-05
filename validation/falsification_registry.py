@@ -178,8 +178,7 @@ FALSIFICATION_TABLE: tuple[FalsificationClaim, ...] = (
         description="Three-timescale ordering within each hierarchical level",
         quantitative_prediction="tau_int,l > tau_ign,l > tau_theta,l for l >= 2 "
         "(ordering collapses toward equality at l = 1)",
-        falsifying_result="Pharmacological dissociation fails to separate the "
-        "three timescales",
+        falsifying_result="Pharmacological dissociation fails to separate the " "three timescales",
         severity="B",
         checkable=True,
         section="Notation Appendix (Time Constants) / §27",

@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
 from validation.observable_mapping import (
     BehavioralObservableExtractor,
@@ -18,7 +19,7 @@ class TestNeuralObservableExtractor:
     def test_initialization(self):
         """Test NeuralObservableExtractor initialization."""
         extractor = NeuralObservableExtractor(fs=100.0)
-        assert extractor.fs == 100.0
+        assert extractor.fs == pytest.approx(100.0, abs=1e-10)
         assert "S" in extractor.history
         assert "theta" in extractor.history
         assert "B" in extractor.history
@@ -31,7 +32,7 @@ class TestNeuralObservableExtractor:
         extractor = NeuralObservableExtractor(fs=100.0)
         signal = np.array([1.0, 2.0, 3.0])
         power = extractor.extract_gamma_power(signal)
-        assert power == 0.0
+        assert power == pytest.approx(0.0, abs=1e-10)
 
     def test_extract_gamma_power_sufficient_data(self):
         """Test gamma power extraction with sufficient data."""
@@ -61,7 +62,7 @@ class TestNeuralObservableExtractor:
         extractor = NeuralObservableExtractor(fs=100.0)
         theta_history = np.array([])
         amplitude = extractor.extract_erp_amplitude(theta_history, window_size=50)
-        assert amplitude == 0.0
+        assert amplitude == pytest.approx(0.0, abs=1e-10)
 
     def test_extract_erp_amplitude_sufficient_data(self):
         """Test ERP amplitude with sufficient data."""
@@ -84,7 +85,7 @@ class TestNeuralObservableExtractor:
         extractor = NeuralObservableExtractor(fs=100.0)
         B_history = np.array([])
         rate = extractor.extract_ignition_rate(B_history, window_size=100)
-        assert rate == 0.0
+        assert rate == pytest.approx(0.0, abs=1e-10)
 
     def test_extract_ignition_rate_sufficient_data(self):
         """Test ignition rate with sufficient data."""
@@ -92,7 +93,7 @@ class TestNeuralObservableExtractor:
         B_history = np.array([0] * 50 + [1] * 50)
         rate = extractor.extract_ignition_rate(B_history, window_size=100)
         assert isinstance(rate, float)
-        assert rate == 0.5
+        assert rate == pytest.approx(0.5, abs=1e-10)
 
     def test_step_updates_history(self):
         """Test that step updates history correctly."""
@@ -121,7 +122,7 @@ class TestNeuralObservableExtractor:
         S_history = np.random.randn(1000)
         result = extractor.extract_gamma_power(S_history, freq_range=(200, 300))
         # Should return 0 when no gamma frequencies are present
-        assert result == 0.0
+        assert result == pytest.approx(0.0, abs=1e-10)
 
     def test_extract_gamma_power_empty_signal(self):
         """Test gamma power extraction with empty signal."""
@@ -129,7 +130,7 @@ class TestNeuralObservableExtractor:
         S_history = np.array([])
         result = extractor.extract_gamma_power(S_history, freq_range=(30, 50))
         # Should return 0 for empty signal
-        assert result == 0.0
+        assert result == pytest.approx(0.0, abs=1e-10)
 
     def test_extract_gamma_power_invalid_input(self):
         """Test gamma power extraction with invalid input."""
@@ -168,7 +169,7 @@ class TestBehavioralObservableExtractor:
         extractor = BehavioralObservableExtractor()
         theta_history = np.array([1.0, 2.0])
         variability = extractor.extract_rt_variability(theta_history, window_size=100)
-        assert variability == 0.0
+        assert variability == pytest.approx(0.0, abs=1e-10)
 
     def test_extract_rt_variability_sufficient_data(self):
         """Test RT variability with sufficient data."""
@@ -190,7 +191,7 @@ class TestBehavioralObservableExtractor:
         extractor = BehavioralObservableExtractor()
         theta_history = np.array([])
         criterion = extractor.extract_response_criterion(theta_history, window_size=100)
-        assert criterion == 0.0
+        assert criterion == pytest.approx(0.0, abs=1e-10)
 
     def test_extract_response_criterion_sufficient_data(self):
         """Test response criterion with sufficient data."""
@@ -198,13 +199,13 @@ class TestBehavioralObservableExtractor:
         theta_history = np.ones(150) * 0.7
         criterion = extractor.extract_response_criterion(theta_history, window_size=100)
         assert isinstance(criterion, float)
-        assert abs(criterion - 0.7) < 1e-6
+        assert criterion == pytest.approx(0.7, abs=1e-6)
 
     def test_extract_response_criterion_no_ignition(self):
         """Test response criterion when no ignition events."""
         # This should trigger the else branch for cohens_d
         result = {"valid": True, "cohens_d": 0.0}
-        assert result["cohens_d"] == 0.0
+        assert result["cohens_d"] == pytest.approx(0.0, abs=1e-10)
 
     def test_extract_decision_rate_insufficient_data(self):
         """Test decision rate with insufficient data."""
@@ -218,7 +219,7 @@ class TestBehavioralObservableExtractor:
         extractor = BehavioralObservableExtractor()
         B_history = np.array([])
         rate = extractor.extract_decision_rate(B_history, window_size=100)
-        assert rate == 0.0
+        assert rate == pytest.approx(0.0, abs=1e-10)
 
     def test_extract_decision_rate_sufficient_data(self):
         """Test decision rate with sufficient data."""
@@ -226,7 +227,7 @@ class TestBehavioralObservableExtractor:
         B_history = np.array([0] * 50 + [1] * 50)
         rate = extractor.extract_decision_rate(B_history, window_size=100)
         assert isinstance(rate, float)
-        assert rate == 0.5
+        assert rate == pytest.approx(0.5, abs=1e-10)
 
     def test_step_updates_history(self):
         """Test that step updates history correctly."""
@@ -254,7 +255,7 @@ class TestKeyTestablePredictionValidator:
     def test_initialization(self):
         """Test KeyTestablePredictionValidator initialization."""
         validator = KeyTestablePredictionValidator(tau_sigma=0.5)
-        assert validator.tau_sigma == 0.5
+        assert validator.tau_sigma == pytest.approx(0.5, abs=1e-10)
         assert "S" in validator.history
         assert "theta" in validator.history
         assert "B" in validator.history
@@ -267,7 +268,7 @@ class TestKeyTestablePredictionValidator:
         result = validator.step(S=1.0, theta=0.5, B=0)
         assert "delta" in result
         assert "p_ign" in result
-        assert result["delta"] == 0.5  # 1.0 - 0.5
+        assert result["delta"] == pytest.approx(0.5, abs=1e-10)  # 1.0 - 0.5
         assert 0.0 <= result["p_ign"] <= 1.0
 
     def test_step_sigmoid_probability(self):
@@ -335,7 +336,7 @@ class TestKeyTestablePredictionValidator:
             validator.step(S=float(i) / 100.0, theta=0.5, B=0)
         result = validator.validate()
         assert result["valid"] is True
-        assert result["cohens_d"] == 0.0
+        assert result["cohens_d"] == pytest.approx(0.0, abs=1e-10)
 
 
 class TestParameterIdentifiabilityAnalyzer:

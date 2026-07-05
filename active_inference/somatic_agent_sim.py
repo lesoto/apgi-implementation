@@ -22,7 +22,7 @@ modulation formula is identical to the one used in the main APGI pipeline.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 
@@ -152,7 +152,7 @@ class APGISomaticAgent:
     def _pi_i_baseline(self, arm: int) -> float:
         if self.freeze_pi_baseline:
             return 1.0
-        return clamp(1.0 / (self.sigma2[arm] + 1e-6), self.pi_min, self.pi_max)
+        return clamp(float(1.0 / (self.sigma2[arm] + 1e-6)), self.pi_min, self.pi_max)
 
     def select_action(self, trial_idx: int, n_trials: int) -> tuple[int, float, float]:
         """Return (chosen_arm, M_hat_of_chosen_arm, Pi_i_eff_of_chosen_arm)."""
@@ -206,7 +206,7 @@ class APGISomaticAgent:
         # of the choice just made). Pred 2.B/2.C need both channels and a
         # binary ignition event to test interoceptive dominance and
         # M_hat-leads-ignition timing.
-        pi_e = clamp(1.0 / (np.var(self.Q) + 1e-6), self.pi_min, self.pi_max)
+        pi_e = clamp(float(1.0 / (np.var(self.Q) + 1e-6)), self.pi_min, self.pi_max)
         z_e = float(np.std(self.Q))
         z_i = abs(delta)
         S = pi_e * abs(z_e) + pi_i_eff * abs(z_i)
@@ -234,7 +234,7 @@ def run_agent_on_volatility_schedule(
     volatility_schedule: list[float] | None = None,
     trials_per_block: int = 100,
     seed: int | None = None,
-    **agent_kwargs: float,
+    **agent_kwargs: Any,
 ) -> TrialLog:
     """Run one agent across the Protocol 2 volatility schedule
     ([0.1, 0.3, 0.6, 0.3, 0.1] across 5 blocks of 100 trials, 500 total).

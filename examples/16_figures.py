@@ -40,16 +40,16 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 # flake8: noqa=E402 (module level import not at top of file - needed for sys.path manipulation)
+# Configure matplotlib with centralized font fallbacks FIRST
+from core.matplotlib_config import configure_matplotlib_fonts, suppress_font_warnings
+
+configure_matplotlib_fonts(use_tex=False, font_family="sans-serif")
+suppress_font_warnings()
+
 import matplotlib
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
-
-matplotlib.rcParams["text.usetex"] = False
-matplotlib.rcParams["font.family"] = "DejaVu Sans"
-matplotlib.rcParams["mathtext.fontset"] = "dejavusans"
-matplotlib.rcParams["mathtext.default"] = "regular"
-
 
 # ---------------------------------------------------------------------------
 # Phase annotations — Table 3, paper §4.9

@@ -238,8 +238,10 @@ class NestedResonanceSystem:
             # direction across the hierarchy.
             delta = (theta_coupling - self.phi[level] + np.pi) % (2.0 * np.pi) - np.pi
             self.phi[level] = (self.phi[level] + delta) % (2.0 * np.pi)
-            decay = phase_broadcast_decay if phase_broadcast_decay is not None else (
-                self.kappa_up if self.kappa_up > 0.0 else 0.5
+            decay = (
+                phase_broadcast_decay
+                if phase_broadcast_decay is not None
+                else (self.kappa_up if self.kappa_up > 0.0 else 0.5)
             )
             for j in range(self.n_levels):
                 if j == level:

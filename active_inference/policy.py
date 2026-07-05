@@ -77,7 +77,9 @@ class ActionFeedback:
     delta_x_hat_e: float  # Sensory consequence: shift in exteroceptive prediction
     delta_x_hat_i: float  # Sensory consequence: shift in interoceptive prediction
     delta_M: float  # Interoceptive consequence: somatic marker M(c,a) change
-    delta_metabolic_state: float  # Interoceptive consequence: metabolic state M(t) change -> theta_t
+    delta_metabolic_state: (
+        float  # Interoceptive consequence: metabolic state M(t) change -> theta_t
+    )
     delta_sigma2_e: float  # Epistemic consequence: change in exteroceptive variance
     delta_sigma2_i: float  # Epistemic consequence: change in interoceptive variance
 

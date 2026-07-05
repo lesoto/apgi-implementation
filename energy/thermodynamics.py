@@ -157,7 +157,9 @@ def classify_kappa_consistency(kappa: float) -> dict:
             f"κ={kappa:.3g} ATP/bit is outside [{lo:.0f}, {hi_explain:.0f}]; "
             "bridge-inconsistent pending the prerequisite bit-count-fixing measurement."
         )
-    overhead = kappa / LANDAUER_MINIMUM_ATP_PER_BIT if LANDAUER_MINIMUM_ATP_PER_BIT > 0 else float("inf")
+    overhead = (
+        kappa / LANDAUER_MINIMUM_ATP_PER_BIT if LANDAUER_MINIMUM_ATP_PER_BIT > 0 else float("inf")
+    )
     return {
         "kappa": kappa,
         "classification": label,

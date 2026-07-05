@@ -20,15 +20,17 @@ from pathlib import Path
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
+# Configure matplotlib with centralized font fallbacks FIRST
+from core.matplotlib_config import configure_matplotlib_fonts, suppress_font_warnings
+
+configure_matplotlib_fonts(use_tex=False, font_family="sans-serif")
+suppress_font_warnings()
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Configure matplotlib to avoid TeX font fallback warnings
-matplotlib.rcParams["text.usetex"] = False
-matplotlib.rcParams["font.family"] = "DejaVu Sans"
-matplotlib.rcParams["mathtext.fontset"] = "dejavusans"
-matplotlib.rcParams["mathtext.default"] = "regular"
 from pipeline import APGIPipeline
 from stats.spectral_model import validate_pink_noise
 

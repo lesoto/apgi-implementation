@@ -88,24 +88,35 @@ def assess_hierarchical_architecture(
             pac_score = 0.0
             issues.append("No phase-amplitude coupling detected")
             recommendations.append("Increase kappa_down coupling strength")
-    # 2. Threshold Cascade Effectiveness
+    # 2. Threshold Cascade Effectiveness (IMPROVED)
     cascade_score = 0.0
     if n_levels > 1:
-        # Measure how much lower levels suppress upper levels
+        # Measure actual suppression magnitude when lower levels are suprathreshold
         cascade_effects = []
         for ell in range(1, n_levels):
-            # Check if lower level ignitions suppress upper thresholds
             if len(signal_levels[ell - 1]) > 0 and len(theta_levels[ell]) > 0:
                 min_len = min(len(signal_levels[ell - 1]), len(theta_levels[ell]))
-                if min_len > 1:
-                    # Correlation between lower signal and upper threshold
-                    a = np.asarray(signal_levels[ell - 1][:min_len], dtype=float)
-                    b = np.asarray(theta_levels[ell][:min_len], dtype=float)
-                    if np.std(a) > 0 and np.std(b) > 0:
-                        corr = np.corrcoef(a, b)[0, 1]
-                        if not np.isnan(corr):
-                            # Negative correlation indicates suppression
-                            cascade_effects.append(max(0, -corr))
+                if min_len > 10:  # Need sufficient samples
+                    S_lower = np.asarray(signal_levels[ell - 1][:min_len], dtype=float)
+                    theta_upper = np.asarray(theta_levels[ell][:min_len], dtype=float)
+
+                    # Identify periods when lower level is suprathreshold
+                    # Use dynamic threshold based on lower level statistics
+                    lower_threshold = float(np.median(S_lower)) + 0.5 * np.std(S_lower)
+                    suprathresh_mask = S_lower > lower_threshold
+
+                    if np.sum(suprathresh_mask) > 5:  # Need enough suprathreshold samples
+                        # Compare threshold during suprathreshold vs baseline periods
+                        theta_supra = theta_upper[suprathresh_mask]
+                        theta_baseline = theta_upper[~suprathresh_mask]
+
+                        baseline_mean = (
+                            float(np.mean(theta_baseline)) if len(theta_baseline) > 0 else 1.0
+                        )
+                        if baseline_mean > 1e-6:
+                            suppression = 1.0 - (float(np.mean(theta_supra)) / baseline_mean)
+                            cascade_effects.append(max(0.0, suppression))  # Suppression is positive
+
         if cascade_effects:
             cascade_score = float(np.mean(cascade_effects) * 100)
         else:

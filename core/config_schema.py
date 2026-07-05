@@ -197,7 +197,9 @@ class APGIConfig(BaseModel):
     use_somatic_precision: bool = Field(
         default=False, description="Enable exponential somatic precision modulation"
     )
-    M_somatic: float = Field(default=0.0, ge=-2.0, le=2.0, description="Initial somatic marker M(c,a)")
+    M_somatic: float = Field(
+        default=0.0, ge=-2.0, le=2.0, description="Initial somatic marker M(c,a)"
+    )
     # Post-ignition reset (uppercase spec-mirroring aliases)
     RHO_RETAIN: float = Field(default=0.1, gt=0, lt=1, description="Signal retention fraction ρ")
     DELTA_RESET: float = Field(default=0.5, ge=0, description="Post-ignition threshold boost")
@@ -244,7 +246,9 @@ class APGIConfig(BaseModel):
     use_active_inference: bool = Field(default=False, description="Enable perception-action loop")
     ai_on_ignition_only: bool = Field(default=True, description="Fire only on B_t=1")
     ai_n_actions: int = Field(default=3, gt=0, description="Number of candidate policies K")
-    ai_policy_precision: float = Field(default=2.0, gt=0, description="Boltzmann sharpness γ_policy")
+    ai_policy_precision: float = Field(
+        default=2.0, gt=0, description="Boltzmann sharpness γ_policy"
+    )
     ai_w_epistemic: float = Field(default=1.0, ge=0, description="Weight on epistemic term")
     ai_w_pragmatic: float = Field(default=1.0, ge=0, description="Weight on pragmatic term")
     ai_w_metabolic: float = Field(default=0.5, ge=0, description="Weight on metabolic cost term")

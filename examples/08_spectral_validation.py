@@ -321,14 +321,15 @@ def main() -> None:
     print(f"\nOverall: {'ALL CHECKS PASSED' if all_passed else 'SOME CHECKS FAILED'}")
     # Try to generate plot if matplotlib available
     try:
+        # Configure matplotlib with centralized font fallbacks
+        from core.matplotlib_config import configure_matplotlib_fonts, suppress_font_warnings
+
+        configure_matplotlib_fonts(use_tex=False, font_family="sans-serif")
+        suppress_font_warnings()
+
         import matplotlib
         import matplotlib.pyplot as plt
 
-        # Configure matplotlib to avoid TeX font fallback warnings
-        matplotlib.rcParams["text.usetex"] = False
-        matplotlib.rcParams["font.family"] = "DejaVu Sans"
-        matplotlib.rcParams["mathtext.fontset"] = "dejavusans"
-        matplotlib.rcParams["mathtext.default"] = "regular"
         print("\nGenerating comparison plot...")
         fig, axes = plt.subplots(2, 1, figsize=(10, 8))
         # Plot 1: Spectra comparison

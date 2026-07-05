@@ -193,7 +193,7 @@ class LiquidStateMachine:
     def step(
         self,
         u: np.ndarray | float,
-        tau: Optional[float] = None,
+        tau: Optional[float | np.ndarray] = None,
         dt: float = 1.0,
         activation: Callable = np.tanh,
         precision: Optional[float] = None,

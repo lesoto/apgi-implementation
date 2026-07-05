@@ -10,7 +10,9 @@ warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*")
 
 
 class LiquidNetwork:
-    def __init__(self, n_units: int = 500, spectral_radius: float = 0.9, res_sparsity: float = 0.15):
+    def __init__(
+        self, n_units: int = 500, spectral_radius: float = 0.9, res_sparsity: float = 0.15
+    ):
         if not (0.7 <= spectral_radius <= 0.95):
             raise ValueError(
                 f"spectral_radius must be in [0.7, 0.95], got {spectral_radius}. "

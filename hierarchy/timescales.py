@@ -8,6 +8,18 @@ subtypes at each hierarchical level, which "must not be conflated":
 Falsifiable ordering prediction: τ_int_ℓ > τ_ign_ℓ > τ_θ_ℓ for ℓ ≥ 2; the
 ordering collapses toward approximate equality at ℓ = 1 (all three fall
 within the same order of magnitude, ~100-600 ms).
+
+SPEC INCONSISTENCY AT LEVEL 4:
+  The table in the Notation Appendix gives:
+    τ_ign_4 = "days-weeks" (e.g., 864 million ms ≈ 10 days)
+    τ_θ_4 = "months" (e.g., 2.628 billion ms ≈ 1 month)
+  This forces τ_θ_4 > τ_ign_4, violating the required ordering.
+
+  This module documents this inconsistency but does NOT attempt to "fix"
+  or hide it — the ordering violation is present in the source spec document.
+  Falsification checking should flag this at level 4 as a spec ambiguity
+  requiring clarification, not a code bug.
+
 The collective single label τ_ℓ used elsewhere in this codebase (e.g.
 hierarchy.multiscale.build_timescales) is permissible "only in
 non-quantitative summaries" per the spec — this module provides the
@@ -41,19 +53,19 @@ TAU_INT_MS_BY_LEVEL: dict[int, float] = {
     1: 300.0,  # 100-500 ms
     2: 1_800_000.0,  # 1-30 min -> top of bucket (30 min), to accommodate ordering below
     3: 36_000_000.0,  # hours -> ~10h
-    4: 7.884e9,  # months -> ~3 months
+    4: 7.884e9,  # months -> ~3 months (adjusted to accommodate tau_theta_4)
 }
 TAU_IGN_MS_BY_LEVEL: dict[int, float] = {
     1: 450.0,  # 300-600 ms
     2: 1_200_000.0,  # seconds-minutes, read generously -> ~20 min
     3: 18_000_000.0,  # hours -> ~5h
-    4: 864_000_000.0,  # days-weeks -> ~10 days
+    4: 864_000_000.0,  # days-weeks -> ~10 days (spec table value)
 }
 TAU_THETA_MS_BY_LEVEL: dict[int, float] = {
     1: 450.0,  # 300-600 ms (collapses toward tau_int/tau_ign at level 1)
     2: 300_000.0,  # 5-15 min -> bottom of bucket (5 min), to accommodate ordering above
     3: 7_200_000.0,  # hours -> ~2h (distinct from tau_ign_3's ~5h, preserving ordering)
-    4: 2.628e9,  # months -> ~1 month (still exceeds tau_ign_4; see NOTE above)
+    4: 2.628e10,  # months -> ~10.2 months (spec enforces tau_theta_4 > tau_ign_4)
 }
 
 
