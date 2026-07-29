@@ -14,7 +14,7 @@ PYTHON      ?= python3
 OUTPUT_DIR   = outputs
 EXAMPLES_DIR = examples
 
-.PHONY: reproduce-paper figure-s1 figure-07 figure-08 test clean clean-outputs
+.PHONY: reproduce-paper manifest figure-s1 figure-07 figure-08 test lint clean clean-outputs
 
 ## Primary target: reproduce all paper figures
 reproduce-paper: $(OUTPUT_DIR)
@@ -25,9 +25,19 @@ reproduce-paper: $(OUTPUT_DIR)
 	$(PYTHON) $(EXAMPLES_DIR)/figure_s1.py
 	$(PYTHON) $(EXAMPLES_DIR)/07_hierarchical_system.py
 	$(PYTHON) $(EXAMPLES_DIR)/08_spectral_validation.py
+	$(MAKE) manifest
 	@echo "================================================================"
 	@echo "All figures written to $(OUTPUT_DIR)/"
+	@echo "Provenance: $(OUTPUT_DIR)/run.manifest.json"
 	@echo "================================================================"
+
+## Provenance record for the figure run: seed, resolved config + hash, git
+## commit, interpreter and dependency versions. Written alongside the figures so
+## any published output can be traced back to the code that produced it.
+manifest: $(OUTPUT_DIR)
+	$(PYTHON) -c "from core.config_io import load_config; from core.manifest import write_manifest; \
+	  p = write_manifest('$(OUTPUT_DIR)/run.manifest.json', load_config('configs/prod.toml', use_env=False), \
+	  extra={'target': 'reproduce-paper'}); print(f'wrote {p}')"
 
 ## Individual figure targets
 figure-s1: $(OUTPUT_DIR)
@@ -39,9 +49,16 @@ figure-07: $(OUTPUT_DIR)
 figure-08: $(OUTPUT_DIR)
 	$(PYTHON) $(EXAMPLES_DIR)/08_spectral_validation.py
 
-## Test suite
+## Test suite (branch coverage, matching CI)
 test:
-	$(PYTHON) -m pytest tests/ -v
+	$(PYTHON) -m pytest tests/ --cov --cov-branch --cov-report=term-missing
+
+## All quality gates, matching CI
+lint:
+	$(PYTHON) -m ruff check .
+	$(PYTHON) -m ruff format --check .
+	$(PYTHON) -m mypy .
+	$(PYTHON) -m bandit -r . -c bandit.yaml -ll --exclude ./tests,./build,./dist
 
 ## Create output directory
 $(OUTPUT_DIR):
