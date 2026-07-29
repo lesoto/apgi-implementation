@@ -146,5 +146,15 @@ def spawn_rng(rng: RNGLike = None, n: int = 1) -> list[np.random.Generator]:
     if n < 1:
         raise ValueError("n must be >= 1")
     parent = resolve_rng(rng)
-    seeds = parent.bit_generator._seed_seq.spawn(n)  # type: ignore[attr-defined]
-    return [np.random.default_rng(s) for s in seeds]
+    # Prefer the PUBLIC API (numpy >= 1.25). The private
+    # `bit_generator._seed_seq` fallback is retained only for older numpy
+    # within the supported range; relying on it alone would make child-stream
+    # determinism depend on a private attribute across a major-version bump.
+    spawn = getattr(parent, "spawn", None)
+    if callable(spawn):
+        children: list[np.random.Generator] = list(spawn(n))
+        return children
+    # Older numpy: SeedSequence.spawn exists on the concrete class but not on
+    # the ISeedSequence protocol that bit_generator.seed_seq is typed as.
+    seed_seq = parent.bit_generator.seed_seq
+    return [np.random.default_rng(s) for s in seed_seq.spawn(n)]  # type: ignore[attr-defined]

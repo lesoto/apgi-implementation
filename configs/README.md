@@ -21,7 +21,7 @@ you a run you did not configure.
 
 | File | Purpose |
 | --- | --- |
-| `dev.toml` | Fast iteration. Small runs, verbose logging, unbounded history. |
+| `dev.toml` | Fast iteration. Deterministic threshold crossing, 100k-sample history (~11 MB). |
 | `staging.toml` | Full feature surface enabled, to exercise every code path before release. |
 | `prod.toml` | Publication runs. Fixed seed, strict validation, canonical parameters only. |
 

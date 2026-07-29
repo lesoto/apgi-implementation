@@ -22,7 +22,7 @@ reproduce-paper: $(OUTPUT_DIR)
 	@echo "Reproducing APGI Paper 1 figures"
 	@echo "Output directory: $(OUTPUT_DIR)/"
 	@echo "================================================================"
-	$(PYTHON) $(EXAMPLES_DIR)/figure_s1.py
+	$(PYTHON) $(EXAMPLES_DIR)/16_figures.py
 	$(PYTHON) $(EXAMPLES_DIR)/07_hierarchical_system.py
 	$(PYTHON) $(EXAMPLES_DIR)/08_spectral_validation.py
 	$(MAKE) manifest
@@ -40,8 +40,11 @@ manifest: $(OUTPUT_DIR)
 	  extra={'target': 'reproduce-paper'}); print(f'wrote {p}')"
 
 ## Individual figure targets
+## NOTE: the generator is examples/16_figures.py; it WRITES outputs/figure_s1.png.
+## The Makefile previously invoked examples/figure_s1.py, a file that has never
+## existed, so `make reproduce-paper` aborted on its first command.
 figure-s1: $(OUTPUT_DIR)
-	$(PYTHON) $(EXAMPLES_DIR)/figure_s1.py
+	$(PYTHON) $(EXAMPLES_DIR)/16_figures.py
 
 figure-07: $(OUTPUT_DIR)
 	$(PYTHON) $(EXAMPLES_DIR)/07_hierarchical_system.py

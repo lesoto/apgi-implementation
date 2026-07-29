@@ -226,3 +226,66 @@ class TestBoundedHistory:
     def test_invalid_maxlen_is_rejected(self):
         with pytest.raises(ValueError, match="history_maxlen must be >= 1"):
             APGIPipeline({**CONFIG, "history_maxlen": 0, "seed": 1})
+
+
+class TestReproducePaperTarget:
+    """The figure-reproduction target must actually run.
+
+    Regression: the Makefile invoked `examples/figure_s1.py`, a file that has
+    never existed in this repository's history (the generator is
+    `examples/16_figures.py`, which WRITES outputs/figure_s1.png). So
+    `make reproduce-paper` — the headline reproducibility entry point, and the
+    target the run manifest is attached to — aborted on its first command.
+    Nothing tested it, and neither did the review that added the manifest.
+    """
+
+    def _makefile_scripts(self) -> list[Path]:
+        root = Path(__file__).resolve().parent.parent
+        text = (root / "Makefile").read_text(encoding="utf-8")
+        return [
+            root / "examples" / line.split("$(EXAMPLES_DIR)/")[1].split()[0]
+            for line in text.splitlines()
+            if "$(EXAMPLES_DIR)/" in line
+        ]
+
+    def test_every_script_the_makefile_invokes_exists(self):
+        missing = [str(p) for p in self._makefile_scripts() if not p.is_file()]
+        assert not missing, f"Makefile invokes scripts that do not exist: {missing}"
+
+    def test_makefile_references_at_least_one_figure_script(self):
+        """Guards the guard: a Makefile with no scripts would pass vacuously."""
+        assert self._makefile_scripts()
+
+
+class TestHistoryBufferContract:
+    """The bounded history is a deque, which does NOT support slicing.
+
+    `deque[0]` works but `deque[0:2]` raises TypeError. Consumers currently
+    only index (examples/11_maturity_assessment.py) and call np.asarray, both of
+    which are fine — these tests pin that contract so a future slice does not
+    fail only when history_maxlen happens to be set.
+    """
+
+    def test_integer_indexing_works(self):
+        pipeline = APGIPipeline({**CONFIG, "history_maxlen": 50, "seed": 1})
+        for _ in range(100):
+            pipeline.step(x_e=0.5, x_i=0.3)
+        assert isinstance(pipeline.history["S"][0], float)
+        assert isinstance(pipeline.history["S"][-1], float)
+
+    def test_numpy_conversion_and_iteration_work(self):
+        pipeline = APGIPipeline({**CONFIG, "history_maxlen": 50, "seed": 1})
+        for _ in range(100):
+            pipeline.step(x_e=0.5, x_i=0.3)
+        assert np.asarray(pipeline.history["theta"]).shape == (50,)
+        assert len(list(pipeline.history["theta"])) == 50
+
+    def test_slicing_a_bounded_buffer_is_a_known_limitation(self):
+        """Documents the sharp edge explicitly rather than leaving it latent."""
+        pipeline = APGIPipeline({**CONFIG, "history_maxlen": 50, "seed": 1})
+        for _ in range(60):
+            pipeline.step(x_e=0.5, x_i=0.3)
+        with pytest.raises(TypeError):
+            _ = pipeline.history["S"][0:2]
+        # The supported idiom for a window:
+        assert len(list(pipeline.history["S"])[0:2]) == 2
