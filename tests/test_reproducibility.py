@@ -81,9 +81,7 @@ class TestPipelineDeterminism:
             "use_hierarchical": True,
             "hierarchical_mode": "full",
         }
-        assert _drive(APGIPipeline(dict(cfg)), n=100) == _drive(
-            APGIPipeline(dict(cfg)), n=100
-        )
+        assert _drive(APGIPipeline(dict(cfg)), n=100) == _drive(APGIPipeline(dict(cfg)), n=100)
 
 
 class TestRNGModule:
@@ -159,9 +157,7 @@ class TestNoUnseededRandomness:
         for path in files:
             if path.name == "rng.py":  # the one module allowed to own the streams
                 continue
-            for lineno, line in enumerate(
-                path.read_text(encoding="utf-8").splitlines(), start=1
-            ):
+            for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
                 code = line.split("#", 1)[0]
                 if ">>>" in line:  # doctest prose
                     continue

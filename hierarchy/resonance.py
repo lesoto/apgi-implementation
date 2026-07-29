@@ -35,7 +35,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from core.rng import RNGLike, get_global_rng, resolve_rng
+from core.rng import RNGLike, resolve_rng
 
 
 @dataclass
@@ -267,7 +267,7 @@ class NestedResonanceSystem:
     @property
     def ignition_windows(self) -> np.ndarray:
         """Boolean array: True where S_l exceeds θ_l at the current timestep."""
-        return self.S > self.theta
+        return self.theta < self.S
 
     @property
     def modulation_depth(self) -> np.ndarray:

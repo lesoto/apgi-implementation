@@ -310,7 +310,7 @@ class TestPipelineHierarchicalComplete:
             pytest.skip("Kuramoto not available")
 
         # Run steps with phase evolution
-        for i in range(10):
+        for _i in range(10):
             try:
                 result = pipeline.step(x_e=0.3, x_i=0.2)
                 assert result is not None

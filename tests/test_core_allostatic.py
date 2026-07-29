@@ -139,7 +139,7 @@ class TestAllostaticThresholdODE:
             for _ in range(10)
         ]
         # Results should vary due to noise
-        assert len(set([round(r, 6) for r in results])) > 1
+        assert len({round(r, 6) for r in results}) > 1
 
 
 class TestUpdateThresholdEuler:
@@ -263,4 +263,4 @@ class TestAllostaticThresholdController:
             )
             thetas.append(theta)
         # Should have history of different values
-        assert len(set([round(t, 6) for t in thetas])) > 1
+        assert len({round(t, 6) for t in thetas}) > 1

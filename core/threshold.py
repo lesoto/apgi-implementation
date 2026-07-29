@@ -51,7 +51,7 @@ def compute_metabolic_cost_realistic(
         Metabolic cost C(t) in same units as input (AU or Joules if calibrated)
     """
     base_cost = c1 * S + c2 * B_prev
-    if enforce_landauer and S > eps_stab:
+    if enforce_landauer and eps_stab < S:
         if bold_calibration is not None:
             # Use BOLD-calibrated energy estimate
             from energy.bold_calibration import (

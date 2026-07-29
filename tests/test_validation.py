@@ -455,7 +455,7 @@ class TestConstraintSummary:
     def test_summary_constraints(self):
         """Summary should list constraints."""
         summary = get_constraint_summary()
-        for category, constraints in summary.items():
+        for _category, constraints in summary.items():
             assert isinstance(constraints, list)
             assert len(constraints) > 0
             for constraint in constraints:
@@ -655,7 +655,7 @@ class TestConstraintSummaryEdgeCases:
         # Should have categories
         assert isinstance(summary, dict)
         # Each category should have constraints
-        for category, constraints in summary.items():
+        for _category, constraints in summary.items():
             assert isinstance(constraints, list)
 
 

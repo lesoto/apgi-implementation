@@ -586,7 +586,7 @@ class TestSignalIntegrationModes:
             pipeline_discrete.step(x_e=x_e, x_i=x_i)  # noqa: F841
             pipeline_ode.step(x_e=x_e, x_i=x_i)  # noqa: F841
         # After several steps, signals should diverge
-        assert pipeline_discrete.S != pytest.approx(pipeline_ode.S, abs=0.01)
+        assert pytest.approx(pipeline_ode.S, abs=0.01) != pipeline_discrete.S
 
 
 class TestSlidingWindowVariance:
@@ -1032,7 +1032,7 @@ class TestPostIgnitionDynamics:
             # So we check it's reduced by at least the reset factor
             assert pipeline.S < 2.0  # Definitely less than original
             # And it should be close to the reset value (within tolerance for integration)
-            assert pipeline.S < 2.0 * config["reset_factor"] * 2.0
+            assert 2.0 * config["reset_factor"] * 2.0 > pipeline.S
 
     def test_refractory_boost_on_ignition(self, base_config):
         """Test refractory boost on ignition."""
@@ -1215,7 +1215,7 @@ class TestHierarchicalComputePerLevelErrors:
         initial_sigma2_e = pipeline.sigma2_e_levels.copy()  # noqa: F841
         pipeline._compute_per_level_errors(1.0, 0.5)
         # Statistics should be updated
-        assert any(m != im for m, im in zip(pipeline.mu_e_levels, initial_mu_e))
+        assert any(m != im for m, im in zip(pipeline.mu_e_levels, initial_mu_e, strict=False))
 
 
 class TestConfigurationMutability:

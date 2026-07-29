@@ -258,7 +258,7 @@ class TestExamples16FiguresRemaining:
         assert os.path.exists(file_path)
 
         # Try to read and parse the file
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             content = f.read()
             # Basic syntax check
             assert "import" in content

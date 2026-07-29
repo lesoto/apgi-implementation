@@ -311,10 +311,10 @@ class TestKeyTestablePredictionValidator:
             warnings.simplefilter("ignore", RuntimeWarning)
             validator = KeyTestablePredictionValidator(tau_sigma=0.5)
             # Create data where margin correlates with ignition
-            for i in range(100):
+            for _i in range(100):
                 S = 0.8 + 0.1 * np.random.randn()
                 theta = 0.5
-                B = 1 if S > theta else 0
+                B = 1 if theta < S else 0
                 validator.step(S=S, theta=theta, B=B)
             result = validator.validate()
             assert isinstance(result["correlation_margin"], float)

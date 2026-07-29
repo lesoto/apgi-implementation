@@ -111,9 +111,7 @@ class TestStep4to7Precision:
         gain is exp(2.4) ~ 11, so the Pi_max=10 clamp binds. Clamping before
         the exponential would not bound the blow-up.
         """
-        out = compute_interoceptive_precision_exponential(
-            pi_baseline=5.0, beta_somatic=1.2, M=2.0
-        )
+        out = compute_interoceptive_precision_exponential(pi_baseline=5.0, beta_somatic=1.2, M=2.0)
         assert out == PI_MAX_CANONICAL
         # Below the ceiling the exponential form is exact.
         assert compute_interoceptive_precision_exponential(
@@ -127,16 +125,16 @@ class TestStep4to7Precision:
         eps=-1, deleting the spec's inhibitory bottom-up pathway.
         """
         psi = np.tanh
-        common = dict(
-            pi_ell=1.0,
-            tau_pi=100.0,
-            epsilon_ell=0.0,
-            alpha_gain=0.1,
-            pi_ell_plus_1=None,
-            C_down=0.1,
-            C_up=0.05,
-            psi=psi,
-        )
+        common = {
+            "pi_ell": 1.0,
+            "tau_pi": 100.0,
+            "epsilon_ell": 0.0,
+            "alpha_gain": 0.1,
+            "pi_ell_plus_1": None,
+            "C_down": 0.1,
+            "C_up": 0.05,
+            "psi": psi,
+        }
         pos = precision_coupling_ode_core(epsilon_ell_minus_1=1.0, **common)
         neg = precision_coupling_ode_core(epsilon_ell_minus_1=-1.0, **common)
         zero = precision_coupling_ode_core(epsilon_ell_minus_1=0.0, **common)
@@ -197,10 +195,7 @@ class TestStep5to8Neuromodulators:
         with pytest.warns(RuntimeWarning, match="spec-mandated ceiling"):
             pipeline = APGIPipeline(cfg)
         assert pipeline.config["g_ne"] == pytest.approx(NE_SUBDOMINANCE_MAX / 0.1)
-        assert (
-            pipeline.config["gamma_ne"] * pipeline.config["g_ne"]
-            <= NE_SUBDOMINANCE_MAX + 1e-12
-        )
+        assert pipeline.config["gamma_ne"] * pipeline.config["g_ne"] <= NE_SUBDOMINANCE_MAX + 1e-12
 
     def test_both_ne_pathways_permitted_under_the_clamp(self):
         """The constraint is on the PRODUCT, not on the pair of flags."""

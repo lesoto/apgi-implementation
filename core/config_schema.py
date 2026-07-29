@@ -289,7 +289,7 @@ class APGIConfig(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def validate_ne_separation(self) -> "APGIConfig":
+    def validate_ne_separation(self) -> APGIConfig:
         """Prevent NE double-counting (Spec §2.3-2.4)."""
         if self.ne_on_precision and self.ne_on_threshold:
             raise ValueError(
@@ -299,7 +299,7 @@ class APGIConfig(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def validate_ne_threshold_stability(self) -> "APGIConfig":
+    def validate_ne_threshold_stability(self) -> APGIConfig:
         """Validate NE threshold mode parameters for stability."""
         if self.ne_on_threshold and self.gamma_ne >= 0.1:
             raise ValueError(
@@ -309,7 +309,7 @@ class APGIConfig(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def validate_dt_stability(self) -> "APGIConfig":
+    def validate_dt_stability(self) -> APGIConfig:
         """Validate integration step size (Spec §7.4)."""
         min_tau = min(self.tau_s, self.tau_theta, 1000.0)  # Default tau_pi = 1000
         max_dt = min_tau / 10.0
@@ -321,7 +321,7 @@ class APGIConfig(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def validate_learning_rates(self) -> "APGIConfig":
+    def validate_learning_rates(self) -> APGIConfig:
         """Validate generative model learning rates (Spec §1.4)."""
         if self.use_internal_predictions:
             max_kappa = 2.0 / self.pi_max
@@ -338,18 +338,20 @@ class APGIConfig(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def apply_backward_compat(self) -> "APGIConfig":
+    def apply_backward_compat(self) -> APGIConfig:
         """Apply backward compatibility aliases and ensure consistency."""
         # 1. Somatic bias (beta/beta_da)
-        if self.beta_da is not None:
-            # beta_da always takes precedence if provided
-            if abs(self.beta_da - self.beta) > 0.01 or self.beta == 1.15:
-                self.beta = self.beta_da
+        # beta_da takes precedence when it differs from beta, or when beta is
+        # still at its own default (so an explicit beta_da wins over an
+        # unset beta).
+        if self.beta_da is not None and (abs(self.beta_da - self.beta) > 0.01 or self.beta == 1.15):
+            self.beta = self.beta_da
         # 2. Ignition temperature (tau_sigma/ignite_tau)
-        if self.tau_sigma is not None:
-            # tau_sigma always takes precedence if provided
-            if abs(self.tau_sigma - self.ignite_tau) > 0.01 or self.ignite_tau == 0.5:
-                self.ignite_tau = self.tau_sigma
+        # Same precedence rule for the spec-preferred tau_sigma name.
+        if self.tau_sigma is not None and (
+            abs(self.tau_sigma - self.ignite_tau) > 0.01 or self.ignite_tau == 0.5
+        ):
+            self.ignite_tau = self.tau_sigma
         return self
 
     def to_dict(self) -> dict:
@@ -357,7 +359,7 @@ class APGIConfig(BaseModel):
         return self.model_dump()
 
     @classmethod
-    def from_dict(cls, data: dict) -> "APGIConfig":
+    def from_dict(cls, data: dict) -> APGIConfig:
         """Create from dictionary."""
         return cls(**data)
 

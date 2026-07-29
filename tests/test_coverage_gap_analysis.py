@@ -36,13 +36,13 @@ class TestMatplotlibConfigCoverage:
     def test_configure_matplotlib_fonts_with_tex(self):
         """Test TeX rendering configuration (line 88 coverage)."""
         configure_matplotlib_fonts(use_tex=True, font_family="sans-serif")
-        assert matplotlib.rcParams["text.usetex"] == True
+        assert matplotlib.rcParams["text.usetex"]
         assert matplotlib.rcParams["mathtext.fontset"] == "cm"
 
     def test_configure_matplotlib_fonts_without_tex(self):
         """Test non-TeX configuration."""
         configure_matplotlib_fonts(use_tex=False, font_family="sans-serif")
-        assert matplotlib.rcParams["text.usetex"] == False
+        assert not matplotlib.rcParams["text.usetex"]
         assert matplotlib.rcParams["mathtext.fontset"] == "dejavusans"
 
     def test_suppress_font_warnings_filters(self):

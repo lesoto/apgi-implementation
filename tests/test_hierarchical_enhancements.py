@@ -322,7 +322,7 @@ class TestIntegration:
         n_levels = 3
         phi = np.zeros(n_levels)
         theta = np.ones(n_levels)
-        for t in range(n_steps):
+        for _t in range(n_steps):
             # Update phases with bidirectional coupling
             for ell in range(n_levels):
                 phi_up = phi[ell + 1] if ell < n_levels - 1 else None

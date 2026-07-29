@@ -116,7 +116,7 @@ class APGIPipeline:
     NE_CLAMP_MAX: float = 0.5
 
     M: float
-    history: dict[str, list[float]]
+    history: dict[str, MutableSequence[float]]
     mu_e_levels: np.ndarray
     mu_i_levels: np.ndarray
     sigma2_e_levels: np.ndarray
@@ -241,7 +241,7 @@ class APGIPipeline:
         Raises:
             ValueError: If hierarchical_mode has unknown value
         """
-        mode = config.get("hierarchical_mode", None)
+        mode = config.get("hierarchical_mode")
         # Only apply preset if hierarchical_mode is explicitly set
         if mode is None:
             return config
@@ -736,7 +736,7 @@ class APGIPipeline:
         if self.config.get("use_somatic_precision", False):
             # β_SM (exponential gain), NOT β_DA or β_somatic (linear form) —
             # see config.py's Somatic marker parameters block.
-            _beta_sm = self.config.get("beta_sm", self.config.get("beta_somatic", 0.3))
+            _beta_sm = float(self.config.get("beta_sm") or self.config.get("beta_somatic") or 0.3)
             pi_i_eff = compute_interoceptive_precision_exponential(
                 pi_i,
                 _beta_sm,

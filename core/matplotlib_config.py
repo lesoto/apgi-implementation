@@ -3,9 +3,9 @@ Suppresses font warnings and configures fonts with fallback chains for
 headless systems and CI environments.
 """
 
+import logging
 import os
 import warnings
-import logging
 
 # Suppress warnings BEFORE importing matplotlib
 warnings.filterwarnings("ignore")
@@ -13,8 +13,11 @@ warnings.filterwarnings("ignore")
 # Configure matplotlib backend before any imports
 os.environ["MPLBACKEND"] = "Agg"
 
-# Now import matplotlib with warnings suppressed
-import matplotlib
+# Now import matplotlib with warnings suppressed. The import MUST follow the
+# MPLBACKEND assignment above — matplotlib reads the backend at import time, so
+# hoisting this to the top of the file would select the wrong (interactive)
+# backend and break headless figure generation in CI.
+import matplotlib  # noqa: E402
 
 # Set the backend explicitly
 matplotlib.use("Agg")

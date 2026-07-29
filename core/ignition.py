@@ -34,7 +34,7 @@ def sample_ignition_state(p_ignite: float, rng: RNGLike = None) -> int:
 
 
 def detect_ignition_event(S: float, theta: float) -> bool:
-    return bool(S > theta)
+    return bool(theta < S)
 
 
 def compute_margin(S: float, theta: float) -> float:

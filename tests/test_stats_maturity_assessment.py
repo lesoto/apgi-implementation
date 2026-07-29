@@ -462,9 +462,7 @@ class TestLogMaturityAssessment:
         log_maturity_assessment(score)
         captured = capsys.readouterr()
         # Structured logging outputs to stdout
-        assert (
-            "maturity_assessment" in captured.err or "maturity_assessment" in captured.out or True
-        )  # Logging may be configured differently
+        assert True  # Logging may be configured differently
 
     def test_logs_with_spectral_signature(self, capsys):
         """Should log spectral signature info."""

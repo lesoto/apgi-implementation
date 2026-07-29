@@ -13,6 +13,7 @@ This test file specifically targets the 144 uncovered statements across:
 
 from __future__ import annotations
 
+import contextlib
 import warnings
 from typing import Any
 
@@ -154,7 +155,7 @@ class TestPipelineEdgeCases:
         try:
             pipeline = APGIPipeline(pipeline_config)
 
-            for i in range(10):
+            for _i in range(10):
                 result = pipeline.step(x_e=0.5, x_i=0.3)
                 assert result is not None
                 # Kuramoto output should be in results if enabled
@@ -489,16 +490,12 @@ class TestExamples16FiguresUncovered:
             # Try to run figure generation
             if hasattr(figures_16, "generate_figures"):
                 # Call with minimal arguments
-                try:
+                # Expected if required parameters are missing
+                with contextlib.suppress(TypeError, RuntimeError, ValueError):
                     figures_16.generate_figures()
-                except (TypeError, RuntimeError, ValueError):
-                    # Expected if required parameters are missing
-                    pass
             elif hasattr(figures_16, "create_figures"):
-                try:
+                with contextlib.suppress(TypeError, RuntimeError, ValueError):
                     figures_16.create_figures()
-                except (TypeError, RuntimeError, ValueError):
-                    pass
         except ImportError:
             pytest.skip("figures_16 not available")
 

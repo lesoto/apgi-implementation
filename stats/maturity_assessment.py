@@ -10,13 +10,11 @@ Spec §15: Design Constraints and Maturity Metrics
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 
-from core.numerics import safe_corrcoef
-
 from core.logging_config import get_logger
+from core.numerics import safe_corrcoef
 from stats.spectral_extraction import SpectralSignature, extract_1f_signature
 
 logger = get_logger("apgi.maturity")
@@ -38,7 +36,7 @@ class MaturityScore:
     issues: list[str]  # List of identified issues
     recommendations: list[str]  # Improvement recommendations
     # Detailed metrics
-    spectral_signature: Optional[SpectralSignature] = None
+    spectral_signature: SpectralSignature | None = None
     hierarchical_coupling_strength: float = 0.0
     cascade_effectiveness: float = 0.0
 
@@ -144,10 +142,7 @@ def assess_hierarchical_architecture(
                     # Average coherence in mid-frequency range
                     mid_idx = len(coh) // 2
                     coherences.append(np.mean(coh[mid_idx - 10 : mid_idx + 10]))
-            if coherences:
-                coherence_score = float(np.mean(coherences) * 100)
-            else:
-                coherence_score = 0.0
+            coherence_score = float(np.mean(coherences) * 100) if coherences else 0.0
         except Exception:
             coherence_score = 0.0
     # Compute overall hierarchical score
@@ -164,9 +159,9 @@ def assess_hierarchical_architecture(
 
 def assess_statistical_validation(
     signal: np.ndarray,
-    signal_levels: Optional[list[np.ndarray]] = None,
+    signal_levels: list[np.ndarray] | None = None,
     fs: float = 1.0,
-) -> tuple[float, float, float, list[str], list[str], Optional[SpectralSignature]]:
+) -> tuple[float, float, float, list[str], list[str], SpectralSignature | None]:
     """Assess statistical validation maturity (§12).
     Evaluates:
     - 1/f spectral signature quality
@@ -246,10 +241,10 @@ def assess_statistical_validation(
 
 def assess_overall_maturity(
     signal: np.ndarray,
-    signal_levels: Optional[list[np.ndarray]] = None,
-    theta_levels: Optional[list[np.ndarray]] = None,
-    phi_levels: Optional[list[np.ndarray]] = None,
-    pi_levels: Optional[list[np.ndarray]] = None,
+    signal_levels: list[np.ndarray] | None = None,
+    theta_levels: list[np.ndarray] | None = None,
+    phi_levels: list[np.ndarray] | None = None,
+    pi_levels: list[np.ndarray] | None = None,
     fs: float = 1.0,
 ) -> MaturityScore:
     """Comprehensive maturity assessment combining all components.

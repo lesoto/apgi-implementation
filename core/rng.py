@@ -41,7 +41,7 @@ True
 
 from __future__ import annotations
 
-from typing import Union
+from typing import TypeAlias
 
 import numpy as np
 
@@ -54,7 +54,7 @@ __all__ = [
 ]
 
 #: Anything accepted where a generator is expected.
-RNGLike = Union[None, int, np.random.SeedSequence, np.random.Generator]
+RNGLike: TypeAlias = "None | int | np.random.SeedSequence | np.random.Generator"
 
 # Process-global generator. Unseeded by default (OS entropy), so behaviour is
 # unchanged for callers that never seed; seed_everything() makes it deterministic.

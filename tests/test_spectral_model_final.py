@@ -89,7 +89,7 @@ class TestAnalyticMultiscalePSDEdgeCases:
         sigma2s = np.array([1.0, 1.0, 1.0])
         result = analytic_multiscale_psd(f, taus, sigma2s)
         # Should be sum of three Lorentzians
-        expected = sum(lorentzian_spectrum(f, t, s) for t, s in zip(taus, sigma2s))
+        expected = sum(lorentzian_spectrum(f, t, s) for t, s in zip(taus, sigma2s, strict=False))
         np.testing.assert_array_almost_equal(result, expected)
 
 

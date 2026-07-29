@@ -48,7 +48,8 @@ class TestKuramotoOscillatorsExtended:
         new_phases = np.array([0.0, np.pi, 2 * np.pi])
         osc.set_phases(new_phases)
         np.testing.assert_array_almost_equal(
-            osc.phases, np.array([0.0, np.pi, 0.0])  # 2*pi wraps to 0
+            osc.phases,
+            np.array([0.0, np.pi, 0.0]),  # 2*pi wraps to 0
         )
 
     def test_history_empty(self):

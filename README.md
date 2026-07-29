@@ -1,4 +1,10 @@
 # APGI: Allostatic Precision-Gated Ignition
+
+[![CI](https://github.com/apgiframework/apgi-implementation/actions/workflows/ci.yml/badge.svg)](https://github.com/apgiframework/apgi-implementation/actions/workflows/ci.yml)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21632264-blue)](https://doi.org/10.5281/zenodo.21632264)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+
 ## Overview
 APGI is a unified computational framework for modeling allostatic threshold dynamics in biological systems. It integrates signal processing, precision-weighted accumulation, threshold adaptation, and ignition mechanisms with optional advanced features including Kuramoto oscillators, reservoir computing, and thermodynamic constraints.
 **Key Features:**
@@ -34,8 +40,11 @@ python -m pytest tests/ -v
 ```python
 from pipeline import APGIPipeline
 from config import CONFIG
-# Initialize pipeline
-pipeline = APGIPipeline(CONFIG)
+
+# Initialize pipeline. Always set a seed for anything you intend to report:
+# every stochastic element draws from it, so the run is bit-for-bit reproducible.
+pipeline = APGIPipeline({**CONFIG, "seed": 42})
+
 # Run single step
 result = pipeline.step(
     x_e=0.5,      # Exteroceptive signal
@@ -43,10 +52,45 @@ result = pipeline.step(
     x_i=0.2,      # Interoceptive signal
     x_hat_i=0.1   # Interoceptive prediction
 )
+
 # Access results
 print(f"Signal: {result['S']:.4f}")
 print(f"Threshold: {result['theta']:.4f}")
 print(f"Ignition: {result['B']}")
+```
+
+### Reproducibility
+
+The defaults are the canonical parameterisation from the Notation Appendix, and
+configuration validation **fails closed**: a config that violates the
+specification raises rather than running and returning plausible-looking
+numbers. Pass `strict=False` to opt out explicitly; the departure is then
+recorded in the run manifest.
+
+```python
+from core.config_io import load_config
+from pipeline import APGIPipeline
+
+config = load_config("configs/prod.toml")   # defaults < file < APGI_* env < args
+pipeline = APGIPipeline(config)
+for t in range(10_000):
+    pipeline.step(x_e=..., x_i=...)
+
+# Write provenance next to every figure or table you publish.
+pipeline.write_manifest("outputs/figure_07.manifest.json", n_steps=10_000)
+```
+
+The manifest records the seed, the resolved config and its SHA-256, the git
+commit and working-tree cleanliness, the interpreter, and every numerical
+dependency version — everything needed to regenerate the output exactly.
+
+Configuration resolves across four layers (lowest precedence first): built-in
+defaults, a TOML/JSON file from `configs/`, `APGI_*` environment variables, then
+explicit arguments. An unrecognised `APGI_*` variable raises rather than being
+ignored.
+
+```bash
+APGI_CONFIG=configs/prod.toml APGI_SEED=42 python main.py
 ```
 ### Run Examples
 ```bash

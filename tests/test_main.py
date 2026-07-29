@@ -256,7 +256,7 @@ class TestSaveResults:
             filepath = f.name
         try:
             save_results(results, filepath)
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 loaded = json.load(f)
             assert loaded["config"]["lam"] == 0.2
             assert loaded["n_steps"] == 100
@@ -274,7 +274,7 @@ class TestSaveResults:
             filepath = f.name
         try:
             save_results(results, filepath)
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 loaded = json.load(f)
             assert isinstance(loaded["array"], list)
             assert loaded["array"] == [1.0, 2.0, 3.0]

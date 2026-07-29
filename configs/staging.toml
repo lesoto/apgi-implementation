@@ -31,3 +31,12 @@ use_kuramoto = true
 use_thermodynamic_cost = true
 use_observable_mapping = true
 use_active_inference = true
+
+# kappa_meta converts the Landauer energy floor into AU. The default 1e20 makes
+# that floor (~kappa_meta * N_erase * k_B*T*ln2 ~ 5.9 AU) DOMINATE the
+# signal-proportional cost c1*S (~0.2 AU), so eta*[C-V] ratchets theta into its
+# clip ceiling and the reservoir/oscillator machinery never gets exercised.
+# 1e18 keeps Landauer as a genuine consistency FLOOR — which is all the spec
+# claims for it ("a thermodynamic consistency floor... not a predictive
+# constraint on metabolic cost") — while leaving the allostatic term in charge.
+kappa_meta = 1e18

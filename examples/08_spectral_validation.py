@@ -203,7 +203,7 @@ def validate_lorentzian_superposition(
     # Rebuild fitted PSD over the full frequency axis for plotting
     amps = np.asarray(fit_results["amplitudes"])
     fitted_psd_full = np.zeros_like(freqs_obs, dtype=float)
-    for tau_val, amp in zip(taus_s, amps):
+    for tau_val, amp in zip(taus_s, amps, strict=False):
         omega_tau = 2 * np.pi * freqs_obs * tau_val
         fitted_psd_full += amp * (tau_val**2 / (1.0 + omega_tau**2))
     # Estimate spectral exponents across the full 1/f transition band.
@@ -215,14 +215,14 @@ def validate_lorentzian_superposition(
     beta_predicted = estimate_1f_exponent(freqs_obs, psd_predicted, fmin=fmin_fit, fmax=fmax_fit)
     print(f"\nSpectral exponent β (observed): {beta_observed:.4f}")
     print(f"Spectral exponent β (predicted): {beta_predicted:.4f}")
-    print(f"Expected β for pink noise: ~1.0")
+    print("Expected β for pink noise: ~1.0")
     # Validate pink noise characteristics using the main signal S(t).
     # S has 1/f character from the leaky integrator (τ_s) whereas the
     # multiscale abs-sum aggregate is biased toward β>1.5 due to rectification.
     s_arr = np.array(pipeline.history["S"])
     freqs_s, psd_s = welch_periodogram(s_arr, fs=fs)
     pink_validation = validate_pink_noise(freqs_s, psd_s, beta_target=1.0, tolerance=0.5)
-    print(f"\nPink noise validation:")
+    print("\nPink noise validation:")
     print(f"  Is pink noise: {pink_validation['is_pink_noise']}")
     print(f"  Hurst exponent: {pink_validation['hurst_exponent']:.4f}")
     print(f"  β error from target: {pink_validation['beta_error']:.4f}")
@@ -274,14 +274,14 @@ def demonstrate_analytic_formula(n_levels: int = 5) -> None:
     # Estimate 1/f exponent
     beta = estimate_1f_exponent(freqs, psd, fmin=0.01, fmax=10.0)
     hurst = hurst_from_slope(beta, warn_near_boundary=False)
-    print(f"\nPredicted spectral characteristics:")
+    print("\nPredicted spectral characteristics:")
     print(f"  Spectral exponent β: {beta:.4f}")
     print(f"  Hurst exponent H: {hurst:.4f}")
-    print(f"  1/f range: approximately {1/tau_max:.4f} to {1/tau_min:.4f} Hz")
+    print(f"  1/f range: approximately {1 / tau_max:.4f} to {1 / tau_min:.4f} Hz")
     # Show individual Lorentzian contributions
-    print(f"\nIndividual Lorentzian contributions:")
-    print(f"  S_θ(f) = Σ_ℓ [σ²_ℓ · τ²_ℓ / (1 + (2πfτ_ℓ)²)]")
-    for i, (tau, sigma2) in enumerate(zip(taus, sigma2s)):
+    print("\nIndividual Lorentzian contributions:")
+    print("  S_θ(f) = Σ_ℓ [σ²_ℓ · τ²_ℓ / (1 + (2πfτ_ℓ)²)]")
+    for i, (tau, sigma2) in enumerate(zip(taus, sigma2s, strict=False)):
         corner_freq = 1.0 / (2 * np.pi * tau)
         print(f"  Level {i}: τ={tau:.4f}s, σ²={sigma2:.2f}, f_c={corner_freq:.4f} Hz")
 
@@ -360,7 +360,7 @@ def main() -> None:
         ax.set_xlabel("Time")
         ax.set_ylabel("Multiscale Signal")
         ax.set_title(
-            f'Multiscale Dynamics (H={results["hurst"]:.2f}, β={results["beta_observed"]:.2f})'
+            f"Multiscale Dynamics (H={results['hurst']:.2f}, β={results['beta_observed']:.2f})"
         )
         ax.grid(True, alpha=0.3)
         plt.tight_layout()

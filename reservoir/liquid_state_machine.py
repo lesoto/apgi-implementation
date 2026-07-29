@@ -43,7 +43,8 @@ References:
 from __future__ import annotations
 
 import warnings
-from typing import Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 
@@ -84,8 +85,8 @@ class LiquidStateMachine:
         inh_scale: float = 0.2,
         sigma_inh2: float = 0.1,
         res_sparsity: float = 0.15,
-        heterogeneous_tau: Optional[np.ndarray] = None,
-        seed: Optional[int] = None,
+        heterogeneous_tau: np.ndarray | None = None,
+        seed: int | None = None,
         rng: RNGLike = None,
     ):
         """Initialize liquid state machine.
@@ -142,7 +143,7 @@ class LiquidStateMachine:
             raise ValueError(f"tau_res must be > 0, got {tau_res}")
         if input_scale <= 0:
             raise ValueError(f"input_scale must be > 0, got {input_scale}")
-        self.heterogeneous_tau: Optional[np.ndarray] = None
+        self.heterogeneous_tau: np.ndarray | None = None
         if heterogeneous_tau is not None:
             heterogeneous_tau = np.asarray(heterogeneous_tau, dtype=float)
             if heterogeneous_tau.shape != (N,):
@@ -185,13 +186,39 @@ class LiquidStateMachine:
             self.W_res = np.eye(N) * spectral_radius * 0.1
         # Input weights: random with scaling
         self.W_in = generator.standard_normal((N, M)) * input_scale
-        # W_inh: PV+ interneuron-mediated divisive normalization (§9).
+        # W_inh: PV+ interneuron-mediated lateral inhibition (§9).
         # Non-negative sparse matrix — mirrors biological cortex connectivity
         # probability (~10%) and the non-negative nature of inhibitory drive.
         # Each entry W_inh[i,j] weights how much unit j's activation suppresses
         # unit i through PV+ gain control (Carandini & Heeger, 2012).
+        #
+        # NORMALISED to a target spectral radius. Previously `inh_scale` was a
+        # raw per-entry multiplier, so rho(W_inh) grew linearly with N
+        # (0.78 at N=100... 6.36 at N=400) and swamped the leak term. The
+        # linearised zero-state Jacobian of the step() dynamics is
+        #
+        #     J = -I/tau + W_res - W_inh          (tanh'(0) = 1)
+        #
+        # so a large rho(W_inh) makes J unstable even though rho(W_res) = 0.9 < 1:
+        # the state GREW from 0.147 to 5.09 over 600 zero-input steps for 3 of 4
+        # seeds at N=100. That directly violates the spec's echo-state
+        # requirement ("rho_res < 1 required for fading memory"; values that
+        # produce "non-fading dynamics [are] incompatible with temporal
+        # integration requirements") and inverts W_inh's stated role, which is
+        # "the gain-control mechanism that prevents runaway reverberation"
+        # (DynForm §9). Normalising makes the inhibitory magnitude
+        # N-independent, so W_inh stabilises at every reservoir size.
         mask = (generator.random((N, N)) < inh_sparsity).astype(float)
-        self.W_inh: np.ndarray = np.abs(generator.standard_normal((N, N))) * inh_scale * mask
+        W_inh_raw = np.abs(generator.standard_normal((N, N))) * mask
+        try:
+            with np.errstate(all="ignore"):
+                rho_inh = float(np.max(np.abs(np.linalg.eigvals(W_inh_raw))))
+        except (np.linalg.LinAlgError, FloatingPointError):  # pragma: no cover
+            rho_inh = 0.0
+        if rho_inh > 1e-12:
+            W_inh_raw = W_inh_raw * (inh_scale / rho_inh)
+        self.W_inh: np.ndarray = W_inh_raw
+        self.inh_scale = inh_scale
         # Output weights: initialized randomly, trained via ridge regression
         self.W_out = np.zeros((N, 1))
         # Reservoir state
@@ -203,16 +230,16 @@ class LiquidStateMachine:
     def step(
         self,
         u: np.ndarray | float,
-        tau: Optional[float | np.ndarray] = None,
+        tau: float | np.ndarray | None = None,
         dt: float = 1.0,
         activation: Callable = np.tanh,
-        precision: Optional[float] = None,
-        S_target: Optional[float] = None,
-        theta: Optional[float] = None,
+        precision: float | None = None,
+        S_target: float | None = None,
+        theta: float | None = None,
         A_amp: float = 0.0,
         use_divisive_normalization: bool = False,
         use_subtractive_inhibition: bool = True,
-        alpha_res: Optional[float] = None,
+        alpha_res: float | None = None,
         saturating_amplification: bool = True,
     ) -> np.ndarray:
         """Update reservoir state via Euler integration.
@@ -260,10 +287,7 @@ class LiquidStateMachine:
             >>> x = lsm.step(u, tau=1.0, dt=0.1, S_target=1.5, theta=1.0, A_amp=0.1)
         """
         # Convert scalar input to array
-        if np.isscalar(u):
-            u = np.array([u])
-        else:
-            u = np.asarray(u)
+        u = np.array([u]) if np.isscalar(u) else np.asarray(u)
         # Handle input validation: exact match required, but allow scalar broadcasting
         if u.shape[0] != self.M:
             # Allow scalar broadcasting: single value can be broadcast to any M
@@ -412,9 +436,7 @@ class LiquidStateMachine:
             "r2": r2,
         }
 
-    def collect_state(
-        self, state: Optional[np.ndarray] = None, target: Optional[float] = None
-    ) -> None:
+    def collect_state(self, state: np.ndarray | None = None, target: float | None = None) -> None:
         """Collect state for training.
         Args:
             state: State to collect (optional, defaults to current self.x)
@@ -450,6 +472,59 @@ class LiquidStateMachine:
     def reset_state(self) -> None:
         """Reset reservoir state to zero."""
         self.x = np.zeros(self.N, dtype=float)
+
+    def verify_echo_state_property(self, tau: float | None = None) -> dict[str, Any]:
+        """Check that the reservoir actually has fading memory.
+
+        The spec requires it: "rho_res < 1 required for fading memory" and
+        values producing "non-fading dynamics [are] incompatible with temporal
+        integration requirements and are excluded as biologically implausible"
+        (MathSpec §10, DynForm §17).
+
+        rho(W_res) < 1 alone is NOT sufficient, because step() also subtracts
+        the lateral-inhibition term. Linearising the zero-input dynamics about
+        x = 0 (where tanh'(0) = 1) gives
+
+            dx/dt = J x,    J = -I/tau + W_res - W_inh
+
+        so fading memory holds iff every eigenvalue of J has negative real
+        part. This method reports that directly rather than inferring it from
+        rho(W_res).
+
+        Args:
+            tau: Time constant to evaluate at; defaults to the instance's
+                ``tau_res``. Larger tau means less leak and so a weaker
+                stability margin.
+
+        Returns:
+            Dict with ``rho_res``, ``rho_inh``, ``max_real_eigenvalue`` of J,
+            ``fading_memory`` (bool) and ``margin`` (how far below zero the
+            leading real part sits — larger is more robustly contractive).
+        """
+        tau_eff = float(tau if tau is not None else np.min(np.atleast_1d(self.tau_res)))
+        jacobian = -np.eye(self.N) / tau_eff + self.W_res - self.W_inh
+        try:
+            with np.errstate(all="ignore"):
+                max_real = float(np.max(np.real(np.linalg.eigvals(jacobian))))
+                rho_res = float(np.max(np.abs(np.linalg.eigvals(self.W_res))))
+                rho_inh = float(np.max(np.abs(np.linalg.eigvals(self.W_inh))))
+        except (np.linalg.LinAlgError, FloatingPointError):  # pragma: no cover
+            return {
+                "rho_res": float("nan"),
+                "rho_inh": float("nan"),
+                "max_real_eigenvalue": float("nan"),
+                "fading_memory": False,
+                "margin": float("nan"),
+                "tau": tau_eff,
+            }
+        return {
+            "rho_res": rho_res,
+            "rho_inh": rho_inh,
+            "max_real_eigenvalue": max_real,
+            "fading_memory": max_real < 0.0,
+            "margin": -max_real,
+            "tau": tau_eff,
+        }
 
     def _compute_adaptive_tau(
         self,

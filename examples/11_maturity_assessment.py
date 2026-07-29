@@ -274,7 +274,7 @@ def compare_configurations() -> None:
         # Quick simulation
         rng = np.random.default_rng(42)
         S_history_list: list[float] = []
-        for t in range(2000):
+        for _t in range(2000):
             epsilon_e = rng.standard_normal() * 0.1
             epsilon_i = rng.standard_normal() * 0.1
             output = pipeline.step(epsilon_e, epsilon_i)

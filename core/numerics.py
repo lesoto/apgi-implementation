@@ -131,7 +131,8 @@ def safe_log(x: np.ndarray, floor: float = np.finfo(float).tiny) -> np.ndarray:
     Returns:
         ``log(max(x, floor))``.
     """
-    return np.log(np.maximum(np.asarray(x, dtype=float), floor))
+    result: np.ndarray = np.log(np.maximum(np.asarray(x, dtype=float), floor))
+    return result
 
 
 def finite_mask(*arrays: np.ndarray) -> np.ndarray:
@@ -152,7 +153,7 @@ def finite_mask(*arrays: np.ndarray) -> np.ndarray:
     """
     if not arrays:
         raise ValueError("at least one array is required")
-    mask = np.isfinite(np.asarray(arrays[0], dtype=float))
+    mask: np.ndarray = np.isfinite(np.asarray(arrays[0], dtype=float))
     for arr in arrays[1:]:
         other = np.asarray(arr, dtype=float)
         if other.shape != mask.shape:

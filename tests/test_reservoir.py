@@ -352,19 +352,49 @@ class TestLiquidStateMachineStability:
         # States should be different
         assert not np.allclose(x1, x2)
 
-    def test_fading_memory(self):
-        """Reservoir should have fading memory property."""
-        lsm = LiquidStateMachine(N=100, M=2, spectral_radius=0.9)
+    @pytest.mark.parametrize("seed", [0, 1, 2, 3, 4, 5, 6, 7])
+    def test_fading_memory(self, seed):
+        """Reservoir must have fading memory for EVERY weight draw.
+
+        MathSpec §10 / DynForm §17 require it: "rho_res < 1 required for fading
+        memory". Parameterised over seeds because this previously held only by
+        luck — W_inh was unnormalised, so rho(W_inh) grew with N and the
+        combined Jacobian -I/tau + W_res - W_inh was unstable for 3 of 4 seeds
+        at N=100 (state grew 0.147 -> 5.09 over 600 zero-input steps). An
+        unseeded single-draw test could not see that.
+        """
+        lsm = LiquidStateMachine(N=100, M=2, spectral_radius=0.9, seed=seed)
         # Apply impulse
         lsm.reset_state()
         lsm.step(np.array([1.0, 1.0]), tau=1.0, dt=0.1)
         x_impulse = lsm.x.copy()
-        # Continue with zero input
-        for _ in range(100):
+        # Continue with zero input, long enough to outlast any non-normal transient
+        for _ in range(300):
             lsm.step(np.array([0.0, 0.0]), tau=1.0, dt=0.1)
         x_final = lsm.x.copy()
         # State should decay toward zero
         assert np.linalg.norm(x_final) < np.linalg.norm(x_impulse)
+
+    @pytest.mark.parametrize("n_units", [50, 100, 200])
+    def test_echo_state_property_is_size_independent(self, n_units):
+        """Fading memory must not depend on reservoir size.
+
+        rho(W_inh) previously scaled linearly with N (0.78 at N=50 -> 6.35 at
+        N=400), so a reservoir that faded at one size diverged at another.
+        """
+        lsm = LiquidStateMachine(N=n_units, M=2, spectral_radius=0.9, seed=0)
+        report = lsm.verify_echo_state_property(tau=1.0)
+        assert report["fading_memory"], report
+        assert report["max_real_eigenvalue"] < 0.0
+        # Inhibition magnitude is now normalised, hence N-independent.
+        assert report["rho_inh"] == pytest.approx(0.2, abs=1e-6)
+
+    def test_verify_echo_state_property_reports_the_jacobian_margin(self):
+        lsm = LiquidStateMachine(N=60, M=2, spectral_radius=0.9, seed=1)
+        report = lsm.verify_echo_state_property(tau=1.0)
+        assert report["rho_res"] == pytest.approx(0.9, abs=1e-6)
+        assert report["margin"] == pytest.approx(-report["max_real_eigenvalue"])
+        assert report["tau"] == 1.0
 
     def test_liquid_state_machine_history_tracking(self):
         """Test history tracking during reservoir computation."""

@@ -168,7 +168,7 @@ class TestSignalAccumulation:
         # Let decay with zero salience
         for _ in range(20):
             sys.step(np.zeros(3), np.ones(3), dt=0.1)
-        assert np.all(sys.S < S_before)
+        assert np.all(S_before > sys.S)
 
     def test_faster_level_responds_more_quickly(self):
         """Level 0 (small τ → large λ) should accumulate faster than level 2."""

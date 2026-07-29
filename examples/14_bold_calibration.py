@@ -12,8 +12,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np  # noqa: E402
 
 from config import CONFIG  # noqa: E402
-from core.thermodynamics import compute_information_bits  # noqa: E402
-from core.thermodynamics import compute_landauer_cost
+from core.thermodynamics import (
+    compute_information_bits,  # noqa: E402
+    compute_landauer_cost,
+)
 from energy.bold_calibration import compute_landauer_energy_per_bit  # noqa: E402
 from energy.calibration_utils import calibrate_for_realistic_kappa  # noqa: E402
 from pipeline import APGIPipeline  # noqa: E402
@@ -71,7 +73,10 @@ def main() -> None:
         energy_legacy = compute_landauer_cost(S, eps, kappa_meta=1.0, kappa_units="dimensionless")
         # BOLD-calibrated calculation
         energy_calibrated = compute_landauer_cost(
-            S, eps, kappa_meta=float(config["kappa_meta"]), kappa_units="joules_per_bit"  # type: ignore[arg-type]
+            S,
+            eps,
+            kappa_meta=float(config["kappa_meta"]),
+            kappa_units="joules_per_bit",  # type: ignore[arg-type]
         )
         ratio = energy_calibrated / energy_legacy if energy_legacy > 0 else 0
         print(

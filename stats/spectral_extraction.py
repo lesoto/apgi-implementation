@@ -12,13 +12,12 @@ Spec §12: Statistical Validation of 1/f spectral signatures
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import numpy as np
 
 from core.rng import RNGLike, resolve_rng
-
 from stats.hurst import hurst_from_slope
 
 

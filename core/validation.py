@@ -155,7 +155,7 @@ def _validate_signal_accumulation(config: dict) -> None:
     lam = config.get("lam", 0.2)
     if not (0 < lam < 1):
         raise ValidationError(
-            f"lam must be in (0, 1), got {lam}. " "Spec §3.2: S(t+1) = (1-λ)S(t) + λ·S_inst(t)"
+            f"lam must be in (0, 1), got {lam}. Spec §3.2: S(t+1) = (1-λ)S(t) + λ·S_inst(t)"
         )
 
 
@@ -185,8 +185,7 @@ def _validate_threshold_dynamics(config: dict) -> None:
     kappa = config.get("kappa", 0.15)
     if kappa <= 0:
         raise ValidationError(
-            f"kappa must be > 0, got {kappa}. "
-            "Spec §4.5: θ(t+1) = θ_base + (θ(t) - θ_base)·exp(-κ)"
+            f"kappa must be > 0, got {kappa}. Spec §4.5: θ(t+1) = θ_base + (θ(t) - θ_base)·exp(-κ)"
         )
 
 
@@ -197,7 +196,7 @@ def _validate_ignition_dynamics(config: dict) -> None:
     tau_sigma = config.get("ignite_tau", 0.5)
     if tau_sigma <= 0:
         raise ValidationError(
-            f"ignite_tau (τ_σ) must be > 0, got {tau_sigma}. " "Spec §5.2: P_ign = σ([S-θ]/τ_σ)"
+            f"ignite_tau (τ_σ) must be > 0, got {tau_sigma}. Spec §5.2: P_ign = σ([S-θ]/τ_σ)"
         )
 
 
@@ -219,7 +218,7 @@ def _validate_continuous_time_sde(config: dict) -> None:
     tau_pi = config.get("tau_pi", DEFAULT_TAU_PI)
     if dt <= 0:
         raise ValidationError(
-            f"dt must be > 0, got {dt}. " "Spec §7.4: Euler-Maruyama integration step"
+            f"dt must be > 0, got {dt}. Spec §7.4: Euler-Maruyama integration step"
         )
     min_tau = min(tau_s, tau_theta, tau_pi)
     max_dt = min_tau / 10.0
@@ -240,7 +239,7 @@ def _validate_hierarchical_parameters(config: dict) -> None:
         k = config.get("timescale_k", 1.6)
         if k <= 1:
             raise ValidationError(
-                f"timescale_k must be > 1, got {k}. " "Spec §8.1: τ_ℓ = τ_0·k^ℓ requires k > 1"
+                f"timescale_k must be > 1, got {k}. Spec §8.1: τ_ℓ = τ_0·k^ℓ requires k > 1"
             )
         # Validate that all timescales are > 1. The default mirrors
         # config.CONFIG's tau_0=10.0; the previous fallback of 1.0 sat exactly
@@ -251,7 +250,7 @@ def _validate_hierarchical_parameters(config: dict) -> None:
             tau_ell = tau_0 * (k**level)
             if tau_ell <= 1:
                 raise ValidationError(
-                    f"τ_{level} = {tau_ell:.2f} ≤ 1. " "Spec §8.2: All timescales must be > 1"
+                    f"τ_{level} = {tau_ell:.2f} ≤ 1. Spec §8.2: All timescales must be > 1"
                 )
 
 
@@ -263,9 +262,7 @@ def _validate_precision_parameters(config: dict) -> None:
     pi_min = config.get("pi_min", 0.01)
     pi_max = config.get("pi_max", 10.0)
     if pi_min <= 0:
-        raise ValidationError(
-            f"pi_min must be > 0, got {pi_min}. " "Spec §2.2: Precision lower bound"
-        )
+        raise ValidationError(f"pi_min must be > 0, got {pi_min}. Spec §2.2: Precision lower bound")
     if pi_max <= pi_min:
         raise ValidationError(
             f"pi_max must be > pi_min, got pi_max={pi_max}, pi_min={pi_min}. "
@@ -330,8 +327,7 @@ def _validate_sliding_window_params(config: dict) -> None:
         T_win = config.get("T_win", 50)
         if not isinstance(T_win, int) or T_win <= 0:
             raise ValidationError(
-                f"T_win={T_win} must be positive integer for sliding window. "
-                f"Spec §1.2 (Method B)"
+                f"T_win={T_win} must be positive integer for sliding window. Spec §1.2 (Method B)"
             )
         # Warn if window is too small for meaningful Bessel correction
         if T_win < 5:
@@ -349,18 +345,18 @@ def _validate_numerical_stability(config: dict) -> None:
     """
     eps = config.get("eps", 1e-8)
     if eps <= 0 or eps >= 1:
-        raise ValidationError(f"eps must be in (0, 1), got {eps}. " "Numerical stability threshold")
+        raise ValidationError(f"eps must be in (0, 1), got {eps}. Numerical stability threshold")
     # Check for reasonable learning rates
     eta = config.get("eta", 0.1)
     if eta <= 0 or eta > 1:
         raise ValidationError(
-            f"eta must be in (0, 1], got {eta}. " "Spec §4.1: Threshold learning rate"
+            f"eta must be in (0, 1], got {eta}. Spec §4.1: Threshold learning rate"
         )
     # Check for reasonable noise levels
     noise_std = config.get("noise_std", 0.01)
     if noise_std < 0:
         raise ValidationError(
-            f"noise_std must be ≥ 0, got {noise_std}. " "Spec §7.2: SDE diffusion coefficient"
+            f"noise_std must be ≥ 0, got {noise_std}. Spec §7.2: SDE diffusion coefficient"
         )
     # Validate cost-value coefficients
     c0 = config.get("c0", 0.0)

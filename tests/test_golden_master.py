@@ -61,14 +61,12 @@ def _trajectory(config_path: str, steps: int) -> list[list[float]]:
 
 
 def _digest(rows: list[list[float]]) -> str:
-    return hashlib.sha256(
-        json.dumps(rows, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(rows, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
 def _load_golden() -> dict[str, dict[str, object]]:
     if not GOLDEN_PATH.is_file():
-        pytest.skip(f"golden file missing: run `python -m tests.test_golden_master --update`")
+        pytest.skip("golden file missing: run `python -m tests.test_golden_master --update`")
     return json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
 
 

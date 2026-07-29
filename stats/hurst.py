@@ -153,7 +153,7 @@ def power_spectrum(
     if len(taus) != len(sigmas):
         raise ValueError("tau_levels and sigma_levels must have the same length")
     S = np.zeros_like(f)
-    for tau, sigma in zip(taus, sigmas):
+    for tau, sigma in zip(taus, sigmas, strict=True):
         S += (sigma**2 * tau**2) / (1.0 + (2.0 * np.pi * f * tau) ** 2)
     return S
 
@@ -270,7 +270,9 @@ def infer_convention(alpha_dfa: float) -> Convention:
     return "fbm" if alpha_dfa >= FGN_FBM_BOUNDARY else "fgn"
 
 
-def hurst_from_alpha_dfa(alpha_dfa: float, convention: Convention | Literal["auto"] = "auto") -> float:
+def hurst_from_alpha_dfa(
+    alpha_dfa: float, convention: Convention | Literal["auto"] = "auto"
+) -> float:
     """Convert a DFA scaling exponent to a Hurst exponent H ∈ (0, 1).
 
     MathSpec §12 / Notation Appendix: "For stationary processes, α_DFA = H…
@@ -348,9 +350,7 @@ def estimate_hurst(
     Returns:
         Hurst exponent H.
     """
-    return hurst_from_alpha_dfa(
-        estimate_alpha_dfa(signal, scales=scales, order=order), convention
-    )
+    return hurst_from_alpha_dfa(estimate_alpha_dfa(signal, scales=scales, order=order), convention)
 
 
 def estimate_hurst_dfa(

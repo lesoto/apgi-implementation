@@ -10,7 +10,7 @@ Tests cover:
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 import pytest
 
@@ -287,7 +287,10 @@ class TestPrecisionCouplingODECore:
 
     def test_precision_coupling_with_psi(self) -> None:
         """Should apply psi function to bottom-up error."""
-        psi: Callable[[float], float] = lambda x: x**2
+
+        def psi(x: float) -> float:
+            return x**2
+
         result = precision_coupling_ode_core(
             pi_ell=1.0,
             tau_pi=1000.0,

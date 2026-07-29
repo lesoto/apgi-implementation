@@ -60,7 +60,7 @@ def test_main_output_save(tmp_path):
         exit_code = main()
         assert exit_code == 0
         assert output_file.exists()
-        with open(output_file, "r") as f:
+        with open(output_file) as f:
             data = json.load(f)
             assert "history" in data
 

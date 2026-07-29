@@ -75,7 +75,7 @@ def analytic_multiscale_psd(
     # Compute superposition analytically
     # S_θ(f) = Σ_ℓ σ²_ℓ · τ²_ℓ / (1 + (2πfτ_ℓ)²)
     psd = np.zeros_like(f)
-    for tau, sigma2 in zip(taus, sigma2s):
+    for tau, sigma2 in zip(taus, sigma2s, strict=True):
         omega_tau = 2 * np.pi * f * tau
         lorentzian = sigma2 * tau**2 / (1 + omega_tau**2)
         psd += lorentzian
@@ -145,7 +145,7 @@ def hierarchical_spectral_superposition(
         raise ValueError("taus and sigma2s must have same length")
     # Sum Lorentzian contributions from all levels
     psd_total = np.zeros(len(freqs), dtype=float)
-    for tau, sigma2 in zip(taus, sigma2s):
+    for tau, sigma2 in zip(taus, sigma2s, strict=True):
         psd_total += lorentzian_spectrum(freqs, tau, sigma2)
     return psd_total
 
@@ -206,8 +206,7 @@ def estimate_1f_exponent(
     except np.linalg.LinAlgError:
         # SVD did not converge - return NaN to indicate failure
         warnings.warn(
-            "1/f exponent fit failed to converge (SVD did not converge); "
-            "returning NaN.",
+            "1/f exponent fit failed to converge (SVD did not converge); returning NaN.",
             RuntimeWarning,
             stacklevel=2,
         )
@@ -314,7 +313,7 @@ def fit_lorentzian_superposition(
         def _model(f: np.ndarray, *amplitudes: float) -> np.ndarray:
             f = np.asarray(f, dtype=float)
             psd = np.zeros_like(f, dtype=float)
-            for tau, amp in zip(taus, amplitudes):
+            for tau, amp in zip(taus, amplitudes, strict=True):
                 omega_tau = 2 * np.pi * f * tau
                 psd += float(amp) * (tau**2 / (1.0 + omega_tau**2))
             return psd

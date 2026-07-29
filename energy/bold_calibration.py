@@ -128,10 +128,7 @@ def calibrate_kappa_meta_from_bold(
     e_min_per_bit = compute_landauer_energy_per_bit(T)
     e_min_total = bits_erased * e_min_per_bit
     # Calibrated κ_meta
-    if e_min_total > 0:
-        kappa_calibrated = e_bold / e_min_total
-    else:
-        kappa_calibrated = 0.0
+    kappa_calibrated = e_bold / e_min_total if e_min_total > 0 else 0.0
     return kappa_calibrated
 
 

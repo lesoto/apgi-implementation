@@ -288,7 +288,7 @@ def generate_figure_s1(
             xytext=(t_ign_ms + 22, 1.08),
             fontsize=7.5,
             color="#922b21",
-            arrowprops=dict(arrowstyle="->", color="#922b21", lw=1.0),
+            arrowprops={"arrowstyle": "->", "color": "#922b21", "lw": 1.0},
         )
 
     ax_top.set_xlim(0, 600)

@@ -6,8 +6,9 @@ Spec §14: Observable mapping to neural and behavioral data
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 
@@ -258,14 +259,9 @@ class NeuralValidator:
         # Find peaks
         p300_window = (times >= 0.25) & (times <= 0.5)
         n200_window = (times >= 0.15) & (times <= 0.25)
-        if np.any(p300_window):
-            p300_amp = float(np.max(np.abs(erp[p300_window])))
-        else:
-            p300_amp = 0.0
-        if np.any(n200_window):
-            n200_amp = float(np.min(erp[n200_window]))  # N200 is negative
-        else:
-            n200_amp = 0.0
+        p300_amp = float(np.max(np.abs(erp[p300_window]))) if np.any(p300_window) else 0.0
+        # N200 is a negative deflection, hence min rather than max.
+        n200_amp = float(np.min(erp[n200_window])) if np.any(n200_window) else 0.0
         return {
             "erp": erp,
             "times": times,
@@ -461,7 +457,7 @@ class CrossValidationRunner:
         indices = np.arange(n_samples)
         # Fold assignment must be reproducible: a cross-validation split that
         # changes between runs makes reported scores unrepeatable.
-        resolve_rng(getattr(self, 'rng', None)).shuffle(indices)
+        resolve_rng(getattr(self, "rng", None)).shuffle(indices)
         fold_size = n_samples // self.n_folds
         splits = []
         for i in range(self.n_folds):

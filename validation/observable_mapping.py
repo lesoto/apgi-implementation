@@ -21,9 +21,9 @@ import warnings
 from typing import Any
 
 import numpy as np
+from scipy import signal  # type: ignore
 
 from core.numerics import safe_corrcoef
-from scipy import signal  # type: ignore
 
 # Suppress LAPACK warnings
 warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*")
@@ -160,10 +160,7 @@ class NeuralObservableExtractor:
         freqs, psd = signal.welch(S_history, fs=self.fs, nperseg=64)
         # Extract gamma band
         gamma_mask = (freqs >= freq_range[0]) & (freqs <= freq_range[1])
-        if np.any(gamma_mask):
-            gamma_power = np.mean(psd[gamma_mask])
-        else:
-            gamma_power = 0.0
+        gamma_power = np.mean(psd[gamma_mask]) if np.any(gamma_mask) else 0.0
         return float(gamma_power)
 
     def extract_erp_amplitude(

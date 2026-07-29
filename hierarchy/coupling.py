@@ -7,11 +7,18 @@ Implements:
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 
-from core.rng import RNGLike, get_global_rng, resolve_rng
+from core.rng import RNGLike, resolve_rng
+
+#: The bottom-up transfer psi. Deliberately polymorphic: callers pass numpy
+#: ufuncs (np.tanh) that operate elementwise on scalars AND arrays, and the
+#: vectorised per-level path passes an array-valued closure. Pinning this to
+#: Callable[[float], float] would reject the array form that is actually used.
+PsiFunction = Callable[[Any], Any]
 
 # Canonical inter-level coarse-graining ratio (Notation Appendix, Canonical
 # Parameters table): k ≈ 133, Δ = log10(k) ≈ 2.1 log-decades per level.
@@ -381,7 +388,7 @@ class HierarchicalPrecisionNetwork:
         tau_pi: float = 1000.0,
         C_down: float = 0.1,
         C_up: float = 0.05,
-        psi: Callable[[float], float] | None = None,
+        psi: PsiFunction | None = None,
     ):
         """Initialize hierarchical precision network.
         Args:

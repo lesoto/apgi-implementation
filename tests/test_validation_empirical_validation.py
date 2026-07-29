@@ -1,5 +1,6 @@
 """Tests for validation/empirical_validation.py dataset-driven validation."""
 
+import contextlib
 import os
 import tempfile
 from unittest.mock import MagicMock, patch
@@ -268,11 +269,9 @@ class TestEmpiricalDataLoader:
             series.to_hdf(filepath, key="data", mode="w")
             # This will fail because Series doesn't have 'accuracy' column
             # But the conversion line should be executed
-            try:
+            # Expected: Series converts to DataFrame but lacks 'accuracy'
+            with contextlib.suppress(KeyError):
                 loader.load_behavioral_dataset(filepath)
-            except KeyError:
-                # Expected - Series converted to DataFrame but missing 'accuracy'
-                pass
         except ImportError:  # pragma: no cover
             pytest.skip("pandas not available")
         finally:

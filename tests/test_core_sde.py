@@ -62,22 +62,28 @@ class TestIntegrateEulerMaruyama:
             integrate_euler_maruyama(1.0, 0.1, 0.1, 0.0, dt=-0.1)
 
     def test_small_dt(self):
-        """Should make smaller changes with smaller dt."""
-        np.random.seed(42)
+        """Should make smaller changes with smaller dt.
+
+        Both integrations must draw the SAME noise sample, or the comparison
+        measures RNG variation rather than the effect of dt. Passing rng=42 to
+        each call guarantees that; np.random.seed() does not, because these
+        draws come from core.rng's generator.
+        """
         result_small = integrate_euler_maruyama(
             x=1.0,
             mu=0.1,
             sigma=0.1,
             t=0.0,
             dt=0.01,
+            rng=42,
         )
-        np.random.seed(42)
         result_large = integrate_euler_maruyama(
             x=1.0,
             mu=0.1,
             sigma=0.1,
             t=0.0,
             dt=1.0,
+            rng=42,
         )
         # Change should be smaller with smaller dt
         change_small = abs(result_small - 1.0)

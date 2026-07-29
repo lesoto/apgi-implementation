@@ -16,7 +16,6 @@ from typing import Any
 import numpy as np
 
 from core.numerics import safe_corrcoef
-
 from core.phi_transform import phi_transform
 
 # Suppress LAPACK warnings
@@ -335,7 +334,7 @@ def measure_criticality_signatures(
             "n_suprathreshold": 0,
             "error": f"Insufficient samples: need {min_samples}, got {len(S)}",
         }
-    sub_mask = S < theta
+    sub_mask = theta > S
     S_sub = S[sub_mask]
     S_supra = S[~sub_mask]
     n_sub, n_supra = len(S_sub), len(S_supra)

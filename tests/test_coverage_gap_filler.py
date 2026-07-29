@@ -55,15 +55,16 @@ from stats.maturity_assessment import (
     log_maturity_assessment,
     print_maturity_assessment,
 )
-from stats.spectral_extraction import bootstrap_confidence_interval, compute_aic_bic
-from stats.spectral_extraction import estimate_hurst_dfa as extract_dfa
 from stats.spectral_extraction import (
+    bootstrap_confidence_interval,
+    compute_aic_bic,
     estimate_spectral_exponent_periodogram,
     estimate_spectral_exponent_welch,
     extract_1f_signature,
     robust_log_regression,
     validate_hierarchical_spectral_signature,
 )
+from stats.spectral_extraction import estimate_hurst_dfa as extract_dfa
 
 
 def test_config_schema_gaps():

@@ -68,7 +68,7 @@ def compute_landauer_cost(
         >>> print(f"Cost: {cost:.2e} J")
         Cost: 3.21e-21 J
     """
-    if S <= eps:
+    if eps >= S:
         # No information to erase
         return 0.0
     if eps <= 0:
@@ -213,7 +213,7 @@ def compute_information_bits(S: float, eps: float) -> float:
         >>> print(f"Bits: {bits:.1f}")
         Bits: 0.0
     """
-    if S <= eps:
+    if eps >= S:
         return 0.0
     return float(np.log2(S / eps))
 
@@ -246,7 +246,7 @@ def compute_metabolic_efficiency(
         >>> print(f"κ_meta: {kappa:.2f}")
         κ_meta: 2.00
     """
-    if S <= eps:
+    if eps >= S:
         raise ValueError(f"S must be > eps for information content (S={S}, eps={eps})")
     n_erase = np.log2(S / eps)
     denominator = n_erase * k_b * T_env * LN2
@@ -284,7 +284,7 @@ def estimate_temperature_from_cost(
         >>> print(f"T_est: {T_est:.1f} K")
         T_est: 310.0
     """
-    if S <= eps:
+    if eps >= S:
         raise ValueError(f"S must be > eps (S={S}, eps={eps})")
     n_erase = np.log2(S / eps)
     denominator = kappa_meta * n_erase * k_b * LN2

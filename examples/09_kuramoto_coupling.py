@@ -62,7 +62,7 @@ def demonstrate_kuramoto_system() -> None:
         "noise_std": 0.05,  # Phase noise
         "coupling_strength": 0.1,  # Inter-level coupling
     }
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  Levels: {n_levels}")
     print(f"  Base frequency ω_0: {config['omega_0']} Hz")
     print(f"  Frequency scaling: {config['freq_scaling']}")
@@ -80,19 +80,19 @@ def demonstrate_kuramoto_system() -> None:
         sync_history.append(result["synchronization"])
     # Analyze results
     phase_array = np.array(phase_history)
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Mean synchronization: {np.mean(sync_history):.4f}")
     print(f"  Final synchronization: {sync_history[-1]:.4f}")
     print(f"  Synchronization range: [{min(sync_history):.4f}, {max(sync_history):.4f}]")
-    print(f"\n  Phase ranges (radians):")
+    print("\n  Phase ranges (radians):")
     for level in range(n_levels):
         phases = phase_array[:, level]
         print(
             f"    Level {level}: [{phases.min():.3f}, {phases.max():.3f}] "
-            f"(wrapped: [{phases.min() % (2*np.pi):.3f}, {phases.max() % (2*np.pi):.3f}])"
+            f"(wrapped: [{phases.min() % (2 * np.pi):.3f}, {phases.max() % (2 * np.pi):.3f}])"
         )
     # Demonstrate phase reset
-    print(f"\n  Applying phase reset at level 0...")
+    print("\n  Applying phase reset at level 0...")
     kuramoto.apply_ignition_reset(level=0)
     result = kuramoto.step(dt=dt)
     print(f"    Post-reset phases: {result['phases']}")
@@ -117,8 +117,8 @@ def demonstrate_kuramoto_with_apgi() -> None:
     config["coupling_strength"] = 0.1
     # Phase modulation parameters (one per level)
     config["omega_phases"] = [0.1, 0.05, 0.025, 0.0125]
-    print(f"\nConfiguration:")
-    print(f"  use_kuramoto: True")
+    print("\nConfiguration:")
+    print("  use_kuramoto: True")
     print(f"  Levels: {config['n_levels']}")
     print(f"  Hierarchical mode: {config['hierarchical_mode']}")
     pipeline = APGIPipeline(config)
@@ -143,11 +143,11 @@ def demonstrate_kuramoto_with_apgi() -> None:
                     "sync": result["kuramoto_synchronization"],
                 }
             )
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Mean synchronization: {np.mean(sync_history):.4f}")
     print(f"  Ignition events: {len(ignition_phases)}")
     if ignition_phases:
-        print(f"\n  Phase states at ignition events:")
+        print("\n  Phase states at ignition events:")
         for event in ignition_phases[:3]:  # Show first 3
             print(
                 f"    Step {event['step']}: sync={event['sync']:.4f}, "
@@ -155,9 +155,9 @@ def demonstrate_kuramoto_with_apgi() -> None:
             )
     # Show phase reset effect
     if len(ignition_phases) >= 2:
-        print(f"\n  Phase reset effect:")
-        print(f"    Kuramoto phases reset on each ignition event")
-        print(f"    This coordinates oscillatory state with ignition timing")
+        print("\n  Phase reset effect:")
+        print("    Kuramoto phases reset on each ignition event")
+        print("    This coordinates oscillatory state with ignition timing")
 
 
 def demonstrate_phase_modulation() -> None:
@@ -175,8 +175,8 @@ def demonstrate_phase_modulation() -> None:
     # Phase modulation parameters
     config["kappa_phase"] = 0.2  # Phase modulation strength
     config["omega_phases"] = [0.5, 0.25, 0.125]  # Level frequencies
-    print(f"\nConfiguration:")
-    print(f"  Phase modulation: enabled")
+    print("\nConfiguration:")
+    print("  Phase modulation: enabled")
     print(f"    κ_phase: {config['kappa_phase']}")
     print(f"    ω_phases: {config['omega_phases']}")
     pipeline = APGIPipeline(config)
@@ -191,18 +191,18 @@ def demonstrate_phase_modulation() -> None:
         if "hierarchical_phases" in result:
             phase_history.append(result["hierarchical_phases"])
         theta_history.append(result["theta"])
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Threshold variation (σ): {np.std(theta_history):.4f}")
     print(f"  Mean threshold: {np.mean(theta_history):.4f}")
     if phase_history:
         phase_array = np.array(phase_history)
-        print(f"\n  Phase dynamics:")
+        print("\n  Phase dynamics:")
         for level in range(min(3, len(phase_history[0]))):
             phases = phase_array[:, level]
             print(f"    Level {level}: phase range [{phases.min():.3f}, {phases.max():.3f}] rad")
-    print(f"\n  PAC mechanism:")
-    print(f"    θ_ℓ(t) = θ_0 · [1 + κ_phase · Π_ℓ+1 · cos(φ_ℓ+1(t))]")
-    print(f"    Higher-level phases modulate lower-level thresholds")
+    print("\n  PAC mechanism:")
+    print("    θ_ℓ(t) = θ_0 · [1 + κ_phase · Π_ℓ+1 · cos(φ_ℓ+1(t))]")
+    print("    Higher-level phases modulate lower-level thresholds")
 
 
 def demonstrate_synchronization_patterns() -> None:
@@ -213,7 +213,7 @@ def demonstrate_synchronization_patterns() -> None:
     n_levels = 4
     n_steps = 300
     coupling_values = [0.0, 0.05, 0.1, 0.2]
-    print(f"\nTesting different coupling strengths...")
+    print("\nTesting different coupling strengths...")
     print(f"Levels: {n_levels}, Steps: {n_steps}")
     results = []
     for coupling in coupling_values:
@@ -236,7 +236,7 @@ def demonstrate_synchronization_patterns() -> None:
                 "sync_variance": np.var(sync_values),
             }
         )
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"{'Coupling':>10} {'Mean Sync':>12} {'Final Sync':>12} {'Sync Var':>12}")
     print("-" * 50)
     for r in results:
@@ -244,10 +244,10 @@ def demonstrate_synchronization_patterns() -> None:
             f"{r['coupling']:>10.2f} {r['mean_sync']:>12.4f} "
             f"{r['final_sync']:>12.4f} {r['sync_variance']:>12.6f}"
         )
-    print(f"\nObservations:")
-    print(f"  - Zero coupling: independent oscillators (low sync)")
-    print(f"  - Weak coupling: partial synchronization")
-    print(f"  - Strong coupling: near-complete synchronization")
+    print("\nObservations:")
+    print("  - Zero coupling: independent oscillators (low sync)")
+    print("  - Weak coupling: partial synchronization")
+    print("  - Strong coupling: near-complete synchronization")
 
 
 def demonstrate_frequency_modulation() -> None:
@@ -260,7 +260,7 @@ def demonstrate_frequency_modulation() -> None:
     dt = 0.1
     # Test different precision values
     precision_values = [0.1, 1.0, 5.0, 10.0]
-    print(f"\nTesting frequency modulation by precision...")
+    print("\nTesting frequency modulation by precision...")
     config = {
         "omega_0": 0.5,
         "freq_scaling": 0.7,
@@ -284,15 +284,15 @@ def demonstrate_frequency_modulation() -> None:
                 "mean_freq": np.mean(frequencies),
             }
         )
-    print(f"\nEffective frequencies:")
+    print("\nEffective frequencies:")
     print(f"{'Precision (Π)':>15} {'Effective ω':>15}")
     print("-" * 35)
     for r in results:
         print(f"{r['precision']:>15.2f} {r['mean_freq']:>15.4f}")
-    print(f"\nMechanism:")
-    print(f"  ω_eff = ω_0 · (1 + α·log(1 + Π))")
-    print(f"  Higher precision → faster oscillation")
-    print(f"  This links attention (precision) to oscillatory speed")
+    print("\nMechanism:")
+    print("  ω_eff = ω_0 · (1 + α·log(1 + Π))")
+    print("  Higher precision → faster oscillation")
+    print("  This links attention (precision) to oscillatory speed")
 
 
 def main() -> None:

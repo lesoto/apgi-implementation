@@ -26,9 +26,8 @@ from typing import Any, Literal
 
 import numpy as np
 
-from core.rng import RNGLike, get_global_rng, resolve_rng
-
 from core.precision import clamp, compute_interoceptive_precision_exponential
+from core.rng import RNGLike, get_global_rng, resolve_rng
 
 AgentType = Literal["full", "beta_sm_lesion", "pi_lesion", "alpha_lesion", "random"]
 
@@ -212,7 +211,7 @@ class APGISomaticAgent:
         z_e = float(np.std(self.Q))
         z_i = abs(delta)
         S = pi_e * abs(z_e) + pi_i_eff * abs(z_i)
-        ignition = int(S > self.theta_ignition)
+        ignition = int(self.theta_ignition < S)
         self.log.action.append(arm)
         self.log.reward.append(reward)
         self.log.m_hat.append(m_hat)
@@ -325,7 +324,7 @@ def compute_m_hat_lead_lag(log: TrialLog, max_lag: int = 5) -> dict:
             "all_corrs": corrs,
             "indeterminate": True,
         }
-    ranked = [c if inf else -np.inf for c, inf in zip(corrs, informative)]
+    ranked = [c if inf else -np.inf for c, inf in zip(corrs, informative, strict=True)]
     peak_idx = int(np.argmax(ranked))
     peak_lag = list(lags)[peak_idx]
     return {
@@ -354,7 +353,7 @@ def run_protocol_2(
     Returns a dict keyed by agent_type with reward totals, convergence
     trial, interoceptive-dominance proportion, and M_hat-lead-lag results.
     """
-    results: dict[str, dict] = {}
+    results: dict[str, Any] = {}
     for i, agent_type in enumerate(agent_types):
         agent_seed = None if seed is None else seed + i
         log = run_agent_on_volatility_schedule(

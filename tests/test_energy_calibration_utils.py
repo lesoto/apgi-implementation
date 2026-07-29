@@ -139,7 +139,7 @@ class TestCreateRealisticCalibrator:
         assert calibrator.conversion_factor == calibration["calibrated_conversion_factor"]
         assert calibrator.tissue_volume == DEFAULT_TISSUE_VOLUME
         assert calibrator.ignition_spike_factor == 1.075
-        assert calibrator.T == calibration["temperature_k"]
+        assert calibration["temperature_k"] == calibrator.T
 
     def test_very_efficient_system(self):
         """Should handle very efficient systems."""

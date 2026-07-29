@@ -59,7 +59,7 @@ class TestNeuralObservableExtractor:
         for t in range(100):
             S = np.sin(0.1 * t)
             theta = 1.0 + 0.1 * np.cos(0.05 * t)
-            B = 1 if S > theta else 0
+            B = 1 if theta < S else 0
             result = extractor.step(S, theta, B)
             assert "gamma_power" in result
             assert "erp_amplitude" in result
@@ -69,7 +69,7 @@ class TestNeuralObservableExtractor:
         """Test history recording."""
         extractor = NeuralObservableExtractor()
         # Take 50 steps
-        for t in range(50):
+        for _t in range(50):
             extractor.step(0.5, 1.0, 0)
         history = extractor.get_history()
         assert len(history["S"]) == 50
@@ -119,7 +119,7 @@ class TestBehavioralObservableExtractor:
         for t in range(100):
             S = np.sin(0.1 * t)
             theta = 1.0 + 0.1 * np.cos(0.05 * t)
-            B = 1 if S > theta else 0
+            B = 1 if theta < S else 0
             result = extractor.step(S, theta, B)
             assert "rt_variability" in result
             assert "response_criterion" in result
@@ -170,7 +170,7 @@ class TestKeyTestablePredictionValidator:
         for t in range(200):
             S = np.sin(0.1 * t) + np.random.normal(0, 0.1)
             theta = 1.0 + 0.1 * np.cos(0.05 * t)
-            B = 1 if S > theta else 0
+            B = 1 if theta < S else 0
             validator.step(S, theta, B)
         # Validate
         result = validator.validate()
@@ -184,7 +184,7 @@ class TestKeyTestablePredictionValidator:
         """Test validation with insufficient data."""
         validator = KeyTestablePredictionValidator()
         # Only 10 samples
-        for t in range(10):
+        for _t in range(10):
             validator.step(0.5, 1.0, 0)
         result = validator.validate()
         assert not result["valid"]
@@ -257,7 +257,7 @@ class TestObservableMappingIntegration:
         for t in range(500):
             S = np.sin(0.05 * t) + np.random.normal(0, 0.1)
             theta = 1.0 + 0.1 * np.cos(0.02 * t)
-            B = 1 if S > theta else 0
+            B = 1 if theta < S else 0
             neural.step(S, theta, B)
             behavioral.step(S, theta, B)
             prediction.step(S, theta, B)

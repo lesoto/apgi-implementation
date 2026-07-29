@@ -40,7 +40,8 @@ class TestPhaseOscillatorNetworkExtended:
         new_phases = np.array([0.0, np.pi, 2 * np.pi])
         network.set_phases(new_phases)
         np.testing.assert_array_almost_equal(
-            network.phases, np.array([0.0, np.pi, 0.0])  # 2*pi wraps to 0
+            network.phases,
+            np.array([0.0, np.pi, 0.0]),  # 2*pi wraps to 0
         )
 
 

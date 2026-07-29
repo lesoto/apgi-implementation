@@ -89,8 +89,7 @@ FALSIFICATION_TABLE: tuple[FalsificationClaim, ...] = (
         description="1/f threshold dynamics — long-range temporal correlations",
         quantitative_prediction="H = alpha_DFA ~ 0.85-0.95 (fGn) in threshold/detection-rate "
         "series; partial-hierarchy (L0-L2) H ~ 0.65-0.75",
-        falsifying_result="alpha_DFA < 0.55 across two independent datasets "
-        "(DFA, >= 200 trials)",
+        falsifying_result="alpha_DFA < 0.55 across two independent datasets (DFA, >= 200 trials)",
         severity="A",
         checkable=True,
         section="§12 / §21.1 / §27",
@@ -178,7 +177,7 @@ FALSIFICATION_TABLE: tuple[FalsificationClaim, ...] = (
         description="Three-timescale ordering within each hierarchical level",
         quantitative_prediction="tau_int,l > tau_ign,l > tau_theta,l for l >= 2 "
         "(ordering collapses toward equality at l = 1)",
-        falsifying_result="Pharmacological dissociation fails to separate the " "three timescales",
+        falsifying_result="Pharmacological dissociation fails to separate the three timescales",
         severity="B",
         checkable=True,
         section="Notation Appendix (Time Constants) / §27",
@@ -214,9 +213,15 @@ def get_claim(claim_id: str) -> FalsificationClaim:
     raise KeyError(f"unknown falsification claim_id: {claim_id!r}")
 
 
+#: The four verdicts a falsification claim can receive. Named so call sites can
+#: annotate their local `verdict` variable instead of widening to bare `str`,
+#: which would let a typo through into a reported falsification outcome.
+Verdict = Literal["confirmed", "falsified", "requires_explanation", "indeterminate"]
+
+
 def _result(
     claim_id: str,
-    verdict: Literal["confirmed", "falsified", "requires_explanation", "indeterminate"],
+    verdict: Verdict,
     detail: dict[str, Any],
 ) -> dict[str, Any]:
     claim = get_claim(claim_id)
@@ -253,6 +258,7 @@ def check_discrete_ignition(
                 "note": "alpha_psy not provided; behavioural falsifier requires empirical data",
             },
         )
+    verdict: Verdict
     if alpha_psy < 5.0:
         verdict = "falsified"
     elif alpha_psy >= 10.0:
@@ -288,6 +294,7 @@ def check_long_range_correlations(
                 "note": "spec requires >= 200 trials for a confirmatory DFA estimate",
             },
         )
+    verdict: Verdict
     if alpha_dfa < 0.55:
         verdict = "falsified"
     else:
@@ -346,6 +353,7 @@ def check_criticality_avalanche(
             {**fit, "n_participants": n_participants, "note": "insufficient avalanches for a fit"},
         )
     alpha = fit["alpha"]
+    verdict: Verdict
     if n_participants < 20:
         verdict = "indeterminate"
     elif fit["within_tolerance"]:
@@ -377,6 +385,7 @@ def check_valence_asymmetry(
     """
     ratio = alpha_plus / alpha_minus if alpha_minus != 0 else float("inf")
     asymmetric = not np.isclose(ratio, 1.0, atol=1e-9)
+    verdict: Verdict
     if bf10 is not None and n is not None and n >= 40 and bf10 > 10 and not asymmetric:
         verdict = "falsified"
     elif asymmetric:
@@ -402,7 +411,7 @@ def check_thermodynamic_bridge(kappa: float) -> dict[str, Any]:
     Delegates the banding to energy.thermodynamics.classify_kappa_consistency.
     """
     classification = classify_kappa_consistency(kappa)
-    verdict_map = {
+    verdict_map: dict[str, Verdict] = {
         "consistent": "confirmed",
         "requires_explanation": "requires_explanation",
         "bridge_inconsistent": "falsified",
@@ -442,6 +451,7 @@ def check_phase_transition_signatures(
             signatures["autocorr_criterion"],
         ]
     )
+    verdict: Verdict
     if signatures["all_criteria_met"]:
         verdict = "confirmed"
     elif n_confirmed <= 1:
@@ -483,6 +493,7 @@ def check_oscillatory_gate(
         / (len(gc) + len(gm) - 2)
     )
     cohens_d = float((np.mean(gc) - np.mean(gm)) / (pooled_sd + 1e-12))
+    verdict: Verdict
     if n < n_min:
         verdict = "indeterminate"
     elif cohens_d > 0.5:

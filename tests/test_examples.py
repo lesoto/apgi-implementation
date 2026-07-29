@@ -193,8 +193,8 @@ def test_example_04_constraint_satisfied():
     Patch compute_landauer_cost to return near-zero so all C values exceed it.
     """
     mod = _load("04_thermodynamics.py")
-    mod.compute_landauer_cost = (
-        lambda *args, **kwargs: 0.0
+    mod.compute_landauer_cost = lambda *args, **kwargs: (
+        0.0
     )  # zero landauer → C >= 0 always satisfied
     try:
         _, out = _run(mod.main)

@@ -598,7 +598,6 @@ class TestRemainingLines:
 
     def test_spectral_extraction_line_222_direct(self):
         """Test spectral extraction line 222 directly."""
-        from stats.spectral_extraction import estimate_hurst_dfa
 
         # Test with signal that triggers the DFA analysis
         signal = np.cumsum(np.random.randn(100))

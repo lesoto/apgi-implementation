@@ -25,7 +25,8 @@ import os
 import shutil
 import sys
 import time
-from typing import Any, Iterable, List, Optional
+from collections.abc import Iterable
+from typing import Any
 
 DEFAULT_DIR_NAMES = {
     "__pycache__",
@@ -218,10 +219,7 @@ DEFAULT_EXTRA_FILE_PATTERNS = [
 
 
 def matches_any(name: str, patterns: Iterable[str]) -> bool:
-    for pat in patterns:
-        if fnmatch.fnmatch(name, pat):
-            return True
-    return False
+    return any(fnmatch.fnmatch(name, pat) for pat in patterns)
 
 
 def _should_remove_directory(
@@ -402,15 +400,13 @@ def _process_files(
             _remove_file(full_f, dry_run, verbose, stats)
 
 
-def _should_skip_directory(dirpath: str, root_dir: str, max_depth: Optional[int]) -> bool:
+def _should_skip_directory(dirpath: str, root_dir: str, max_depth: int | None) -> bool:
     """Check if directory should be skipped based on depth."""
     if max_depth is None:
         return False
     rel = os.path.relpath(dirpath, root_dir)
     depth = 0 if rel == "." else rel.count(os.sep) + 1
-    if depth > max_depth:
-        return True
-    return False
+    return depth > max_depth
 
 
 def preview_deletions(
@@ -423,7 +419,7 @@ def preview_deletions(
     remove_venvs: bool = False,
     venv_names: Iterable[str] = (".venv", "venv", ".env", "env"),
     follow_links: bool = False,
-    max_depth: Optional[int] = None,
+    max_depth: int | None = None,
 ) -> dict:
     """Preview what would be deleted without actually deleting anything.
     Returns detailed information about files and directories that would be removed,
@@ -461,14 +457,14 @@ def preview_deletions(
                     # Count files and calculate size in directory
                     dir_size = 0
                     file_count = 0
-                    for root, dirs, files in os.walk(full_d):
+                    for root, _dirs, files in os.walk(full_d):
                         for file in files:
                             file_path = os.path.join(root, file)
                             try:
                                 file_size = os.path.getsize(file_path)
                                 dir_size += file_size
                                 file_count += 1
-                            except (OSError, IOError):
+                            except OSError:
                                 stats["errors"] += 1  # type: ignore[index,operator]
                     stats["dirs_to_remove"].append(  # type: ignore[attr-defined]
                         {
@@ -480,7 +476,7 @@ def preview_deletions(
                     )
                     stats["total_files"] += file_count  # type: ignore[index,operator]
                     stats["total_size_bytes"] += dir_size  # type: ignore[index,operator]
-                except (OSError, IOError):
+                except OSError:
                     stats["errors"] += 1  # type: ignore[index,operator]
         # Process files for preview
         for f in list(filenames):
@@ -499,7 +495,7 @@ def preview_deletions(
                     )
                     stats["total_files"] += 1  # type: ignore[index,operator]
                     stats["total_size_bytes"] += file_size  # type: ignore[index,operator]
-                except (OSError, IOError):
+                except OSError:
                     stats["errors"] += 1  # type: ignore[index,operator]
     return stats
 
@@ -555,7 +551,7 @@ def delete_temporary_items(
     remove_venvs: bool = False,
     venv_names: Iterable[str] = (".venv", "venv", ".env", "env"),
     follow_links: bool = False,
-    max_depth: Optional[int] = None,
+    max_depth: int | None = None,
 ) -> dict:
     """Delete common temporary directories and files under root_dir.
     - Removes directories in DEFAULT_DIR_NAMES and those matching DEFAULT_DIR_PATTERNS.
@@ -604,7 +600,7 @@ def delete_temporary_items(
 
 
 def prune_empty_dirs(root_dir: str, dry_run: bool = False, verbose: bool = True) -> None:
-    for dirpath, dirnames, filenames in os.walk(root_dir, topdown=False):
+    for dirpath, _dirnames, _filenames in os.walk(root_dir, topdown=False):
         # don't prune the root itself
         if dirpath == root_dir:
             continue
@@ -668,13 +664,13 @@ def clear_log_files(
     if delete_logs_dir:
         _remove_logs_directory(log_dir, dry_run, verbose)
         return
-    for root, dirs, files in os.walk(log_dir):
+    for root, _dirs, files in os.walk(log_dir):
         for file in files:
             file_path = os.path.join(root, file)
             _truncate_log_file(file_path, dry_run, verbose)
 
 
-def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Remove temporary files and folders from APGI validation project tree"
     )
@@ -776,7 +772,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     current_dir = os.path.dirname(os.path.abspath(__file__))
     root_directory = os.path.abspath(args.root) if args.root else current_dir
