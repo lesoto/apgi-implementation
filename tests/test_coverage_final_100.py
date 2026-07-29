@@ -467,37 +467,30 @@ class TestFalsificationRegistryEdgeCases:
 class TestExamples16FiguresUncovered:
     """Test examples/16_figures.py uncovered generation logic."""
 
-    def test_figures_module_availability(self) -> None:
-        """Test conditional import of figures module."""
-        try:
-            # Try to import the figures module
-            from examples.figures_16 import generate_figures
+    def test_figure_s1_generator_is_loadable_and_exposes_its_entry_point(self) -> None:
+        """examples/16_figures.py must load by path and expose its entry point.
 
-            # If successful, verify it's callable
-            assert callable(generate_figures)
-        except ImportError:
-            # Module may not be available in all environments
-            pytest.skip("figures_16 module not available")
-        except (AttributeError, ModuleNotFoundError):
-            # Different module structure in this implementation
-            pytest.skip("figures_16 structure different than expected")
+        `from examples import figures_16` and `from examples.figures_16 import
+        generate_figures` can NEVER succeed: the filename starts with a digit,
+        so the module name is not a valid identifier, and the function is called
+        generate_figure_s1, not generate_figures. Both tests here previously
+        skipped on imports that were impossible by construction — which is part
+        of why nobody noticed the Makefile invoking a figure_s1.py that has
+        never existed.
+        """
+        import importlib.util
+        from pathlib import Path
 
-    def test_figures_generation_attempt(self) -> None:
-        """Attempt to generate figures to exercise uncovered code (lines 40-382)."""
-        try:
-            from examples import figures_16
-
-            # Try to run figure generation
-            if hasattr(figures_16, "generate_figures"):
-                # Call with minimal arguments
-                # Expected if required parameters are missing
-                with contextlib.suppress(TypeError, RuntimeError, ValueError):
-                    figures_16.generate_figures()
-            elif hasattr(figures_16, "create_figures"):
-                with contextlib.suppress(TypeError, RuntimeError, ValueError):
-                    figures_16.create_figures()
-        except ImportError:
-            pytest.skip("figures_16 not available")
+        path = Path(__file__).resolve().parent.parent / "examples" / "16_figures.py"
+        assert path.is_file(), f"figure generator missing: {path}"
+        spec = importlib.util.spec_from_file_location("figures_16", path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        assert callable(module.generate_figure_s1), (
+            "the Figure S1 generator must expose a callable generate_figure_s1; "
+            f"found {[n for n in dir(module) if n.startswith('generate')]}"
+        )
 
 
 if __name__ == "__main__":

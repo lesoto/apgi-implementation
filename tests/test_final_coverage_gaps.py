@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from config import CONFIG
 from hierarchy.resonance import NestedResonanceSystem
 from reservoir.liquid_network import LiquidNetwork
 from reservoir.liquid_state_machine import LiquidStateMachine
@@ -357,55 +358,29 @@ class TestObservableMappingAllLines:
 class TestExamples16Figures:
     """Test examples/16_figures.py coverage."""
 
-    @patch("matplotlib.pyplot.figure")
-    @patch("matplotlib.pyplot.subplot")
-    @patch("matplotlib.pyplot.plot")
-    @patch("matplotlib.pyplot.xlabel")
-    @patch("matplotlib.pyplot.ylabel")
-    @patch("matplotlib.pyplot.title")
-    @patch("matplotlib.pyplot.legend")
-    @patch("matplotlib.pyplot.colorbar")
-    @patch("matplotlib.pyplot.show")
-    def test_figures_generation(
-        self,
-        mock_show,
-        mock_colorbar,
-        mock_legend,
-        mock_title,
-        mock_ylabel,
-        mock_xlabel,
-        mock_plot,
-        mock_subplot,
-        mock_figure,
-    ):
-        """Test that figures.py can be imported and main functions called."""
-        # Try to import and run main functions
-        try:
-            # Import the module
-            import examples.figures16 as figures
+    def test_figure_s1_generator_writes_its_output(self, tmp_path):
+        """The Figure S1 generator must actually produce a figure file.
 
-            # Check if we can call plot functions
-            # We'll mock numpy arrays for testing
-            mock_data = np.random.randn(100, 10)
-            mock_times = np.linspace(0, 10, 100)
+        The previous test here imported `examples.figures16` — a module name
+        that cannot exist (the file is 16_figures.py; the identifier has an
+        underscore and starts with a digit) — mocked the entire pyplot surface,
+        and asserted `assert True`. It skipped on the impossible import and
+        exercised nothing. This drives the real generator and checks the
+        artifact, which is what `make reproduce-paper` depends on.
+        """
+        import importlib.util
+        from pathlib import Path
 
-            # Test if we can create figure objects
-            fig = mock_figure()
-            ax = MagicMock()
-            mock_subplot.return_value = ax
+        path = Path(__file__).resolve().parent.parent / "examples" / "16_figures.py"
+        spec = importlib.util.spec_from_file_location("figures_16", path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
 
-            # Try to call plotting functions if they exist
-            # This is a lightweight test that doesn't require actual plotting
-            assert True
-
-        except ImportError:
-            # If module doesn't exist or has import errors, skip
-            pytest.skip("examples/16_figures.py not importable")
-        except Exception as e:
-            # For any other errors, we'll consider this test passed
-            # since we're just testing coverage, not functionality
-            print(f"Note: figures test had error {e}, but continuing")
-            pass
+        out = tmp_path / "figure_s1.png"
+        module.generate_figure_s1(save_path=str(out))
+        assert out.is_file(), "generator reported success but wrote no file"
+        assert out.stat().st_size > 10_000, "figure suspiciously small"
 
 
 class TestResonanceLine299Direct:
@@ -438,93 +413,54 @@ class TestResonanceLine299Direct:
 
 
 class TestPipelineActual:
-    """Test actual pipeline to cover lines 952-953 and 1119."""
+    """Circadian regulator and reservoir-weight paths on the real pipeline.
+
+    Both tests here imported `Pipeline` — a class that has never existed; it is
+    APGIPipeline — inside a try/except that turned the ImportError into a skip.
+    They also used partial config dicts and a CircadianRegulator signature
+    (tau_circadian/amplitude/phase_shift) that does not match the real one
+    (t0/dt/A_circ/T_circ/phi_circ). So neither ever ran.
+    """
 
     def test_pipeline_with_circadian_regulator(self):
-        """Test pipeline with circadian regulator to cover line 952-953."""
-        try:
-            from core.circadian import CircadianRegulator
-            from pipeline import Pipeline
-        except ImportError:
-            pytest.skip("Pipeline or CircadianRegulator not importable")
-
-        # Create a simple pipeline config
-        config = {
-            "theta_base": 0.5,
-            "lambda_s": 0.1,
-            "lambda_c": 0.01,
-            "V_max": 1.0,
-            "C_max": 1.0,
-            "omega_ne": 0.1,
-            "omega_5ht": 0.05,
-            "sigma_noise": 0.01,
-        }
-
-        # Create pipeline with circadian regulator
-        pipeline = Pipeline(config)
-
-        # Add circadian regulator
+        """The circadian offset path must run and tick each step."""
         from core.circadian import CircadianRegulator
+        from pipeline import APGIPipeline
 
-        pipeline.circadian_regulator = CircadianRegulator(
-            tau_circadian=24.0,
-            amplitude=0.1,
-            phase_shift=0.0,
-        )
+        config = {
+            **CONFIG,
+            "seed": 1,
+            "use_circadian_modulation": True,
+            "circadian_A_circ": 0.1,
+            "circadian_T_circ": 86400.0,
+        }
+        pipeline = APGIPipeline(config)
+        assert isinstance(pipeline.circadian_regulator, CircadianRegulator)
 
-        # Run a step to trigger tick() call
-        u = 0.5  # Input signal
-        result = pipeline.step(u)
-
-        # Verify step completed
-        assert result is not None
+        thetas = []
+        for t in range(20):
+            result = pipeline.step(x_e=float(np.sin(0.05 * t)), x_i=0.3)
+            assert result is not None
+            thetas.append(result["theta"])
+        # The regulator advances its internal clock, so the offset varies.
+        assert len({round(v, 12) for v in thetas}) > 1
 
     def test_pipeline_reservoir_weight_access(self):
-        """Test pipeline reservoir weight access to cover line 1119."""
-        try:
-            from pipeline import Pipeline
-        except ImportError:
-            pytest.skip("Pipeline not importable")
+        """An explicit reservoir_weight must be honoured in additive mode."""
+        from pipeline import APGIPipeline
 
-        # Create a simple pipeline config with reservoir_weight
         config = {
-            "theta_base": 0.5,
-            "lambda_s": 0.1,
-            "lambda_c": 0.01,
-            "V_max": 1.0,
-            "C_max": 1.0,
-            "omega_ne": 0.1,
-            "omega_5ht": 0.05,
-            "sigma_noise": 0.01,
-            "reservoir_weight": 0.2,  # Explicit weight
+            **CONFIG,
+            "seed": 1,
+            "use_reservoir": True,
+            "reservoir_size": 50,
+            "reservoir_weight": 0.2,
+            "reservoir_replaces_signal": False,
         }
-
-        # Create pipeline
-        pipeline = Pipeline(config)
-
-        # Run a step
-        u = 0.5  # Input signal
-        result = pipeline.step(u)
-
-        # Verify step completed
-        assert result is not None
-
-        # Also test with default weight
-        config_no_weight = {
-            "theta_base": 0.5,
-            "lambda_s": 0.1,
-            "lambda_c": 0.01,
-            "V_max": 1.0,
-            "C_max": 1.0,
-            "omega_ne": 0.1,
-            "omega_5ht": 0.05,
-            "sigma_noise": 0.01,
-            # No reservoir_weight - should use default
-        }
-
-        pipeline2 = Pipeline(config_no_weight)
-        result2 = pipeline2.step(u)
-        assert result2 is not None
+        pipeline = APGIPipeline(config)
+        assert pipeline.config["reservoir_weight"] == 0.2
+        for t in range(10):
+            assert pipeline.step(x_e=float(np.sin(0.05 * t)), x_i=0.3) is not None
 
 
 class TestRemainingLines:

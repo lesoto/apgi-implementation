@@ -13,7 +13,11 @@ import numpy as np
 import pytest
 
 from pipeline import APGIPipeline
-from validation.observable_mapping import NeuralObservableExtractor
+from validation.observable_mapping import (
+    BehavioralObservableExtractor,
+    NeuralObservableExtractor,
+    ParameterIdentifiabilityAnalyzer,
+)
 
 # =============================================================================
 # OBSERVABLE MAPPING - All Methods
@@ -21,19 +25,34 @@ from validation.observable_mapping import NeuralObservableExtractor
 
 
 class TestNeuralObservableExtractorComprehensive:
-    """Comprehensive testing of NeuralObservableExtractor to reach 100% observable_mapping coverage."""
+    """Behavioural observable extraction (MathSpec §14).
+
+    Despite the class name these exercise the BEHAVIOURAL observables —
+    perceptual sensitivity (d'), interoceptive accuracy, reward expectation
+    bias, RT distribution shape and cued attentional modulation — which the
+    spec's observable-mapping table pairs with Pi_e, Pi_i, beta_DA, g_NE and
+    g_ACh respectively. They previously used NeuralObservableExtractor, which
+    has none of these methods, so all five silently skipped on a hasattr guard.
+    """
 
     @pytest.fixture
-    def extractor(self) -> NeuralObservableExtractor:
-        """Provide extractor instance."""
+    def extractor(self) -> BehavioralObservableExtractor:
+        """Behavioural observables: d', interoceptive accuracy, RT shape, ..."""
+        return BehavioralObservableExtractor()
+
+    @pytest.fixture
+    def neural_extractor(self) -> NeuralObservableExtractor:
+        """Neural observables: alpha-power proxy, prestimulus suppression, ..."""
         return NeuralObservableExtractor()
 
     def test_extract_perceptual_sensitivity_d_prime(
         self, extractor: NeuralObservableExtractor
     ) -> None:
         """Test extract_perceptual_sensitivity extraction (d' from precision)."""
-        if not hasattr(extractor, "extract_perceptual_sensitivity"):
-            pytest.skip("Method not available")
+        assert hasattr(extractor, "extract_perceptual_sensitivity"), (
+            "NeuralObservableExtractor has no extract_perceptual_sensitivity; this test silently\n"
+            "skipped rather than reporting the missing API."
+        )
 
         # Empty case
         result = extractor.extract_perceptual_sensitivity(np.array([]))
@@ -46,8 +65,10 @@ class TestNeuralObservableExtractorComprehensive:
 
     def test_extract_interoceptive_accuracy(self, extractor: NeuralObservableExtractor) -> None:
         """Test extract_interoceptive_accuracy task score from interoceptive precision."""
-        if not hasattr(extractor, "extract_interoceptive_accuracy"):
-            pytest.skip("Method not available")
+        assert hasattr(extractor, "extract_interoceptive_accuracy"), (
+            "NeuralObservableExtractor has no extract_interoceptive_accuracy; this test silently\n"
+            "skipped rather than reporting the missing API."
+        )
 
         # Empty case
         result = extractor.extract_interoceptive_accuracy(np.array([]))
@@ -60,8 +81,10 @@ class TestNeuralObservableExtractorComprehensive:
 
     def test_extract_reward_expectation_bias(self, extractor: NeuralObservableExtractor) -> None:
         """Test extract_reward_expectation_bias from dopaminergic bias."""
-        if not hasattr(extractor, "extract_reward_expectation_bias"):
-            pytest.skip("Method not available")
+        assert hasattr(extractor, "extract_reward_expectation_bias"), (
+            "NeuralObservableExtractor has no extract_reward_expectation_bias; this test silently\n"
+            "skipped rather than reporting the missing API."
+        )
 
         # Empty case
         result = extractor.extract_reward_expectation_bias(np.array([]))
@@ -79,8 +102,10 @@ class TestNeuralObservableExtractorComprehensive:
 
         Tests the g_ne history parameter and optimal_g_ne condition checks.
         """
-        if not hasattr(extractor, "extract_rt_distribution_shape"):
-            pytest.skip("Method not available")
+        assert hasattr(extractor, "extract_rt_distribution_shape"), (
+            "NeuralObservableExtractor has no extract_rt_distribution_shape; this test silently\n"
+            "skipped rather than reporting the missing API."
+        )
 
         # Empty case
         result = extractor.extract_rt_distribution_shape(np.array([]))
@@ -116,8 +141,10 @@ class TestNeuralObservableExtractorComprehensive:
 
         Tests edge case validation with g_ach history.
         """
-        if not hasattr(extractor, "extract_cued_attention_modulation"):
-            pytest.skip("Method not available")
+        assert hasattr(extractor, "extract_cued_attention_modulation"), (
+            "NeuralObservableExtractor has no extract_cued_attention_modulation; this test silently\n"
+            "skipped rather than reporting the missing API."
+        )
 
         # Empty case
         result = extractor.extract_cued_attention_modulation(np.array([]))
@@ -157,10 +184,9 @@ class TestNeuralObservableExtractorComprehensive:
 
         Tests the constraint validation branch in the analyzer.
         """
-        if not hasattr(extractor, "param_analyzer"):
-            pytest.skip("param_analyzer not available")
-
-        analyzer = extractor.param_analyzer
+        analyzer = getattr(extractor, "param_analyzer", None) or (
+            ParameterIdentifiabilityAnalyzer()
+        )
 
         if not hasattr(analyzer, "check_identifiability_constraints"):
             pytest.skip("check_identifiability_constraints not available")
@@ -190,9 +216,10 @@ class TestNeuralObservableExtractorComprehensive:
             pass
 
     def test_extract_methods_with_all_edge_cases(
-        self, extractor: NeuralObservableExtractor
+        self, neural_extractor: NeuralObservableExtractor
     ) -> None:
-        """Test all extraction methods with comprehensive edge cases."""
+        """Neural (not behavioural) extraction methods, comprehensive edges."""
+        extractor = neural_extractor
         # Test alpha power proxy (line 230-231)
         assert extractor.extract_alpha_power_proxy(np.array([])) == 0.0
         tiny_vals = np.array([1e-15, 1e-14])
@@ -223,8 +250,8 @@ class TestPipelineHierarchicalComplete:
             "sigma2_e0": 1.0,
             "sigma2_i0": 1.0,
             "eps": 1e-8,
-            "pi_min": 1e-4,
-            "pi_max": 1e4,
+            "pi_min": 0.1,  # spec floor (MathSpec §2)
+            "pi_max": 10.0,  # spec ceiling (MathSpec §2); 1e4 also broke kappa_e < 2/Pi_max
             "alpha_e": 0.05,
             "alpha_i": 0.05,
             "variance_method": "ema",
@@ -267,7 +294,7 @@ class TestPipelineHierarchicalComplete:
             # Hierarchical
             "use_hierarchical": True,
             "n_levels": 3,
-            "tau_0": 1.0,
+            "tau_0": 10.0,  # tau_l > 1 required (MathSpec §15 integrator stability)
             "C_down": 0.1,
             "C_up": 0.05,
             "tau_pi": 1000.0,
@@ -280,10 +307,7 @@ class TestPipelineHierarchicalComplete:
         self, hierarchical_config: dict
     ) -> None:
         """Test the hierarchical precision ODE path (lines 952-953)."""
-        try:
-            pipeline = APGIPipeline(hierarchical_config)
-        except (ValueError, AttributeError, TypeError):
-            pytest.skip("Hierarchical precision ODE not fully configured in this build")
+        pipeline = APGIPipeline(hierarchical_config)
 
         # Run multiple steps
         for i in range(10):
@@ -304,10 +328,7 @@ class TestPipelineHierarchicalComplete:
         hierarchical_config["use_kuramoto"] = True
         hierarchical_config["n_levels"] = 2
 
-        try:
-            pipeline = APGIPipeline(hierarchical_config)
-        except (ValueError, AttributeError, TypeError):
-            pytest.skip("Kuramoto not available")
+        pipeline = APGIPipeline(hierarchical_config)
 
         # Run steps with phase evolution
         for _i in range(10):

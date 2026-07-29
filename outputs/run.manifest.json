@@ -147,10 +147,10 @@
     "scipy": "1.16.3",
     "structlog": "25.5.0"
   },
-  "generated_utc": "2026-07-29T23:09:16.641014+00:00",
+  "generated_utc": "2026-07-29T23:20:24.148853+00:00",
   "git": {
     "branch": "publication-readiness",
-    "commit": "6d82138ab20f366e4d659db2927e3adb6d12cf47",
+    "commit": "c25d39943aeff48ddbc76f4a49a9e5b2c8b23a9c",
     "dirty": true
   },
   "platform": {
