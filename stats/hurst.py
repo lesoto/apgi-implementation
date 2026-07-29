@@ -211,22 +211,137 @@ def dfa_analysis(
     return float(alpha), valid_scales_arr, F_arr
 
 
+#: DFA convention labels. "fgn" — stationary series (the threshold process
+#: itself, an oscillation amplitude envelope): H = α_DFA. "fbm" — cumulatively
+#: integrated or broadband series: H = α_DFA − 1.
+Convention = Literal["fgn", "fbm"]
+
+#: α_DFA at or above this value cannot be an fGn Hurst exponent (H ∈ (0,1)),
+#: so the series is being read under the fBm convention.
+FGN_FBM_BOUNDARY = 1.0
+
+
+def infer_convention(alpha_dfa: float) -> Convention:
+    """Infer the DFA convention from the scaling exponent's magnitude.
+
+    Notation Appendix: "H ∈ (0, 1) by definition… literature values ≥ 1 are
+    α_DFA, not H." An exponent at or above 1.0 therefore cannot be an fGn
+    Hurst exponent and indicates the integrated (fBm) reading.
+
+    Args:
+        alpha_dfa: DFA scaling exponent.
+
+    Returns:
+        ``"fbm"`` when ``alpha_dfa >= 1.0``, else ``"fgn"``.
+    """
+    return "fbm" if alpha_dfa >= FGN_FBM_BOUNDARY else "fgn"
+
+
+def hurst_from_alpha_dfa(alpha_dfa: float, convention: Convention | Literal["auto"] = "auto") -> float:
+    """Convert a DFA scaling exponent to a Hurst exponent H ∈ (0, 1).
+
+    MathSpec §12 / Notation Appendix: "For stationary processes, α_DFA = H…
+    The same signal analysed cumulatively (integrated broadband or BOLD
+    series) follows fBm: α_DFA = H + 1." Hence H = α_DFA (fGn) or
+    H = α_DFA − 1 (fBm).
+
+    Args:
+        alpha_dfa: DFA scaling exponent.
+        convention: ``"fgn"``, ``"fbm"``, or ``"auto"`` to infer from
+            magnitude via :func:`infer_convention`.
+
+    Returns:
+        Hurst exponent H.
+
+    Raises:
+        ValueError: If ``convention`` is not a recognised label.
+    """
+    conv = infer_convention(alpha_dfa) if convention == "auto" else convention
+    if conv == "fgn":
+        return float(alpha_dfa)
+    if conv == "fbm":
+        return float(alpha_dfa - 1.0)
+    raise ValueError(f"convention must be 'fgn', 'fbm', or 'auto', got {convention!r}")
+
+
+def estimate_alpha_dfa(
+    signal: np.ndarray,
+    scales: np.ndarray | list[int] | None = None,
+    order: int = 1,
+) -> float:
+    """Estimate the DFA scaling exponent α_DFA.
+
+    This is the PRIMARY estimator and the quantity APGI's predictions and
+    falsifiers are stated on: "Prediction and falsifier are stated on α_DFA —
+    support: α_DFA ∈ 0.85–0.95; falsification: α_DFA < 0.55."
+
+    α_DFA is NOT a Hurst exponent. It is unbounded above (a random walk gives
+    α_DFA ≈ 1.5), whereas H ∈ (0, 1) by definition. Use :func:`estimate_hurst`
+    when you want H, and state the convention wherever a number appears.
+
+    Args:
+        signal: Input time series.
+        scales: Window sizes (default: 20 log-spaced values in [4, N//4]).
+        order: Polynomial detrending order (default: 1 = linear DFA).
+
+    Returns:
+        DFA scaling exponent α_DFA.
+    """
+    alpha, _, _ = dfa_analysis(signal, scales=scales, order=order)
+    return alpha
+
+
+def estimate_hurst(
+    signal: np.ndarray,
+    convention: Convention | Literal["auto"] = "auto",
+    scales: np.ndarray | list[int] | None = None,
+    order: int = 1,
+) -> float:
+    """Estimate the Hurst exponent H ∈ (0, 1) via DFA, with explicit convention.
+
+    Estimates α_DFA and converts it under the stated convention. DFA is the
+    spec's preferred route to H because it is "robust to non-stationarities —
+    including the slow allostatic drift in θ(t) — that invalidate spectral
+    slope estimation", and because the β_spec → H conversion is discontinuous
+    at β_spec = 1.
+
+    Args:
+        signal: Input time series.
+        convention: ``"fgn"`` (stationary; H = α_DFA), ``"fbm"`` (integrated;
+            H = α_DFA − 1), or ``"auto"`` to infer from magnitude.
+        scales: Window sizes.
+        order: Polynomial detrending order.
+
+    Returns:
+        Hurst exponent H.
+    """
+    return hurst_from_alpha_dfa(
+        estimate_alpha_dfa(signal, scales=scales, order=order), convention
+    )
+
+
 def estimate_hurst_dfa(
     signal: np.ndarray,
     scales: np.ndarray | list[int] | None = None,
     order: int = 1,
 ) -> float:
-    """Estimate Hurst exponent using Detrended Fluctuation Analysis.
-    Convenience wrapper around dfa_analysis() returning only H.
+    """[DEPRECATED] Alias for :func:`estimate_alpha_dfa`.
+
+    The name is a convention collision the Notation Appendix explicitly
+    forbids: this returns α_DFA, which exceeds 1 for integrated series and so
+    cannot be a Hurst exponent. Use :func:`estimate_alpha_dfa` for α_DFA (the
+    quantity the predictions and falsifiers are stated on) or
+    :func:`estimate_hurst` for H with a declared convention.
+
     Args:
-        signal: Input time series
-        scales: Window sizes (default: 20 log-spaced values in [4, N//4])
-        order: Polynomial detrending order (default: 1 = linear DFA)
+        signal: Input time series.
+        scales: Window sizes.
+        order: Polynomial detrending order.
+
     Returns:
-        Hurst exponent H (= DFA scaling exponent α)
+        DFA scaling exponent α_DFA — NOT the Hurst exponent.
     """
-    alpha, _, _ = dfa_analysis(signal, scales=scales, order=order)
-    return alpha
+    return estimate_alpha_dfa(signal, scales=scales, order=order)
 
 
 def wavelet_variance_analysis(
@@ -282,6 +397,7 @@ def estimate_hurst_wavelet(
     signal: np.ndarray,
     min_level: int = 1,
     max_level: int | None = None,
+    convention: Convention | Literal["auto"] = "auto",
 ) -> float:
     """Estimate the Hurst exponent via Haar-wavelet multiresolution variance
     analysis (Abry & Veitch, 1998 style log-scale-variance estimator).
@@ -299,8 +415,13 @@ def estimate_hurst_wavelet(
         signal: Input time series
         min_level: Coarsest wavelet level to include in the fit (default 1)
         max_level: Finest wavelet level (default: automatic)
+        convention: ``"fgn"``, ``"fbm"``, or ``"auto"``. ``"auto"`` keeps the
+            historical regime-detecting behaviour (fGn for slope < 1, fBm
+            above); an explicit value forces that regime, which is what
+            :func:`cross_validate_hurst` needs so both estimators report H in
+            the same convention.
     Returns:
-        Estimated Hurst exponent H
+        Estimated Hurst exponent H ∈ (0, 1)
     Raises:
         ValueError: If the signal is too short or fewer than 2 valid scales
             are available for the slope fit.
@@ -312,29 +433,54 @@ def estimate_hurst_wavelet(
             "for a reliable wavelet-based Hurst estimate"
         )
     slope, _ = np.polyfit(levels, log2_vars, 1)
-    return hurst_from_slope(float(slope), warn_near_boundary=False)
+    regime: Literal["auto", "fgn", "fbm"] = "auto" if convention == "auto" else convention
+    return hurst_from_slope(float(slope), regime=regime, warn_near_boundary=False)
 
 
 def cross_validate_hurst(
     signal: np.ndarray,
     agreement_tolerance: float = 0.15,
+    convention: Convention | Literal["auto"] = "auto",
 ) -> dict:
-    """Cross-validate Hurst exponent estimates from DFA and wavelet analysis.
-    Notation Appendix: for short series (<200 trials) or non-stationary
-    processes, wavelet-based estimation should cross-validate the DFA
-    estimate. Returns both estimates and whether they agree within
-    `agreement_tolerance` (absolute difference in H).
+    """Cross-validate H from DFA against the wavelet estimator.
+
+    Notation Appendix: "For short series (<200 trials) or non-stationary
+    processes, use wavelet-based Hurst estimation as a cross-validation", and
+    "Near the Markovian boundary (α ≈ 0.5), cross-validate with wavelet-based
+    H estimation".
+
+    BOTH estimates are normalised to H ∈ (0, 1) under the SAME convention
+    before differencing. Previously this compared a raw α_DFA (1.50 for a
+    random walk) against a convention-converted wavelet H (0.50) and reported
+    ``agrees: False`` — a guaranteed spurious disagreement on any
+    fBm-convention series, in the very safeguard the spec relies on for the
+    Severity-A long-range-correlation falsifier. The two estimators were in
+    fact in exact agreement; only the units differed.
+
     Args:
-        signal: Input time series
-        agreement_tolerance: Maximum |H_dfa - H_wavelet| still counted as
-            agreement (default 0.15)
+        signal: Input time series.
+        agreement_tolerance: Maximum |H_dfa − H_wavelet| still counted as
+            agreement (default 0.15).
+        convention: ``"fgn"``, ``"fbm"``, or ``"auto"`` to infer from the DFA
+            exponent's magnitude. The SAME convention is applied to both
+            estimators, which is what makes the comparison meaningful.
+
     Returns:
-        Dictionary with h_dfa, h_wavelet, difference, and agrees (bool)
+        Dict with ``alpha_dfa`` (the raw exponent, unconverted),
+        ``convention`` (the one actually used), ``h_dfa``, ``h_wavelet``,
+        ``difference``, ``agrees`` and ``agreement_tolerance``.
     """
-    h_dfa = estimate_hurst_dfa(signal)
-    h_wavelet = estimate_hurst_wavelet(signal)
+    alpha_dfa = estimate_alpha_dfa(signal)
+    conv: Convention = infer_convention(alpha_dfa) if convention == "auto" else convention
+    h_dfa = hurst_from_alpha_dfa(alpha_dfa, conv)
+    # The wavelet path converts a spectral-style slope, which already returns
+    # H in (0,1) under its own regime detection; force it onto `conv` so both
+    # sides speak the same convention.
+    h_wavelet = estimate_hurst_wavelet(signal, convention=conv)
     diff = abs(h_dfa - h_wavelet)
     return {
+        "alpha_dfa": alpha_dfa,
+        "convention": conv,
         "h_dfa": h_dfa,
         "h_wavelet": h_wavelet,
         "difference": diff,

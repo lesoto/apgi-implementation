@@ -1,32 +1,47 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77.0", "wheel"]
 build-backend = "setuptools.build_meta"
 [project]
 name = "apgi"
 version = "1.0.0"
 description = "Allostatic Precision Gated Ignition - A neuroscience-inspired computational framework"
 readme = "README.md"
-requires-python = ">=3.9"
-license = {text = "MIT"}
+# 3.10+, not 3.9. The codebase uses PEP 604 unions in RUNTIME positions, not
+# just annotations — e.g. core/sde.py's module-level
+# `NumberOrFn = float | Callable[[float, float], float]`, which raises
+# TypeError on 3.9 regardless of `from __future__ import annotations`. The
+# previous ">=3.9" claim would have failed at import on a 3.9 install.
+requires-python = ">=3.10"
+# PEP 639: SPDX expression + explicit license file, so the wheel actually
+# carries LICENSE. Previously the project declared MIT with no LICENSE file
+# present at all.
+license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["neuroscience", "computational-model", "precision-weighting", "ignition"]
 authors = [
     {name = "APGI Team"}
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "License :: OSI Approved :: MIT License",
+    # No "License ::" classifier: PEP 639 supersedes it with the `license`
+    # SPDX field above, and declaring both is an error under setuptools>=77.
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
+# Upper bounds are deliberate. This package is a DOI-archived replication
+# artifact: a future major release of numpy/pydantic that changes numerical
+# or validation behaviour would silently alter published figures. Bounds are
+# raised only after the test suite and the golden-master figure regression
+# pass against the new major version.
 dependencies = [
-    "numpy>=1.24.0",
-    "pydantic>=2.0.0",
-    "structlog>=24.1.0",
+    "numpy>=1.24.0,<3.0",
+    "pydantic>=2.0.0,<3.0",
+    "structlog>=24.1.0,<26.0",
 ]
 [project.optional-dependencies]
 sci = [
@@ -58,19 +73,45 @@ all = [
 [project.scripts]
 apgi = "main:main"
 [project.urls]
-Homepage = "https://github.com/apgi/apgi"
-Documentation = "https://apgi.readthedocs.io"
-Repository = "https://github.com/apgi/apgi"
-Issues = "https://github.com/apgi/apgi/issues"
+# These MUST match the Data and Code Availability statement in the APGI paper
+# series. Three different URLs were previously in circulation (the papers'
+# apgiframework/…, pyproject's apgi/apgi, and the actual git remote), so the
+# published availability statement pointed at a repository that was not this
+# one.
+Homepage = "https://github.com/apgiframework/apgi-implementation"
+Repository = "https://github.com/apgiframework/apgi-implementation"
+Issues = "https://github.com/apgiframework/apgi-implementation/issues"
+Zenodo = "https://doi.org/10.5281/zenodo.21632264"
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["core*", "hierarchy*", "oscillation*", "reservoir*", "stats*", "validation*", "analysis*", "energy*"]
+# active_inference was missing here even though pipeline.py imports it at
+# module top level, so `pip install .` produced a package that could not be
+# imported.
+include = [
+    "core*",
+    "hierarchy*",
+    "oscillation*",
+    "reservoir*",
+    "stats*",
+    "validation*",
+    "analysis*",
+    "energy*",
+    "active_inference*",
+]
+
+# pipeline.py, config.py and main.py are top-level MODULES, not packages, so
+# packages.find never collected them. Without this, `pip install .` shipped a
+# distribution where `from pipeline import APGIPipeline` (the README
+# quickstart) and the `apgi = "main:main"` console script both failed.
+# Editable installs masked the problem by putting the source tree on sys.path.
+[tool.setuptools]
+py-modules = ["pipeline", "config", "main"]
 [tool.black]
 line-length = 100
-target-version = ['py39', 'py310', 'py311', 'py312']
+target-version = ["py310", "py311", "py312", "py313"]
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
 ignore = ["E501"]
 [tool.mypy]

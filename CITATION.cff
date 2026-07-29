@@ -1,0 +1,47 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "APGI: Allostatic Precision-Gated Ignition — reference implementation"
+abstract: >-
+  Reference implementation of the Allostatic Precision-Gated Ignition (APGI)
+  framework: a computational model of conscious access as a discrete,
+  precision-weighted, metabolically constrained ignition event crossing an
+  allostatically regulated threshold. Implements the full 18-step execution
+  pipeline of the APGI Mathematical Specification, including hierarchical
+  multi-timescale dynamics, Kuramoto phase coupling, a liquid-state-machine
+  reservoir substrate, and Landauer-grounded thermodynamic constraints.
+type: software
+license: MIT
+version: "1.0.0"
+doi: 10.5281/zenodo.21632264
+date-released: "2026-07-29"
+repository-code: "https://github.com/apgiframework/apgi-implementation"
+url: "https://doi.org/10.5281/zenodo.21632264"
+authors:
+  - name: "APGI Framework contributors"
+keywords:
+  - neuroscience
+  - consciousness
+  - computational-model
+  - predictive-processing
+  - precision-weighting
+  - allostasis
+  - reservoir-computing
+references:
+  - type: article
+    title: "APGI Framework Multi-Scale Dynamical Formulation"
+    year: 2026
+    notes: "Companion specification, version 1.0 (2026-07-28)."
+    authors:
+      - name: "APGI Framework contributors"
+  - type: article
+    title: "APGI Mathematical Specification"
+    year: 2026
+    notes: "Companion specification, version 1.0 (2026-07-29)."
+    authors:
+      - name: "APGI Framework contributors"
+  - type: article
+    title: "APGI Notation Appendix"
+    year: 2026
+    notes: "Canonical notation and parameter ranges, version 1.0 (2026-07-28)."
+    authors:
+      - name: "APGI Framework contributors"
