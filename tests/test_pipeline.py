@@ -405,26 +405,39 @@ class TestParameterBackwardCompatibility:
 class TestNEConfigurationValidation:
     """Tests for NE configuration validation."""
 
-    def test_double_counting_raises_error(self, base_config):
-        """Test that both ne_on_precision and ne_on_threshold raises error."""
+    def test_both_ne_pathways_allowed_under_clamp(self, base_config):
+        """Both NE pathways may run simultaneously when γ_NE·g_NE ≤ 0.5.
+
+        MathSpec §2 permits this explicitly; config.py documents it as the
+        supported way to enable both. The previous blanket rejection made that
+        documented configuration unusable.
+        """
         config = base_config.copy()
         config["ne_on_precision"] = True
         config["ne_on_threshold"] = True
-        # Suppress expected validation warning for this intentionally invalid config
+        config["gamma_ne"] = 0.01
+        config["g_ne"] = 1.0
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            with pytest.raises(ValidationError, match="double-counts"):
-                APGIPipeline(config)
+            pipeline = APGIPipeline(config)
+        assert pipeline.config["g_ne"] == pytest.approx(1.0), "clamp must not bind at 0.01"
 
-    def test_ne_threshold_auto_adjust(self, base_config):
-        """Test auto-adjustment of NE threshold params."""
+    def test_ne_clamp_rescales_g_ne_rather_than_raising(self, base_config):
+        """γ_NE·g_NE > 0.5 rescales g_NE ← 0.5/γ_NE, the spec's own remedy.
+
+        MathSpec §2: "if γ_NE · g_NE(t) > 0.5, rescale g_NE(t) ← 0.5 / γ_NE
+        before the threshold update." The clamp is mandatory, not optional,
+        and rescaling (not aborting) is what the spec prescribes.
+        """
         config = base_config.copy()
         config["ne_on_threshold"] = True
         config["gamma_ne"] = 0.1
-        with pytest.warns(RuntimeWarning, match="threshold instability"):
-            pipeline = APGIPipeline(config)  # noqa: F841
-        assert pipeline.config["gamma_ne"] == 0.01
-        assert pipeline.config["kappa"] == 0.15
+        config["g_ne"] = 10.0  # product = 1.0 > 0.5
+        with pytest.warns(RuntimeWarning, match=r"exceeds the spec-mandated ceiling"):
+            pipeline = APGIPipeline(config)
+        assert pipeline.config["g_ne"] == pytest.approx(5.0)  # 0.5 / 0.1
+        product = pipeline.config["gamma_ne"] * pipeline.config["g_ne"]
+        assert product <= APGIPipeline.NE_CLAMP_MAX + 1e-12
 
     def test_ne_threshold_no_warning_with_safe_params(self, base_config):
         """Test no warning with safe NE threshold params."""
@@ -438,27 +451,51 @@ class TestNEConfigurationValidation:
             # Should not have threshold instability warning
             assert not any("threshold instability" in str(w.message) for w in record)
 
-    def test_ne_product_constraint_raises(self, base_config):
-        """γ_NE · g_NE > 0.5 must raise ValidationError at init time (spec constraint)."""
+    def test_ne_clamp_inactive_when_threshold_pathway_disabled(self, base_config):
+        """With ne_on_threshold=False the product ceiling does not bind.
+
+        The clamp exists to keep the MULTIPLICATIVE THRESHOLD modulation
+        θ ← θ(1 + γ_NE·g_NE) sub-dominant. When that pathway is off, g_NE
+        scales precision only and no instability can arise from the product,
+        so a large γ_NE must not be rejected or rescaled.
+        """
         config = base_config.copy()
-        config["gamma_ne"] = 1.0  # product = 1.0 * 1.0 = 1.0 > 0.5
-        config["g_ne"] = 1.0
-        config["ne_on_precision"] = False
+        config["gamma_ne"] = 1.0
+        config["g_ne"] = 1.0  # product = 1.0, but threshold pathway is off
+        config["ne_on_precision"] = True
         config["ne_on_threshold"] = False
-        with pytest.raises(ValidationError, match=r"γ_NE · g_NE"):
-            APGIPipeline(config)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            pipeline = APGIPipeline(config)
+        assert pipeline.config["g_ne"] == pytest.approx(1.0)
 
 
 class TestValidationWarning:
     """Tests for configuration validation warnings."""
 
-    def test_validation_warning_on_invalid_config(self, base_config):
-        """Test warning on config validation failure."""
+    def test_invalid_config_raises_by_default(self, base_config):
+        """A spec-violating config must ABORT, not warn-and-continue.
+
+        λ=1.5 breaks the leaky integrator outright, yet the old fail-open path
+        let step() run and return finite, plausible-looking numbers. For the
+        cited artifact of a paper series, an invalid run must never be able to
+        masquerade as a valid one.
+        """
         config = base_config.copy()
         config["lam"] = 1.5  # Invalid: must be in (0, 1)
-        with pytest.warns(RuntimeWarning, match="validation failed"):
+        with pytest.raises(ValidationError, match=r"lam must be in"):
+            APGIPipeline(config)
+
+    def test_strict_false_downgrades_to_warning(self, base_config):
+        """strict=False is the explicit, documented opt-out."""
+        config = base_config.copy()
+        config["lam"] = 1.5
+        config["strict"] = False
+        with pytest.warns(RuntimeWarning, match="NOT spec-conformant"):
             pipeline = APGIPipeline(config)
         assert isinstance(pipeline, APGIPipeline)
+        # The departure is recorded so any output produced is traceable.
+        assert any("lam" in w for w in pipeline._validation_warnings)
 
 
 class TestBasicStep:
@@ -1029,6 +1066,7 @@ class TestPostIgnitionDynamics:
         """Test invalid reset factor raises error."""
         config = base_config.copy()
         config["reset_factor"] = 1.5  # Invalid: must be in (0, 1)
+        config["strict"] = False  # opt out of fail-closed to reach step()
         # Suppress expected validation warning for this intentionally invalid config
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")

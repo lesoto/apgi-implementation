@@ -121,7 +121,13 @@ class TestIntegrateEulerMaruyama:
 
     def test_reproducibility_with_seed(self):
         """Should be reproducible with same seed."""
-        np.random.seed(42)
+        # Seeding goes through core.rng, the single entry point for every
+        # stochastic component. np.random.seed() alone is no longer sufficient
+        # (and never was for the Generator-based call sites) — that mismatch
+        # is precisely what made seeded runs irreproducible.
+        from core.rng import seed_everything
+
+        seed_everything(42)
         result1 = integrate_euler_maruyama(
             x=1.0,
             mu=0.1,
@@ -129,7 +135,7 @@ class TestIntegrateEulerMaruyama:
             t=0.0,
             dt=1.0,
         )
-        np.random.seed(42)
+        seed_everything(42)
         result2 = integrate_euler_maruyama(
             x=1.0,
             mu=0.1,
@@ -138,6 +144,14 @@ class TestIntegrateEulerMaruyama:
             dt=1.0,
         )
         assert result1 == result2
+
+    def test_explicit_rng_argument_is_reproducible(self):
+        """Passing rng=<seed> reproduces without touching global state."""
+        a = integrate_euler_maruyama(x=1.0, mu=0.1, sigma=0.2, t=0.0, dt=1.0, rng=7)
+        b = integrate_euler_maruyama(x=1.0, mu=0.1, sigma=0.2, t=0.0, dt=1.0, rng=7)
+        c = integrate_euler_maruyama(x=1.0, mu=0.1, sigma=0.2, t=0.0, dt=1.0, rng=8)
+        assert a == b
+        assert a != c
 
     def test_negative_drift(self):
         """Should handle negative drift."""

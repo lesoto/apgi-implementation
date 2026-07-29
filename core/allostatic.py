@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from .rng import RNGLike, resolve_rng
+
 
 def allostatic_threshold_ode(
     theta: float,
@@ -36,6 +38,7 @@ def allostatic_threshold_ode(
     delta_info: float | None = None,
     ne: float = 0.0,
     eta_ne: float = 0.0,
+    rng: RNGLike = None,
 ) -> float:
     """Compute one Euler-Maruyama step of the allostatic threshold ODE.
 
@@ -64,6 +67,8 @@ def allostatic_threshold_ode(
         delta_info: Information-value gain Δ_info (paper Eq. 3). Defaults to eta.
         ne: Noradrenergic signal NE(t). Zero by default.
         eta_ne: Noradrenergic coupling η_NE (paper Eq. 3).
+        rng: Generator/seed for the Euler-Maruyama noise draw; ``None`` uses
+            the process-global APGI generator (see :mod:`core.rng`).
     Returns:
         Updated threshold θ(t+dt).
     """
@@ -74,7 +79,7 @@ def allostatic_threshold_ode(
     allostatic = _kappa * C - _delta_i * V
     ne_term = eta_ne * ne
     drift = mean_reversion + refractory + allostatic + ne_term
-    noise = float(np.random.normal(0.0, noise_std * np.sqrt(dt)))
+    noise = float(resolve_rng(rng).normal(0.0, noise_std * np.sqrt(dt)))
     return float(theta + drift * dt + noise)
 
 
@@ -109,6 +114,7 @@ class AllostaticThresholdController:
         gamma: float = 0.01,
         delta: float = 0.5,
         dt: float = 1.0,
+        rng: RNGLike = None,
     ):
         """Initialize allostatic controller.
         Args:
@@ -116,6 +122,8 @@ class AllostaticThresholdController:
             gamma: Mean-reversion rate (γ_θ = 1/τ_θ)
             delta: Refractory boost magnitude (δ_reset)
             dt: Integration time step
+            rng: Generator/seed for the ODE noise draws; ``None`` uses the
+                process-global APGI generator.
         """
         self.theta = theta_0
         self.theta_0 = theta_0
@@ -123,6 +131,7 @@ class AllostaticThresholdController:
         self.delta = delta
         self.dt = dt
         self.B_prev = 0
+        self.rng = resolve_rng(rng)
 
     def step(self, C: float, V: float, eta: float, B: int, noise_std: float = 0.01) -> float:
         """Single ODE step for threshold update with stochastic scaling.
@@ -147,6 +156,7 @@ class AllostaticThresholdController:
             eta=eta,
             dt=self.dt,
             noise_std=noise_std,
+            rng=self.rng,
         )
         # Store state for next step
         self.B_prev = B

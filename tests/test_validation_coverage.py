@@ -16,7 +16,7 @@ def test_validate_config_success():
         "lam": 0.2,
         "kappa": 0.15,
         "ignite_tau": 0.5,
-        "dt": 1.0,
+        "dt": 0.5,  # dt <= min(tau)/10 per MathSpec §7.4
         "tau_s": 50.0,
         "tau_theta": 100.0,
         "tau_pi": 100.0,
@@ -53,8 +53,15 @@ def test_validate_config_failures():
         validate_config(cfg)
 
     # Neuromodulator separation
-    with pytest.raises(ValidationError, match="NE cannot modulate both"):
-        check({"ne_on_precision": True, "ne_on_threshold": True})
+    with pytest.warns(RuntimeWarning, match="sub-dominant"):
+        check(
+            {
+                "ne_on_precision": True,
+                "ne_on_threshold": True,
+                "gamma_ne": 1.0,
+                "g_ne": 1.0,  # product = 1.0 > 0.5 ceiling
+            }
+        )
     # Signal accumulation
     with pytest.raises(ValidationError, match="lam must be in"):
         check({"lam": 1.5})
@@ -118,8 +125,9 @@ def test_validate_config_failures():
         check({"g_ach": -1.0})
     with pytest.raises(ValidationError, match="g_ne"):
         check({"g_ne": -1.0})
-    with pytest.raises(ValidationError, match="beta"):
-        check({"beta": -1.0})
+    # β_DA is an unconstrained real (MathSpec glossary: "ℝ"); negative values
+    # model dopaminergic depletion and must be accepted, not rejected.
+    check({"beta": -1.0})
 
 
 def test_validate_reset_factor():

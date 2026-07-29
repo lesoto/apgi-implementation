@@ -534,7 +534,7 @@ class TestPipelineCoverage:
             "hierarchical": True,
             "hierarchical_timescale_mode": "canonical",
             "n_levels": 4,
-            "dt": 1.0,
+            "dt": 0.5,  # dt <= min(tau)/10 per MathSpec §7.4
         }
         pipeline = APGIPipeline(config)
         assert pipeline.n_levels >= 1
@@ -552,7 +552,7 @@ class TestPipelineCoverage:
             "n_levels": 3,
             "tau_0": 10.0,
             "k": 1.6,
-            "dt": 1.0,
+            "dt": 0.5,  # dt <= min(tau)/10 per MathSpec §7.4
         }
         pipeline = APGIPipeline(config)
         # n_levels might be adjusted based on the configuration
@@ -569,7 +569,7 @@ class TestPipelineCoverage:
             "circadian_t0": 0.0,
             "circadian_A_circ": 0.1,
             "circadian_T_circ": 86400.0,
-            "dt": 1.0,
+            "dt": 0.5,  # dt <= min(tau)/10 per MathSpec §7.4
         }
         pipeline = APGIPipeline(config)
         assert pipeline.circadian_regulator is not None
@@ -582,7 +582,7 @@ class TestPipelineCoverage:
             "sigma2_e0": 1.0,
             "sigma2_i0": 1.0,
             "use_circadian_modulation": False,
-            "dt": 1.0,
+            "dt": 0.5,  # dt <= min(tau)/10 per MathSpec §7.4
         }
         pipeline = APGIPipeline(config)
         assert pipeline.circadian_regulator is None
@@ -595,7 +595,7 @@ class TestPipelineCoverage:
             "sigma2_e0": 1.0,
             "sigma2_i0": 1.0,
             "metabolic_state0": 0.7,
-            "dt": 1.0,
+            "dt": 0.5,  # dt <= min(tau)/10 per MathSpec §7.4
         }
         pipeline = APGIPipeline(config)
         assert pipeline.metabolic_state == 0.7

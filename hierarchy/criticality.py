@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from core.rng import RNGLike, get_global_rng, resolve_rng
+
 
 def compute_rho_crit(W_rec: np.ndarray) -> float:
     """ρ_crit = ρ(W_rec): the spectral radius (largest eigenvalue magnitude)
@@ -40,7 +42,7 @@ def make_recurrent_matrix(
     n_units: int,
     target_rho_crit: float = 1.0,
     density: float = 0.2,
-    rng: np.random.Generator | None = None,
+    rng: RNGLike = None,
 ) -> np.ndarray:
     """Construct a random sparse recurrent matrix W_rec normalized to a
     target spectral radius (default 1.0, the spec's optimal-ignition
@@ -48,7 +50,7 @@ def make_recurrent_matrix(
     """
     if n_units <= 0:
         raise ValueError("n_units must be > 0")
-    generator = rng or np.random.default_rng()
+    generator = resolve_rng(rng)
     mask = (generator.random((n_units, n_units)) < density).astype(float)
     W_raw = generator.normal(size=(n_units, n_units)) * mask
     rho_raw = compute_rho_crit(W_raw)
@@ -88,7 +90,7 @@ class HierarchicalCriticalityTracker:
     n_units_per_level: int = 20
     target_rho_crit: float = 1.0
     density: float = 0.2
-    rng: np.random.Generator = field(default_factory=lambda: np.random.default_rng())
+    rng: np.random.Generator = field(default_factory=get_global_rng)
     fields: list[LevelRecurrentField] = field(default_factory=list, init=False)
 
     def __post_init__(self) -> None:

@@ -47,6 +47,8 @@ from typing import Callable, Optional
 
 import numpy as np
 
+from core.rng import RNGLike, resolve_rng
+
 # Suppress LAPACK warnings
 warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*")
 
@@ -84,6 +86,7 @@ class LiquidStateMachine:
         res_sparsity: float = 0.15,
         heterogeneous_tau: Optional[np.ndarray] = None,
         seed: Optional[int] = None,
+        rng: RNGLike = None,
     ):
         """Initialize liquid state machine.
         Args:
@@ -114,7 +117,12 @@ class LiquidStateMachine:
                 that implementation/simulation use the heterogeneous form.
                 When None (default), the homogeneous scalar form is used —
                 labeled here and in the module docstring as an approximation.
-            seed: Random seed for reproducibility (optional)
+            seed: Random seed for reproducibility (optional). Shorthand for
+                ``rng=<seed>``; takes precedence over ``rng`` when both given.
+            rng: Generator/seed for all weight draws. ``None`` uses the
+                process-global APGI generator, which :func:`core.rng.seed_everything`
+                makes deterministic. Unlike the previous implementation this
+                never touches NumPy's legacy global stream.
         Raises:
             ValueError: If spectral_radius not in [0.7, 0.95]
         """
@@ -150,9 +158,11 @@ class LiquidStateMachine:
         self.spectral_radius = spectral_radius
         self.input_scale = input_scale
         self.sigma_inh2 = sigma_inh2
-        # Set random seed if provided
-        if seed is not None:
-            np.random.seed(seed)
+        # Resolve one generator for every weight draw. `seed` remains
+        # supported as a shorthand; core.rng guarantees that seeding here is
+        # reproducible without touching NumPy's legacy global stream.
+        generator = resolve_rng(seed if seed is not None else rng)
+        self.rng = generator
         if not (0.0 < res_sparsity <= 1.0):
             raise ValueError(f"res_sparsity must be in (0, 1], got {res_sparsity}")
         self.res_sparsity = res_sparsity
@@ -161,8 +171,8 @@ class LiquidStateMachine:
         # then normalized to the desired spectral radius. Masking BEFORE
         # normalization ensures rho(W_res)=spectral_radius holds for the
         # actual sparse matrix used in dynamics, not a pre-masked dense one.
-        res_mask = (np.random.rand(N, N) < res_sparsity).astype(float)
-        W_raw = np.random.randn(N, N) * res_mask
+        res_mask = (generator.random((N, N)) < res_sparsity).astype(float)
+        W_raw = generator.standard_normal((N, N)) * res_mask
         try:
             with np.errstate(all="ignore"):
                 eigs = np.linalg.eigvals(W_raw)
@@ -174,14 +184,14 @@ class LiquidStateMachine:
             # Fallback: use identity matrix scaled by spectral radius
             self.W_res = np.eye(N) * spectral_radius * 0.1
         # Input weights: random with scaling
-        self.W_in = np.random.randn(N, M) * input_scale
+        self.W_in = generator.standard_normal((N, M)) * input_scale
         # W_inh: PV+ interneuron-mediated divisive normalization (§9).
         # Non-negative sparse matrix — mirrors biological cortex connectivity
         # probability (~10%) and the non-negative nature of inhibitory drive.
         # Each entry W_inh[i,j] weights how much unit j's activation suppresses
         # unit i through PV+ gain control (Carandini & Heeger, 2012).
-        mask = (np.random.rand(N, N) < inh_sparsity).astype(float)
-        self.W_inh: np.ndarray = np.abs(np.random.randn(N, N)) * inh_scale * mask
+        mask = (generator.random((N, N)) < inh_sparsity).astype(float)
+        self.W_inh: np.ndarray = np.abs(generator.standard_normal((N, N))) * inh_scale * mask
         # Output weights: initialized randomly, trained via ridge regression
         self.W_out = np.zeros((N, 1))
         # Reservoir state

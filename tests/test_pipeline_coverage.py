@@ -34,13 +34,20 @@ def test_pipeline_validation_errors():
     config["strict_mode"] = True
     with pytest.raises(ValidationError):
         APGIPipeline(config)
-    # Test NE double counting
+    # Both NE pathways are permitted under the sub-dominance clamp
+    # (MathSpec §2); the ceiling is on γ_NE·g_NE, not on the pair of booleans.
     config = get_base_config()
     config["ne_on_precision"] = True
     config["ne_on_threshold"] = True
-    config["strict_mode"] = False
-    with pytest.raises(ValidationError, match="double-counts"):
-        APGIPipeline(config)
+    config["gamma_ne"] = 0.01
+    config["g_ne"] = 1.0  # product = 0.01 ≤ 0.5
+    APGIPipeline(config)  # must not raise
+    # Overshooting the ceiling rescales g_NE rather than aborting.
+    config["gamma_ne"] = 0.1
+    config["g_ne"] = 10.0  # product = 1.0 > 0.5
+    with pytest.warns(RuntimeWarning):
+        pipeline = APGIPipeline(config)
+    assert pipeline.config["gamma_ne"] * pipeline.config["g_ne"] <= 0.5 + 1e-12
 
 
 def test_pipeline_step_modes():

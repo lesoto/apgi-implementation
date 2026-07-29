@@ -26,6 +26,8 @@ from typing import Any, Literal
 
 import numpy as np
 
+from core.rng import RNGLike, get_global_rng, resolve_rng
+
 from core.precision import clamp, compute_interoceptive_precision_exponential
 
 AgentType = Literal["full", "beta_sm_lesion", "pi_lesion", "alpha_lesion", "random"]
@@ -56,7 +58,7 @@ class ThreeArmedBanditEnv:
 
     sigma_env: float
     n_arms: int = 3
-    rng: np.random.Generator = field(default_factory=lambda: np.random.default_rng())
+    rng: np.random.Generator = field(default_factory=get_global_rng)
     p_min: float = 0.1
     p_max: float = 0.9
 
@@ -120,7 +122,7 @@ class APGISomaticAgent:
         pi_min: float = 0.1,
         pi_max: float = 10.0,
         theta_ignition: float = 4.0,
-        rng: np.random.Generator | None = None,
+        rng: RNGLike = None,
     ) -> None:
         self.agent_type = agent_type
         self.n_arms = n_arms
@@ -133,7 +135,7 @@ class APGISomaticAgent:
         self.pi_min = pi_min
         self.pi_max = pi_max
         self.theta_ignition = theta_ignition
-        self.rng = rng or np.random.default_rng()
+        self.rng = resolve_rng(rng)
         # Lesion semantics (Protocol 2):
         #   full           — beta_sm active, Pi_i_baseline adaptive
         #   beta_sm_lesion — beta_sm = 0 (M_hat has no effect on precision)
@@ -241,7 +243,7 @@ def run_agent_on_volatility_schedule(
     """
     if volatility_schedule is None:
         volatility_schedule = [0.1, 0.3, 0.6, 0.3, 0.1]
-    rng = np.random.default_rng(seed)
+    rng = resolve_rng(seed)
     agent = APGISomaticAgent(agent_type=agent_type, rng=rng, **agent_kwargs)
     n_trials = trials_per_block * len(volatility_schedule)
     trial_idx = 0

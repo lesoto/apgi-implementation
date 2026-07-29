@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import warnings
+from collections import deque
+from collections.abc import MutableSequence
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -21,6 +23,7 @@ from core.precision import (
     update_mean_ema,
 )
 from core.preprocessing import RunningStats, compute_prediction_error
+from core.rng import resolve_rng
 from core.signal import instantaneous_signal_phi, integrate_signal_leaky, stabilize_signal_log
 from core.thermodynamics import compute_landauer_cost
 from core.threshold import (
@@ -33,7 +36,12 @@ from core.threshold import (
     threshold_decay,
     update_threshold_discrete,
 )
-from core.validation import ValidationError, validate_config
+from core.validation import (
+    CanonicalRangeWarning,
+    ValidationError,
+    check_canonical_ranges,
+    validate_config,
+)
 from hierarchy.coupling import HierarchicalPrecisionNetwork
 from hierarchy.multiscale import (
     aggregate_multiscale_signal_phi,
@@ -76,8 +84,35 @@ class HierarchicalState:
             self.phases = [0.0] * self.n_levels
 
 
+def _new_history_buffer(maxlen: int | None) -> MutableSequence[float]:
+    """Create a diagnostic history buffer.
+
+    Args:
+        maxlen: Maximum retained samples, or ``None`` for an unbounded list.
+
+    Returns:
+        A ``deque`` bounded to ``maxlen`` (oldest samples evicted first), or a
+        plain ``list`` when ``maxlen`` is ``None``. Both satisfy the
+        ``append``/``len``/indexing/iteration the analysis paths use, and
+        ``np.asarray`` accepts either, so downstream code is unaffected.
+
+    Raises:
+        ValueError: If ``maxlen`` is not ``None`` and not >= 1.
+    """
+    if maxlen is None:
+        return []
+    if maxlen < 1:
+        raise ValueError(f"history_maxlen must be >= 1 or None, got {maxlen}")
+    return deque(maxlen=maxlen)
+
+
 class APGIPipeline:
     """APGI one-step update implementing the full corrected mathematical pipeline."""
+
+    #: Spec-mandated ceiling on γ_NE · g_NE (MathSpec §2). Keeps the
+    #: multiplicative NE threshold modulation sub-dominant to the allostatic
+    #: update, preventing non-linear instability when both NE pathways run.
+    NE_CLAMP_MAX: float = 0.5
 
     M: float
     history: dict[str, list[float]]
@@ -87,6 +122,68 @@ class APGIPipeline:
     sigma2_i_levels: np.ndarray
     n_levels: int
     taus: np.ndarray
+
+    def _enforce_ne_clamp(self) -> None:
+        """Enforce the mandatory NE sub-dominance clamp γ_NE · g_NE ≤ 0.5.
+
+        MathSpec §2: "Implementations MUST enforce the hard clamp
+        γ_NE · g_NE ≤ 0.5 at every timestep to prevent non-linear instability;
+        this is a strict architectural constraint, not an optional toggle.
+        Concretely, if γ_NE · g_NE(t) > 0.5, rescale g_NE(t) ← 0.5 / γ_NE
+        before the threshold update."
+
+        Rescaling (rather than raising) is what the spec prescribes, so a
+        configuration that overshoots is corrected and reported rather than
+        rejected. The clamp only binds when the multiplicative threshold
+        pathway is active; with ne_on_threshold=False, g_NE scales precision
+        only and no instability can arise from this product.
+        """
+        if not self.config.get("ne_on_threshold", False):
+            return
+        gamma_ne = float(self.config.get("gamma_ne", 0.1))
+        g_ne = float(self.config.get("g_ne", 1.0))
+        if gamma_ne <= 0.0:
+            return
+        product = gamma_ne * g_ne
+        if product > self.NE_CLAMP_MAX:
+            rescaled = self.NE_CLAMP_MAX / gamma_ne
+            msg = (
+                f"γ_NE·g_NE = {product:.3f} exceeds the spec-mandated ceiling "
+                f"{self.NE_CLAMP_MAX}; rescaling g_NE {g_ne:.3f} → {rescaled:.3f} "
+                "(MathSpec §2, hard clamp)."
+            )
+            self.config["g_ne"] = rescaled
+            self._validation_warnings.append(msg)
+            warnings.warn(msg, RuntimeWarning, stacklevel=3)
+            logger.warning("ne_clamp_applied", product=product, g_ne_rescaled=rescaled)
+
+    def _warn_ne_threshold_stiffness(self) -> None:
+        """Warn when NE threshold modulation is stiff relative to θ recovery.
+
+        This is an empirical stability heuristic, NOT a spec constraint: with
+        the multiplicative NE pathway active, a large γ_NE combined with a
+        slow threshold decay κ lets θ ratchet upward faster than it relaxes.
+
+        It only warns. The previous implementation silently rewrote both
+        ``gamma_ne`` and ``kappa`` behind the caller's back, so a run could
+        report parameters it had not actually used — a reproducibility hazard
+        for an artifact whose outputs back published figures. Choosing the
+        remedy is the caller's decision; naming it precisely is ours.
+        """
+        if not self.config.get("ne_on_threshold", False):
+            return
+        gamma_ne = float(self.config.get("gamma_ne", 0.1))
+        kappa = float(self.config.get("kappa", 0.15))
+        if gamma_ne >= 0.1 and kappa <= 0.15:
+            msg = (
+                f"ne_on_threshold=True with gamma_ne={gamma_ne} and kappa={kappa} "
+                "risks threshold instability: multiplicative NE gain can raise θ "
+                "faster than the decay relaxes it. Prefer gamma_ne <= 0.01 or "
+                "kappa >= 0.15 (§4.4). Not auto-corrected — the configuration "
+                "you pass is the configuration that runs."
+            )
+            self._validation_warnings.append(msg)
+            warnings.warn(msg, RuntimeWarning, stacklevel=3)
 
     def _apply_hierarchical_preset(self, config: dict) -> dict:
         """Apply hierarchical mode preset to configuration.
@@ -201,55 +298,54 @@ class APGIPipeline:
             self.config["beta"] = self.config["beta_da"]
         if "tau_sigma" in self.config and "ignite_tau" not in self.config:
             self.config["ignite_tau"] = self.config["tau_sigma"]
-        # Validate configuration against spec constraints (§15)
-        # Default is non-strict mode: warn on validation issues but allow continuation
-        strict_mode = self.config.get("strict_mode", False)
-        if strict_mode:
+        # Validate configuration against spec constraints (§15).
+        #
+        # FAIL CLOSED. A configuration that violates the specification is a
+        # defect, not a preference: silently continuing produces numbers that
+        # look plausible but are not APGI (e.g. λ=1.5 breaks the leaky
+        # integrator outright while step() still returns finite values). Since
+        # this package is the cited artifact for the paper series, an invalid
+        # run must never masquerade as a valid one.
+        #
+        # `strict=False` is the documented, explicit opt-out for exploratory
+        # work; it downgrades violations to warnings and is recorded in the
+        # run manifest so any output produced under it is traceable.
+        self.strict = bool(self.config.get("strict", self.config.get("strict_mode", True)))
+        self._validation_warnings: list[str] = []
+        try:
             validate_config(self.config)
-            logger.debug("config_validation_passed")
-        else:
-            # Non-strict mode: emit warnings but continue with auto-adjustments
-            try:
-                validate_config(self.config)
-            except ValidationError as e:
-                warnings.warn(
-                    f"Config validation failed: {e}. Continuing with fallback values.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-        # Validate NE configuration to prevent double-counting
-        # This is always fatal - even in non-strict mode
-        if self.config.get("ne_on_precision", False) and self.config.get("ne_on_threshold", False):
-            raise ValidationError(
-                "Both ne_on_precision and ne_on_threshold are True. "
-                "This double-counts norepinephrine effects. "
-                "Enable only one. See spec Section 2.3-2.4."
+            logger.debug("config_validation_passed", strict=self.strict)
+        except ValidationError as e:
+            if self.strict:
+                raise
+            self._validation_warnings.append(str(e))
+            warnings.warn(
+                f"Config validation failed: {e}. Continuing because strict=False; "
+                "results from this run are NOT spec-conformant.",
+                RuntimeWarning,
+                stacklevel=2,
             )
-        # Spec constraint: γ_NE · g_NE_max ≤ 0.5 (prevents multiplicative instability)
-        gamma_ne = self.config.get("gamma_ne", 0.1)
-        g_ne = self.config.get("g_ne", 1.0)
-        if gamma_ne * g_ne > 0.5:
-            raise ValidationError(
-                f"γ_NE · g_NE = {gamma_ne * g_ne:.3f} > 0.5. "
-                "Spec mandates γ_NE · g_NE_max ≤ 0.5 to prevent multiplicative threshold instability. "
-                f"Reduce gamma_ne (currently {gamma_ne}) or g_ne (currently {g_ne})."
-            )
-        # Check for threshold instability and auto-adjust in non-strict mode
-        if not strict_mode:
-            gamma_ne = self.config.get("gamma_ne", 0.1)
-            kappa = self.config.get("kappa", 0.15)
-            if self.config.get("ne_on_threshold", False) and gamma_ne >= 0.1 and kappa <= 0.15:
-                warnings.warn(
-                    f"ne_on_threshold=True with gamma_ne={gamma_ne} and kappa={kappa} "
-                    "causes threshold instability. Auto-adjusting to safe values. "
-                    "Use gamma_ne <= 0.01 or kappa >= 0.15. Spec §4.4.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                # Auto-adjust to safe values
-                self.config["gamma_ne"] = 0.01
-                self.config["kappa"] = 0.15
+        # Canonical-range advisories (Notation Appendix). These never abort a
+        # run — out-of-band-but-in-support values are legitimate for sensitivity
+        # analysis — but they are surfaced and recorded in the manifest.
+        for msg in check_canonical_ranges(self.config):
+            self._validation_warnings.append(msg)
+            warnings.warn(msg, CanonicalRangeWarning, stacklevel=2)
+        # Spec constraint (MathSpec §2): γ_NE · g_NE ≤ 0.5 is a hard clamp that
+        # implementations MUST enforce at every timestep — "a strict
+        # architectural constraint, not an optional toggle". The spec also
+        # prescribes the remedy: rescale g_NE ← 0.5/γ_NE rather than abort.
+        # Both NE pathways may be active simultaneously provided this holds;
+        # the previous blanket ban on ne_on_precision+ne_on_threshold was
+        # stricter than the spec and contradicted config.py's own guidance.
+        self._enforce_ne_clamp()
+        self._warn_ne_threshold_stiffness()
         self.S = float(self.config["S0"])
+        # One generator drives every stochastic element of this pipeline
+        # (ignition sampling, SDE noise, reservoir weights, phase noise), so a
+        # run is bit-for-bit reproducible from config["seed"] alone.
+        self.seed = self.config.get("seed")
+        self.rng = resolve_rng(self.config.get("rng", self.seed))
         self.theta = float(self.config["theta_0"])
         self.theta_dot = 0.0  # For continuous ODE tracking
         # Internalized predictions per §1.4 if enabled
@@ -427,6 +523,7 @@ class APGIPipeline:
                 tau_res=self.config.get("reservoir_tau", 1.0),
                 spectral_radius=self.config.get("reservoir_spectral_radius", 0.9),
                 input_scale=self.config.get("reservoir_input_scale", 0.1),
+                rng=self.rng,
             )
         # Kuramoto oscillators if enabled (§9)
         self.kuramoto = None
@@ -434,9 +531,11 @@ class APGIPipeline:
             from oscillation.kuramoto import HierarchicalKuramotoSystem
 
             n_levels = self.config.get("n_levels", 3)
+            # Pass the pipeline generator through config so the oscillator
+            # bank's initial phases and OU noise derive from the run seed.
             self.kuramoto = HierarchicalKuramotoSystem(
                 n_levels=n_levels,
-                config=self.config,
+                config={**self.config, "rng": self.rng},
             )
         # Observable mapping if enabled (§14)
         self.neural_observables = None
@@ -481,18 +580,24 @@ class APGIPipeline:
                 gamma_pos=self.config.get("gamma_plus", 2.0),
                 gamma_neg=self.config.get("gamma_minus", 2.0),
             )
+        # Diagnostic history. Bounded by default: an unbounded list grows at
+        # ~113 bytes/step (~1.1 GB at 1e7 steps), and Levels 3-4 span
+        # hours-to-months of simulated time. config["history_maxlen"]=None
+        # restores unbounded (legacy) behaviour.
+        _maxlen = self.config.get("history_maxlen", 1_000_000)
+        self.history_maxlen = _maxlen
         self.history = {
-            "S": [],
-            "theta": [],
-            "B": [],
+            "S": _new_history_buffer(_maxlen),
+            "theta": _new_history_buffer(_maxlen),
+            "B": _new_history_buffer(_maxlen),
         }
         # Multiscale signal tracking for spectral validation
         self.multiscale_signal_history: list[float] = []
         self.per_level_history: list[list[float]] = []
         # Thermodynamic cost history if enabled (§11)
         if self.config.get("use_thermodynamic_cost", False):
-            self.history["C_landauer"] = []
-            self.history["bits_erased"] = []
+            self.history["C_landauer"] = _new_history_buffer(self.history_maxlen)
+            self.history["bits_erased"] = _new_history_buffer(self.history_maxlen)
 
     def step(
         self,
@@ -783,6 +888,7 @@ class APGIPipeline:
                 tau_s,
                 dt,
                 adaptive_noise_std,
+                rng=self.rng,
             )
         elif self.config.get("use_canonical_discrete_mode", False):
             # Discrete canonical mode: S(t+1) = (1-λ)S(t) + λ·S_inst(t)·Γ per spec §12
@@ -799,6 +905,7 @@ class APGIPipeline:
                 tau_s,
                 dt,
                 adaptive_noise_std,
+                rng=self.rng,
             )
         self.S = stabilize_signal_log(self.S, enabled=self.config["signal_log_nonlinearity"])
         # 7) Cost/value and threshold update (canonical spec semantics)
@@ -890,7 +997,7 @@ class APGIPipeline:
             # Skip allostatic update - reservoir provides dynamics
             p_ignite = compute_ignition_probability(self.S, theta_next, self.config["ignite_tau"])
             if self.config["stochastic_ignition"]:
-                B_t = sample_ignition_state(p_ignite)
+                B_t = sample_ignition_state(p_ignite, rng=self.rng)
             else:
                 B_t = int(detect_ignition_event(self.S, theta_next))
         else:
@@ -921,6 +1028,7 @@ class APGIPipeline:
                     eta=self.config["eta"],
                     dt=dt,
                     noise_std=self.config.get("noise_std", 0.01),
+                    rng=self.rng,
                 )
             else:
                 # Discrete form: θ_next = θ + η(C-V) [refractory in step 9]
@@ -932,7 +1040,23 @@ class APGIPipeline:
                     delta=0.0,  # Refractory handled in step 9
                     B_prev=0,  # Refractory handled in step 9
                 )
-            # 7c) NE threshold modulation (per spec §4.4)
+            # 7b-decay) Step 12 — mean reversion & exponential decay.
+            #   θ(t+1) ← θ₀ + (θ(t+1) − θ₀)·exp(−γ_θ)
+            # MathSpec §13 orders this AFTER the allostatic update (step 11)
+            # and BEFORE the NE modulation (13), the 5-HT offset (14) and the
+            # ignition decision (15). It previously ran at the very END of the
+            # timestep, so the ignition test at step 15 saw an un-decayed
+            # threshold. The two orderings are NOT equivalent: decay is affine
+            # (θ ↦ θ₀ + (θ−θ₀)e^{−γ}) and the allostatic update is a
+            # translation, and affine maps do not commute with translations —
+            # deferring the decay scales the cost-benefit increment by an
+            # extra e^{−γ_θ} and applies the NE/5-HT offsets to a threshold
+            # one decay-step out of phase.
+            theta_next = threshold_decay(
+                theta_next, self.config["theta_base"], self.config["kappa"]
+            )
+            # 7c) Step 13 — NE multiplicative threshold modulation (§4.4).
+            # g_NE has already been clamped so that γ_NE·g_NE ≤ 0.5.
             if self.config.get("ne_on_threshold", False):
                 theta_next = apply_ne_threshold_modulation(
                     theta_next, self.config["g_ne"], self.config["gamma_ne"]
@@ -1019,12 +1143,21 @@ class APGIPipeline:
                     # Use the modulated threshold for the primary ignition level (level 0)
                     theta_next = float(thetas_mod[0])
                     self.hierarchical.thetas = thetas_mod.tolist()
-            # Global threshold clamping for stability (§7.4)
-            theta_next = float(np.clip(theta_next, 0.1, 20.0))
-            # 8) Ignition (§5)
+            # Global threshold clamping for stability (§15). Bounds are
+            # externalized to config so sensitivity analyses can widen them
+            # explicitly rather than editing a hardcoded literal.
+            theta_next = float(
+                np.clip(
+                    theta_next,
+                    self.config.get("theta_clip_min", 0.1),
+                    self.config.get("theta_clip_max", 20.0),
+                )
+            )
+            # 8) Step 15 — ignition decision (§5). Draws from the pipeline's
+            # own generator so the ignition train is reproducible from the seed.
             p_ignite = compute_ignition_probability(self.S, theta_next, self.config["ignite_tau"])
             if self.config["stochastic_ignition"]:
-                B_t = sample_ignition_state(p_ignite)
+                B_t = sample_ignition_state(p_ignite, rng=self.rng)
             else:
                 B_t = int(detect_ignition_event(self.S, theta_next))
         # 8b) Compute ignition margin using pre-reset values (§14)
@@ -1068,7 +1201,13 @@ class APGIPipeline:
         # term, never additive.
         if not ode_drift_owns_refractory:
             theta_next = apply_refractory_boost(theta_next, B_t, self.config["delta"])
-        theta_next = threshold_decay(theta_next, self.config["theta_base"], self.config["kappa"])
+        # NOTE: the mean-reversion decay is NOT applied here. It now runs at
+        # step 7b-decay, before the ignition decision, per MathSpec §13's
+        # step-12-before-step-15 ordering. The δ_reset boost applied above is
+        # carried into the next timestep, where that decay begins relaxing it
+        # toward θ₀ — which is exactly the refractory recovery the spec
+        # describes ("the exponential decay then brings the elevated threshold
+        # back toward θ₀ over subsequent timesteps").
         # 10) Internal Prediction Update per §1.4 Generative Model Dynamics
         # Support both flag names for backward compatibility
         use_generative_update = self.config.get(

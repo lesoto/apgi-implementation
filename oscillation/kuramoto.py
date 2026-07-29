@@ -6,9 +6,11 @@ where ξ_ℓ(t) is Ornstein-Uhlenbeck phase noise.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
+
+from core.rng import RNGLike, get_global_rng, resolve_rng, spawn_rng
 
 
 @dataclass
@@ -21,6 +23,7 @@ class OrnsteinUhlenbeckNoise:
 
     tau_xi: float = 1.0  # Correlation timescale (ms)
     sigma_xi: float = 0.1  # Noise amplitude (rad/ms)
+    rng: np.random.Generator = field(default_factory=get_global_rng)
 
     def __post_init__(self) -> None:
         self.xi = 0.0  # Current noise state
@@ -35,7 +38,7 @@ class OrnsteinUhlenbeckNoise:
         # OU update: ξ(t+dt) = ξ(t) exp(-dt/τ_ξ) + σ_ξ √(1-exp(-2dt/τ_ξ)) N(0,1)
         decay = np.exp(-dt / self.tau_xi)
         diffusion = self.sigma_xi * np.sqrt(1.0 - decay**2)
-        self.xi = decay * self.xi + diffusion * np.random.normal()
+        self.xi = decay * self.xi + diffusion * self.rng.normal()
         return float(self.xi)
 
     def reset(self) -> None:
@@ -61,6 +64,7 @@ class KuramotoOscillators:
         coupling_matrix: np.ndarray | None = None,
         tau_xi: float = 1.0,
         sigma_xi: float = 0.1,
+        rng: RNGLike = None,
     ):
         """Initialize Kuramoto oscillator network.
         Args:
@@ -69,6 +73,9 @@ class KuramotoOscillators:
             coupling_matrix: Coupling matrix K[i,j]. If None, uses nearest-neighbor.
             tau_xi: OU noise correlation timescale (ms)
             sigma_xi: OU noise amplitude (rad/ms)
+            rng: Generator/seed for initial phases, OU noise and stochastic
+                broadcast resets. ``None`` uses the process-global APGI
+                generator (see :mod:`core.rng`).
         """
         self.n_levels = n_levels
         # Natural frequencies (convert Hz to rad/ms)
@@ -84,10 +91,15 @@ class KuramotoOscillators:
         else:
             self.K = np.array(coupling_matrix)
         # Phase state
-        self.phases = np.random.uniform(0, 2 * np.pi, n_levels)
-        # Phase noise processes (one per oscillator)
+        # One resolvable generator drives initial phases, every OU noise
+        # stream, and the stochastic broadcast reset, so a seeded run is
+        # reproducible end-to-end (core.rng contract).
+        self.rng = resolve_rng(rng)
+        self.phases = self.rng.uniform(0, 2 * np.pi, n_levels)
+        # Phase noise processes (one per oscillator), each with its own stream
         self.noise_processes = [
-            OrnsteinUhlenbeckNoise(tau_xi=tau_xi, sigma_xi=sigma_xi) for _ in range(n_levels)
+            OrnsteinUhlenbeckNoise(tau_xi=tau_xi, sigma_xi=sigma_xi, rng=child)
+            for child in spawn_rng(self.rng, n_levels)
         ]
         self.t = 0.0
         self.history: list[np.ndarray] = []
@@ -191,7 +203,7 @@ class KuramotoOscillators:
                 effective_reset = delta * (broadcast_decay**distance)
                 self.phases[j] = (self.phases[j] + effective_reset) % (2 * np.pi)
                 # Partial noise reset based on proximity
-                if np.random.random() < (broadcast_decay**distance):
+                if self.rng.random() < (broadcast_decay**distance):
                     self.noise_processes[j].reset()
 
     def get_phases(self) -> np.ndarray:
@@ -308,6 +320,9 @@ class HierarchicalKuramotoSystem:
             n_levels=n_levels,
             tau_xi=tau_xi,
             sigma_xi=sigma_xi,
+            # Honour a caller-supplied generator so the whole oscillator bank
+            # is reproducible from the pipeline seed.
+            rng=self.config.get("rng"),
         )
 
     def step(self, dt: float = 1.0) -> dict:

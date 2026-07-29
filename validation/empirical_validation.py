@@ -11,6 +11,8 @@ from typing import Any, Callable
 
 import numpy as np
 
+from core.rng import RNGLike, resolve_rng
+
 
 @dataclass
 class DatasetConfig:
@@ -457,7 +459,9 @@ class CrossValidationRunner:
         """
         n_samples = len(data)
         indices = np.arange(n_samples)
-        np.random.shuffle(indices)
+        # Fold assignment must be reproducible: a cross-validation split that
+        # changes between runs makes reported scores unrepeatable.
+        resolve_rng(getattr(self, 'rng', None)).shuffle(indices)
         fold_size = n_samples // self.n_folds
         splits = []
         for i in range(self.n_folds):
@@ -513,6 +517,7 @@ def create_synthetic_validation_dataset(
     duration: float = 10.0,
     fs: float = 100.0,
     with_ground_truth: bool = True,
+    rng: RNGLike = None,
 ) -> dict[str, Any]:
     """Create synthetic dataset with known APGI parameters for validation testing.
     Args:
@@ -520,9 +525,13 @@ def create_synthetic_validation_dataset(
         duration: Duration of each recording (seconds)
         fs: Sampling frequency (Hz)
         with_ground_truth: Include ground truth parameters
+        rng: Generator/seed for the synthetic noise. ``None`` uses the
+            process-global APGI generator, so a seeded run regenerates the
+            identical validation dataset.
     Returns:
         Synthetic dataset with known properties
     """
+    generator = resolve_rng(rng)
     n_timepoints = int(duration * fs)
     # Generate signals with known 1/f properties
     from stats.spectral_model import generate_predicted_spectrum_from_hierarchy
@@ -538,7 +547,7 @@ def create_synthetic_validation_dataset(
             tau_max=10.0,
         )
         # Generate time series from spectrum
-        noise = np.random.randn(n_timepoints)
+        noise = generator.standard_normal(n_timepoints)
         fft_noise = np.fft.rfft(noise)
         scaling = np.sqrt(psd / (np.abs(fft_noise) ** 2 + 1e-10))
         data[i] = np.fft.irfft(fft_noise * scaling, n=n_timepoints)

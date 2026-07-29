@@ -1,14 +1,36 @@
 CONFIG = {
+    # --- Reproducibility -------------------------------------------------
+    # Seed for the pipeline's generator. Every stochastic element (ignition
+    # sampling, SDE noise, reservoir weights, Kuramoto phases) draws from it,
+    # so a run is bit-for-bit reproducible from this value alone. None =
+    # non-deterministic (OS entropy); set an int for any published result.
+    "seed": None,
+    # Fail closed on spec violations. strict=True (default) raises on a
+    # configuration that violates the mathematical support of any parameter,
+    # so an invalid run can never masquerade as a valid one. Set False only
+    # for exploratory work — the departure is recorded in the run manifest.
+    "strict": True,
     # Initial states
     "S0": 0.0,
-    "theta_0": 1.0,
-    "theta_base": 1.0,
+    # θ₀ canonical range [0.25, 0.85] AU (Notation Appendix, Canonical
+    # Parameters table). 0.55 is the band midpoint. The previous default of
+    # 1.0 sat outside the canonical range, so every out-of-the-box run was
+    # non-canonical.
+    "theta_0": 0.55,
+    "theta_base": 0.55,
     "sigma2_e0": 1.0,
     "sigma2_i0": 1.0,
     # Numerical stability
     "eps": 1e-8,
-    "pi_min": 0.01,
-    "pi_max": 10.0,  # Spec-mandated upper bound (§ precision bounds table)
+    # Spec-mandated precision clamp [Π_min, Π_max] = [0.1, 10] AU (MathSpec
+    # §2). Applied after EVERY precision computation, including after each
+    # neuromodulatory gain.
+    "pi_min": 0.1,
+    "pi_max": 10.0,
+    # Global θ clamp (numerical stability, MathSpec §15). Externalized rather
+    # than hardcoded so sensitivity analyses can widen it explicitly.
+    "theta_clip_min": 0.1,
+    "theta_clip_max": 20.0,
     # EMA variance update
     "alpha_e": 0.05,
     "alpha_i": 0.05,
@@ -61,8 +83,15 @@ CONFIG = {
     "gamma_ne": 0.1,
     # Threshold decay rate (use kappa>=0.15 when ne_on_threshold=True)
     "kappa": 0.15,
-    # Signal accumulation
-    "lam": 0.2,
+    # Signal accumulation.
+    # λ is the discrete leaky-integration rate. MathSpec §3 gives the EXACT
+    # correspondence to the continuous form: λ = 1 − exp(−dt/τ_S); the
+    # approximation λ ≈ dt/τ_S holds only when dt = 1. With dt = 0.5 and
+    # τ_S = 5.0 below, λ = 1 − exp(−0.1) = 0.0952. The former default of 0.2
+    # was ~2× the value its own comment ("dt/tau_s ≈ lam") claimed, so the
+    # discrete and continuous formulations disagreed by a factor of two.
+    # Use lam_from_tau_s() in this module to keep them consistent.
+    "lam": 0.09516258196404048,  # = 1 − exp(−dt/τ_S) for dt=0.5, τ_S=5.0
     "signal_log_nonlinearity": True,
     "use_canonical_discrete_mode": False,  # Use discrete leaky accumulation instead of ODE
     # Threshold update + refractory dynamics
@@ -136,8 +165,13 @@ CONFIG = {
     "C_down": 0.1,
     "C_up": 0.05,
     # Bottom-up nonlinear transfer ψ(ε_{ℓ-1}) in precision coupling ODE
-    # Options: "identity", "tanh", "softsign"
-    "psi_type": "identity",
+    # Options: "identity", "tanh", "softsign".
+    # Canonical is "tanh": MathSpec §2 and the Notation Appendix both define
+    # ψ(ε) = tanh(γ_ψ·ε) and require saturation ("ψ′(ε) > 0 and bounded —
+    # monotone amplification with saturation; prevents unbounded gain at large
+    # errors"). "identity" is unbounded and violates that property, so it is
+    # retained only as an explicit diagnostic opt-out.
+    "psi_type": "tanh",
     # γ_ψ: gain of ψ(ε)=tanh(γ_ψ·ε) when psi_type="tanh". MathSpec glossary
     # canonical range [1.0, 5.0]; Notation Appendix Canonical Parameters
     # table gives [1, 3] — configurable since the two documents disagree
@@ -236,4 +270,37 @@ CONFIG = {
     "circadian_A_ultradian": 0.05,
     "circadian_T_ultradian": 5400.0,  # 90 min in seconds
     "circadian_phi_ultradian": 0.0,
+    # Bounded diagnostic history. self.history previously grew without limit
+    # (~113 bytes/step → ~1.1 GB at 1e7 steps), which is reachable: Levels 3-4
+    # span hours-to-months of simulated time and DFA needs N ≥ 1000. None =
+    # unbounded (legacy); an int keeps the most recent N samples in a ring
+    # buffer. 1e6 samples ≈ 110 MB, ample for every published analysis here.
+    "history_maxlen": 1_000_000,
 }
+
+
+def lam_from_tau_s(dt: float, tau_s: float) -> float:
+    """Exact discrete leaky rate λ = 1 − exp(−dt/τ_S) (MathSpec §3).
+
+    The spec is explicit that this identity — not the λ ≈ dt/τ_S
+    approximation — is what makes the discrete and continuous formulations
+    agree: "the discrete leaky rate is exactly λ = 1 − exp(−dt/τ_S); the
+    approximation τ_S ≈ 1/λ holds only when dt = 1".
+
+    Args:
+        dt: Integration timestep, must be > 0.
+        tau_s: Signal decay timescale τ_S, must be > 0.
+
+    Returns:
+        λ ∈ (0, 1).
+
+    Raises:
+        ValueError: If ``dt`` or ``tau_s`` is not positive.
+    """
+    import math
+
+    if dt <= 0:
+        raise ValueError(f"dt must be > 0, got {dt}")
+    if tau_s <= 0:
+        raise ValueError(f"tau_s must be > 0, got {tau_s}")
+    return 1.0 - math.exp(-dt / tau_s)

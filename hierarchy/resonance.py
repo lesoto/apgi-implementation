@@ -35,6 +35,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from core.rng import RNGLike, get_global_rng, resolve_rng
+
 
 @dataclass
 class LevelState:
@@ -93,7 +95,7 @@ class NestedResonanceSystem:
         phi_noise_std: float = 0.0,
         use_ou_phase_noise: bool = True,
         ou_tau_xi: float = 1.0,
-        rng: np.random.Generator | None = None,
+        rng: RNGLike = None,
     ) -> None:
         if n_levels < 1:
             raise ValueError("n_levels must be >= 1")
@@ -107,7 +109,7 @@ class NestedResonanceSystem:
         self.theta_max = float(theta_max)
         self.phi_noise_std = float(phi_noise_std)
         self.use_ou_phase_noise = bool(use_ou_phase_noise)
-        self.rng = rng or np.random.default_rng()
+        self.rng = resolve_rng(rng)
         self._ou_noise = None
         if self.use_ou_phase_noise and self.phi_noise_std > 0.0:
             from oscillation.kuramoto import OrnsteinUhlenbeckNoise
@@ -328,7 +330,7 @@ def build_resonance_system(
     theta_max: float = 20.0,
     phi_noise_std: float = 0.0,
     use_ou_phase_noise: bool = True,
-    rng: np.random.Generator | None = None,
+    rng: RNGLike = None,
 ) -> NestedResonanceSystem:
     """Convenience factory: build a NestedResonanceSystem from pipeline timescales.
     Parameters

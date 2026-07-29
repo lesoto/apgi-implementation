@@ -4,6 +4,15 @@ from collections.abc import Callable
 
 import numpy as np
 
+#: Canonical precision clamp bounds (MathSpec §2: "Bounds: Π_min = 0.1,
+#: Π_max = 10, matching the canonical precision range [0.1, 10] AU across all
+#: APGI documents"). The previous default of Π_min = 0.01 was an order of
+#: magnitude below the spec floor while the docstring asserted it *was* the
+#: spec value, so a precision an order of magnitude outside the canonical
+#: range could propagate into S_inst unflagged.
+PI_MIN_CANONICAL: float = 0.1
+PI_MAX_CANONICAL: float = 10.0
+
 
 def clamp(value: float, lower: float, upper: float) -> float:
     if lower > upper:
@@ -14,11 +23,13 @@ def clamp(value: float, lower: float, upper: float) -> float:
 def compute_precision(
     sigma2: float,
     eps: float = 1e-8,
-    pi_min: float = 0.01,
-    pi_max: float = 10.0,
+    pi_min: float = PI_MIN_CANONICAL,
+    pi_max: float = PI_MAX_CANONICAL,
 ) -> float:
     """Precision Π = 1/(σ²+ε), clamped to [Π_min, Π_max].
-    Spec-mandated bounds: Π_min=0.01, Π_max=10 (applied every step, mandatory).
+
+    Spec-mandated bounds: Π_min = 0.1, Π_max = 10 (MathSpec §2). "The clamp
+    must be applied after every precision computation step."
     """
     raw = 1.0 / (max(float(sigma2), 0.0) + eps)
     return clamp(raw, pi_min, pi_max)
@@ -92,8 +103,8 @@ def compute_interoceptive_precision_exponential(
     pi_baseline: float,
     beta_somatic: float,
     M: float,
-    pi_min: float = 0.01,
-    pi_max: float = 10.0,
+    pi_min: float = PI_MIN_CANONICAL,
+    pi_max: float = PI_MAX_CANONICAL,
 ) -> float:
     """Compute interoceptive precision with exponential somatic modulation.
     Formula: Π_i_eff = Π_i_baseline · exp(β_SM · M(c,a))
@@ -165,7 +176,19 @@ def precision_coupling_ode_core(
         top_down = C_down * (pi_ell_plus_1 - pi_ell)
     bottom_up = 0.0
     if epsilon_ell_minus_1 is not None:
-        error_lower = abs(epsilon_ell_minus_1)
+        # SIGNED, not rectified. MathSpec §2: "ψ(ε) = tanh(γ_ψ·ε) is a
+        # monotonically increasing, SIGNED function of the lower-level
+        # prediction error, with ψ: ℝ → (−1, +1) and ψ(0) = 0, so that
+        # bottom-up cross-level drive is absent when prediction error is zero
+        # and NEGATIVE WHEN THE ERROR IS NEGATIVE."
+        #
+        # Taking abs() before ψ destroyed exactly that property: it made
+        # dΠ/dt identical for ε = +1 and ε = −1, collapsing the signed
+        # bottom-up channel into a rectified one and silently removing the
+        # spec's inhibitory pathway. Note that the α_Π·|ε_ℓ| drive term above
+        # IS unsigned by design — the spec writes it with explicit bars — so
+        # the two terms differ deliberately and must not be made uniform.
+        error_lower = float(epsilon_ell_minus_1)
         if psi is not None:
             error_lower = psi(error_lower)
         bottom_up = C_up * error_lower
@@ -176,8 +199,8 @@ def update_precision_euler(
     pi: float,
     dpi_dt: float,
     dt: float,
-    pi_min: float = 0.01,
-    pi_max: float = 10.0,
+    pi_min: float = PI_MIN_CANONICAL,
+    pi_max: float = PI_MAX_CANONICAL,
 ) -> float:
     """Update precision using Euler integration: Π(t+dt) = Π(t) + dt·dΠ/dt."""
     pi_new = pi + dt * dpi_dt

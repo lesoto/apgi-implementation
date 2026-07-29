@@ -36,8 +36,11 @@ def test_pipeline_init_non_strict_auto_adjust():
         warnings.simplefilter("always")
         p = APGIPipeline(config)
         assert any("threshold instability" in str(warning.message) for warning in w)
-    # It adjusts gamma_ne, not ne_on_threshold
-    assert p.config["gamma_ne"] == 0.01
+    # The warning is advisory only: the caller's parameters are left intact.
+    # Silently rewriting gamma_ne/kappa meant a run could report parameters it
+    # had not actually used.
+    assert p.config["gamma_ne"] == 0.1
+    assert p.config["kappa"] == 0.15
     assert p.config["ne_on_threshold"] is True
 
 
@@ -107,7 +110,7 @@ def test_pipeline_config_passed_debug():
     config["strict_mode"] = True
     with patch.object(pipeline_logger, "debug") as mock_debug:
         APGIPipeline(config)
-        mock_debug.assert_any_call("config_validation_passed")
+        mock_debug.assert_any_call("config_validation_passed", strict=True)
 
 
 def test_pipeline_kuramoto_broadcast_ignition():

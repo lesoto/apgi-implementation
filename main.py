@@ -19,6 +19,7 @@ from typing import Any
 import numpy as np
 
 from config import CONFIG
+from core.rng import RNGLike, resolve_rng, seed_everything
 from core.logging_config import configure_logging, get_logger
 from core.phi_transform import phi_transform_array
 from hierarchy.multiscale import build_timescales, multiscale_weights
@@ -29,16 +30,26 @@ from stats.hurst import estimate_hurst_robust
 logger = get_logger("apgi.main")
 
 
-def generate_synthetic_input(t: int, noise_std: float = 0.1) -> tuple[float, float, float, float]:
+def generate_synthetic_input(
+    t: int, noise_std: float = 0.1, rng: RNGLike = None
+) -> tuple[float, float, float, float]:
     """Generate synthetic exteroceptive and interoceptive signals.
+
+    Args:
+        t: Timestep index.
+        noise_std: Standard deviation of the additive observation noise.
+        rng: Generator/seed; ``None`` uses the process-global APGI generator,
+            which ``--seed`` makes deterministic.
+
     Returns:
         (x_e, x_hat_e, x_i, x_hat_i) - actual and predicted values
     """
+    generator = resolve_rng(rng)
     # Exteroceptive: external sensory signal with periodic component
-    x_e = np.sin(0.05 * t) + 0.5 * np.sin(0.01 * t) + np.random.normal(0, noise_std)
+    x_e = np.sin(0.05 * t) + 0.5 * np.sin(0.01 * t) + generator.normal(0, noise_std)
     x_hat_e = np.sin(0.05 * t)  # Predictor sees only fast component
     # Interoceptive: internal signal (e.g., heart rate variability)
-    x_i = 0.5 + 0.3 * np.cos(0.02 * t) + np.random.normal(0, noise_std * 0.5)
+    x_i = 0.5 + 0.3 * np.cos(0.02 * t) + generator.normal(0, noise_std * 0.5)
     x_hat_i = 0.5  # Baseline prediction
     return float(x_e), float(x_hat_e), float(x_i), float(x_hat_i)
 
@@ -453,14 +464,17 @@ Examples:
         args.steps = 100 if args.demo else 1000
     # Configure logging
     configure_logging(level=args.log_level, json_output=args.json_logs)
-    # Set random seed if provided
-    if args.seed is not None:
-        np.random.seed(args.seed)
+    # Seed every stochastic component from one place. np.random.seed() alone
+    # was a no-op for ignition sampling (which used np.random.default_rng()),
+    # so identical --seed values produced different ignition trains.
+    seed_everything(args.seed)
     # Build custom config from defaults + CLI overrides
     config = CONFIG.copy()
     config["beta"] = args.beta
     config["stochastic_ignition"] = args.stochastic
     config["strict_mode"] = args.strict_mode
+    config["strict"] = args.strict_mode
+    config["seed"] = args.seed
     if args.ne_on_threshold:
         config["ne_on_precision"] = False
         config["ne_on_threshold"] = True

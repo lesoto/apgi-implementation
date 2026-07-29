@@ -17,13 +17,30 @@ from core.validation import (
 class TestNeuromodulatorSeparation:
     """Test neuromodulator separation constraints (§2.3-2.4)."""
 
-    def test_both_ne_modes_raises_error(self):
-        """Should raise error when both NE modes enabled."""
+    def test_both_ne_modes_allowed_under_subdominance_clamp(self):
+        """Both NE pathways are permitted when γ_NE·g_NE ≤ 0.5.
+
+        MathSpec §2 permits simultaneous precision+threshold NE action subject
+        to the sub-dominance constraint; §15 forbids only "both **at maximum
+        gain**". The constraint is on the product, not on the pair of booleans.
+        """
         config = {
             "ne_on_precision": True,
             "ne_on_threshold": True,
+            "gamma_ne": 0.01,
+            "g_ne": 1.0,  # product = 0.01 ≤ 0.5
         }
-        with pytest.raises(ValidationError):
+        validate_config(config)  # must not raise
+
+    def test_both_ne_modes_warn_when_product_exceeds_ceiling(self):
+        """γ_NE·g_NE > 0.5 with both pathways warns and names the spec remedy."""
+        config = {
+            "ne_on_precision": True,
+            "ne_on_threshold": True,
+            "gamma_ne": 1.0,
+            "g_ne": 1.0,  # product = 1.0 > 0.5
+        }
+        with pytest.warns(RuntimeWarning, match=r"sub-dominant"):
             validate_config(config)
 
     def test_ne_precision_only_passes(self):

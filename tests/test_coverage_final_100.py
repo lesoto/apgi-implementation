@@ -45,7 +45,7 @@ class TestPipelineEdgeCases:
             "sigma2_i0": 1.0,
             "eps": 1e-8,
             "pi_min": 1e-4,
-            "pi_max": 1e4,
+            "pi_max": 10.0,  # spec ceiling (MathSpec §2); 1e4 also broke κ_e < 2/Π_max
             "alpha_e": 0.05,
             "alpha_i": 0.05,
             "variance_method": "ema",
@@ -91,7 +91,7 @@ class TestPipelineEdgeCases:
             # Hierarchical config
             "use_hierarchical": True,
             "n_levels": 3,
-            "tau_0": 1.0,
+            "tau_0": 10.0,  # τ_ℓ > 1 required (MathSpec §15 integrator stability)
             "C_down": 0.1,
             "C_up": 0.05,
             "tau_pi": 1000.0,

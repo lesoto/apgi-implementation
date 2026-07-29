@@ -17,6 +17,8 @@ from typing import Callable
 
 import numpy as np
 
+from core.rng import RNGLike, resolve_rng
+
 from stats.hurst import hurst_from_slope
 
 
@@ -232,6 +234,7 @@ def bootstrap_confidence_interval(
     n_bootstrap: int = 100,
     ci: float = 0.95,
     fs: float = 1.0,
+    rng: RNGLike = None,
 ) -> tuple[float, float]:
     """Compute confidence interval via bootstrap resampling.
     Args:
@@ -240,13 +243,17 @@ def bootstrap_confidence_interval(
         n_bootstrap: Number of bootstrap samples
         ci: Confidence interval (e.g., 0.95 for 95%)
         fs: Sampling frequency
+        rng: Generator/seed for the resampling draws; ``None`` uses the
+            process-global APGI generator, so a seeded run yields identical
+            confidence intervals.
     Returns:
         (ci_lower, ci_upper)
     """
+    generator = resolve_rng(rng)
     estimates = []
     for _ in range(n_bootstrap):
         # Resample with replacement
-        indices = np.random.choice(len(signal), size=len(signal), replace=True)
+        indices = generator.choice(len(signal), size=len(signal), replace=True)
         resampled = signal[indices]
         # Compute estimate
         try:

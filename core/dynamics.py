@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from .rng import RNGLike, resolve_rng
+
 
 def signal_drift(
     S: float,
@@ -29,14 +31,17 @@ def update_signal_ode(
     tau_s: float,
     dt: float = 1.0,
     noise_std: float = 0.01,
+    rng: RNGLike = None,
 ) -> float:
     """dS/dt = -S/τ_S + Π^e·φ(ε^e) + Π^i·φ(ε^i) + η_S(t) (§12).
-    Implements Euler-Maruyama integration with signed valence-specific transforms.
+
+    Implements Euler-Maruyama integration with signed valence-specific
+    transforms. ``rng=None`` uses the process-global APGI generator.
     """
     if tau_s <= 0:
         raise ValueError("tau_s must be > 0")
     drift = -S / tau_s + pi_e * phi_e + pi_i * phi_i
-    noise = float(np.random.normal(0.0, noise_std * np.sqrt(dt)))
+    noise = float(resolve_rng(rng).normal(0.0, noise_std * np.sqrt(dt)))
     return float(S + drift * dt + noise)
 
 
@@ -83,6 +88,7 @@ def update_threshold_ode(
     B: int = 0,
     dt: float = 1.0,
     noise_std: float = 0.01,
+    rng: RNGLike = None,
 ) -> float:
     """Continuous threshold dynamics ODE per APGI spec (§7.2/7.4).
     dθ/dt = -(θ - θ_base)/τ_θ + η·(C - V) + δ_reset·B(t) + η_θ(t)
@@ -104,6 +110,8 @@ def update_threshold_ode(
         B: Ignition state (0 or 1)
         dt: Integration time step
         noise_std: Standard deviation of threshold noise
+        rng: Generator/seed for the noise draw; ``None`` uses the
+            process-global APGI generator.
     Returns:
         Updated threshold θ(t+dt)
     """
@@ -117,5 +125,5 @@ def update_threshold_ode(
     # Note: B(t) is treated as a density-like term per spec §7.4
     refractory_term = delta * int(B)
     drift = decay_term + allostatic_term + refractory_term
-    noise = float(np.random.normal(0.0, noise_std * np.sqrt(dt)))
+    noise = float(resolve_rng(rng).normal(0.0, noise_std * np.sqrt(dt)))
     return float(theta + drift * dt + noise)

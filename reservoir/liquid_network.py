@@ -5,13 +5,19 @@ from typing import Callable
 
 import numpy as np
 
+from core.rng import RNGLike, resolve_rng
+
 # Suppress LAPACK warnings
 warnings.filterwarnings("ignore", message=".*On entry to DLASCL.*")
 
 
 class LiquidNetwork:
     def __init__(
-        self, n_units: int = 500, spectral_radius: float = 0.9, res_sparsity: float = 0.15
+        self,
+        n_units: int = 500,
+        spectral_radius: float = 0.9,
+        res_sparsity: float = 0.15,
+        rng: RNGLike = None,
     ):
         if not (0.7 <= spectral_radius <= 0.95):
             raise ValueError(
@@ -24,10 +30,14 @@ class LiquidNetwork:
             raise ValueError(f"res_sparsity must be in (0, 1], got {res_sparsity}")
         self.n = n_units
         self.res_sparsity = res_sparsity
+        # All weight draws come from one resolvable generator so that a seeded
+        # run reproduces the reservoir exactly (core.rng contract).
+        generator = resolve_rng(rng)
+        self.rng = generator
         # Sparse and random (spec §10, density p=0.1-0.2) — previously fully
         # dense. Masking before spectral normalization below.
-        res_mask = (np.random.rand(n_units, n_units) < res_sparsity).astype(float)
-        W_raw = np.random.randn(n_units, n_units) * 0.1 * res_mask
+        res_mask = (generator.random((n_units, n_units)) < res_sparsity).astype(float)
+        W_raw = generator.standard_normal((n_units, n_units)) * 0.1 * res_mask
         # Normalize so ρ(W_res) = spectral_radius, guaranteeing echo state property
         try:
             with np.errstate(all="ignore"):
@@ -38,9 +48,9 @@ class LiquidNetwork:
         except (np.linalg.LinAlgError, FloatingPointError):
             # Fallback: use scaled random matrix without spectral normalization
             self.W_res = W_raw * spectral_radius
-        self.W_in = np.random.randn(n_units) * 0.1
+        self.W_in = generator.standard_normal(n_units) * 0.1
         # Trained readout weights (initialized randomly, to be trained)
-        self.W_out = np.random.randn(n_units) * (1.0 / np.sqrt(n_units))
+        self.W_out = generator.standard_normal(n_units) * (1.0 / np.sqrt(n_units))
         self.x = np.zeros(n_units, dtype=float)
         # Adaptive time constant state
         self.tau_current = 100.0  # Default τ in ms

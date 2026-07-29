@@ -175,22 +175,26 @@ class TestCoreValidationCoverage:
                 }
             )
 
-    def test_beta_negative_validation(self):
-        """Test beta negative validation (line 83)."""
-        from core.validation import ValidationError, validate_config
+    def test_beta_da_accepts_negative(self):
+        """β_DA is an unconstrained real; negative models DA depletion.
 
-        with pytest.raises(ValidationError, match="beta"):
-            validate_config(
-                {
-                    "beta": -1.0,
-                    "lam": 0.2,
-                    "kappa": 0.15,
-                    "dt": 0.01,
-                    "tau_s": 5.0,
-                    "tau_theta": 1000.0,
-                    "tau_pi": 1000.0,
-                }
-            )
+        MathSpec glossary: "β_DA(t) | Dopaminergic additive bias on
+        interoceptive error | ℝ". The former non-negativity check made the
+        depletion arm of the spec's own DA prediction unreachable.
+        """
+        from core.validation import validate_config
+
+        validate_config(  # must not raise
+            {
+                "beta": -1.0,
+                "lam": 0.2,
+                "kappa": 0.15,
+                "dt": 0.01,
+                "tau_s": 5.0,
+                "tau_theta": 1000.0,
+                "tau_pi": 1000.0,
+            }
+        )
 
 
 class TestMainCoverage:
@@ -656,12 +660,16 @@ class TestCoreValidationExtended:
         """Test remaining validation lines."""
         from core.validation import ValidationError, validate_config
 
-        # Test NE double counting (line 203)
-        with pytest.raises(ValidationError):
+        # Both NE pathways are permitted; the ceiling is on the PRODUCT
+        # γ_NE·g_NE (MathSpec §2), and exceeding it warns with the spec's
+        # prescribed rescale remedy rather than aborting.
+        with pytest.warns(RuntimeWarning, match="sub-dominant"):
             validate_config(
                 {
                     "ne_on_precision": True,
                     "ne_on_threshold": True,
+                    "gamma_ne": 1.0,
+                    "g_ne": 1.0,
                     "lam": 0.2,
                     "kappa": 0.15,
                     "dt": 0.01,

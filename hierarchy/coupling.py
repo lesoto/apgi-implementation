@@ -11,6 +11,8 @@ from typing import Callable
 
 import numpy as np
 
+from core.rng import RNGLike, get_global_rng, resolve_rng
+
 # Canonical inter-level coarse-graining ratio (Notation Appendix, Canonical
 # Parameters table): k ≈ 133, Δ = log10(k) ≈ 2.1 log-decades per level.
 # Spans τ_min ≈ 100 ms (Level 1) to τ_max ≈ 1 year (~3e10 ms, Level 4)
@@ -199,7 +201,7 @@ def bidirectional_phase_coupling(
     kappa_down: float = 0.1,
     kappa_up: float = 0.05,
     noise_std: float = 0.0,
-    rng: np.random.Generator | None = None,
+    rng: RNGLike = None,
 ) -> float:
     """Update phase with bidirectional Kuramoto coupling (top-down and bottom-up).
     Formula:
@@ -217,7 +219,7 @@ def bidirectional_phase_coupling(
     Returns:
         Updated phase (wrapped to [0, 2π])
     """
-    generator = rng or np.random.default_rng()
+    generator = resolve_rng(rng)
     # Natural frequency term
     dphi = omega_ell * dt
     # Top-down coupling from higher level
@@ -301,7 +303,7 @@ def update_phase_dynamics(
     coupling_strength: float = 0.0,
     phi_neighbor: float | None = None,
     noise_std: float = 0.0,
-    rng: np.random.Generator | None = None,
+    rng: RNGLike = None,
 ) -> float:
     """Update oscillatory phase with Kuramoto coupling and noise (spec §9).
     Full Kuramoto model: dφ_ℓ/dt = ω_ℓ + Σ_j K_{ℓj} sin(φ_j - φ_ℓ) + ξ_ℓ(t)
@@ -317,7 +319,7 @@ def update_phase_dynamics(
     Returns:
         Updated phase (wrapped to [0, 2π])
     """
-    generator = rng or np.random.default_rng()
+    generator = resolve_rng(rng)
     # Natural frequency term
     dphi = omega * dt
     # Kuramoto-style phase coupling: K * sin(φ_j - φ_ℓ)
@@ -336,7 +338,7 @@ def update_phase_kuramoto_full(
     coupling_matrix: np.ndarray,
     dt: float,
     noise_std: float = 0.0,
-    rng: np.random.Generator | None = None,
+    rng: RNGLike = None,
 ) -> np.ndarray:
     """Full Kuramoto coupling across all phases (spec §9).
     dφ_ℓ/dt = ω_ℓ + Σ_j K_{ℓj} sin(φ_j - φ_ℓ) + ξ_ℓ(t)
@@ -350,7 +352,7 @@ def update_phase_kuramoto_full(
     Returns:
         Updated phase array (L,) wrapped to [0, 2π]
     """
-    generator = rng or np.random.default_rng()
+    generator = resolve_rng(rng)
     L = len(phi_array)
     phi_new = np.zeros_like(phi_array)
     for ell in range(L):

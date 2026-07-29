@@ -29,6 +29,34 @@ class ValidationError(ValueError):
     pass
 
 
+#: Fallback defaults used when a config omits a key. These mirror
+#: config.CONFIG and are mutually consistent — in particular
+#: DEFAULT_DT <= min(DEFAULT_TAU_*) / 10, so a config that specifies none of
+#: them validates cleanly (MathSpec §7.4).
+DEFAULT_DT = 0.5
+DEFAULT_TAU_S = 5.0
+DEFAULT_TAU_THETA = 1000.0
+DEFAULT_TAU_PI = 1000.0
+#: Default base timescale for the hierarchical integrators. MathSpec §15
+#: requires τ_ℓ > 1 (discrete integrator stability); τ_0 = 1.0 sits exactly on
+#: the excluded boundary, so the default is lifted above it.
+DEFAULT_TAU_0 = 10.0
+
+
+class CanonicalRangeWarning(UserWarning):
+    """Emitted when a parameter is inside its mathematical support but outside
+    the Notation Appendix's canonical range.
+
+    This is deliberately a warning rather than an error: values outside the
+    canonical band are legitimate for sensitivity analysis and for modelling
+    non-waking regimes (e.g. γ_sig → 0 under anaesthesia, which the spec
+    describes as "below the waking band [2, 7.5], which is the operational
+    band, not the mathematical support (0, ∞)"). Runs that trip these are
+    still valid — they are simply not the canonical parameterisation, and the
+    run manifest records that fact.
+    """
+
+
 def validate_config(config: dict) -> None:
     """Validate APGI configuration against all spec constraints.
     Performs comprehensive validation of all parameters. Raises ValidationError
@@ -65,23 +93,58 @@ def validate_config(config: dict) -> None:
         raise ValidationError(f"g_ach={g_ach} must be ≥ 0. Spec §2.3: ACh gain")
     if g_ne < 0:
         raise ValidationError(f"g_ne={g_ne} must be ≥ 0. Spec §2.3: NE gain")
-    # Validate dopaminergic bias
-    beta = config.get("beta", 1.15)
-    if beta < 0:
-        raise ValidationError(f"beta={beta} must be ≥ 0. Spec §2.4: DA bias")
+    # β_DA is an UNCONSTRAINED REAL (MathSpec glossary: "β_DA(t) | Dopaminergic
+    # additive bias on interoceptive error | ℝ"). Negative values are not an
+    # error — they model dopaminergic depletion, which the spec names as a
+    # prediction ("a DA agonist must shift detection function gain"; the
+    # depletion arm is its control). The previous `beta < 0` rejection made a
+    # spec-sanctioned regime unreachable, so no non-negativity check applies.
+    _ = config.get("beta", 1.15)
+
+
+#: Spec-mandated ceiling on the product γ_NE · g_NE (MathSpec §2).
+NE_SUBDOMINANCE_MAX = 0.5
 
 
 def _validate_neuromodulator_separation(config: dict) -> None:
-    """Validate neuromodulator separation constraints (§2.3-2.4).
-    Spec §2.3-2.4: NE cannot modulate both precision and threshold simultaneously.
-    This prevents double-counting of norepinephrine effects.
+    """Validate neuromodulator coupling constraints (MathSpec §2, §15).
+
+    The spec permits NE to act on precision AND threshold simultaneously,
+    subject to a quantitative sub-dominance constraint:
+
+        "when both Π_i^eff = g_NE · Π_i and θ ← θ(1 + γ_NE · g_NE) are active,
+         we adopt the working constraint γ_NE · g_NE_max ≤ 0.5 to ensure the
+         multiplicative threshold modulation remains sub-dominant"
+
+    and §15 says NE "should affect precision OR threshold — not both **at
+    maximum gain** simultaneously". The constraint is therefore on the
+    *product*, not on the pair of booleans. A previous blanket ban on enabling
+    both was stricter than the spec and directly contradicted config.py's own
+    instruction to "Set ne_on_threshold=True AND lower gamma_ne (≤0.01) to
+    enable both pathways" — that documented configuration was unusable.
+
+    Violating the product is recoverable by the remedy the spec itself
+    prescribes (rescale g_NE ← 0.5/γ_NE), which :meth:`APGIPipeline._enforce_ne_clamp`
+    applies. Here it is reported as a warning so direct callers of
+    ``validate_config`` still learn about it.
     """
     ne_on_precision = config.get("ne_on_precision", False)
     ne_on_threshold = config.get("ne_on_threshold", False)
-    if ne_on_precision and ne_on_threshold:
-        raise ValidationError(
-            "NE cannot modulate both precision and threshold (double-counts). "
-            "Set exactly one to True. Spec §2.3-2.4."
+    if not (ne_on_precision and ne_on_threshold):
+        return
+    gamma_ne = float(config.get("gamma_ne", 0.1))
+    g_ne = float(config.get("g_ne", 1.0))
+    product = gamma_ne * g_ne
+    if product > NE_SUBDOMINANCE_MAX:
+        warnings.warn(
+            f"Both NE pathways are active with γ_NE·g_NE = {product:.3f} > "
+            f"{NE_SUBDOMINANCE_MAX}. The spec mandates rescaling "
+            f"g_NE ← {NE_SUBDOMINANCE_MAX}/γ_NE = "
+            f"{NE_SUBDOMINANCE_MAX / gamma_ne:.3f} to keep multiplicative "
+            "threshold modulation sub-dominant (MathSpec §2). APGIPipeline "
+            "applies this clamp automatically.",
+            RuntimeWarning,
+            stacklevel=3,
         )
 
 
@@ -144,10 +207,16 @@ def _validate_continuous_time_sde(config: dict) -> None:
         dt ≤ min(τ_S, τ_θ, τ_Π) / 10
     This ensures numerical stability of the SDE integration.
     """
-    dt = config.get("dt", 1.0)
-    tau_s = config.get("tau_s", 5.0)
-    tau_theta = config.get("tau_theta", 1000.0)
-    tau_pi = config.get("tau_pi", 1000.0)
+    # Fallback defaults MUST mirror config.CONFIG and MUST satisfy this
+    # function's own constraint. Previously dt defaulted to 1.0 while tau_s
+    # defaulted to 5.0, so a config specifying neither was judged invalid
+    # against defaults it never chose (max_dt = 5.0/10 = 0.5 < 1.0). Under the
+    # old fail-open behaviour that produced a spurious warning; under
+    # fail-closed it would reject valid configurations outright.
+    dt = config.get("dt", DEFAULT_DT)
+    tau_s = config.get("tau_s", DEFAULT_TAU_S)
+    tau_theta = config.get("tau_theta", DEFAULT_TAU_THETA)
+    tau_pi = config.get("tau_pi", DEFAULT_TAU_PI)
     if dt <= 0:
         raise ValidationError(
             f"dt must be > 0, got {dt}. " "Spec §7.4: Euler-Maruyama integration step"
@@ -173,8 +242,10 @@ def _validate_hierarchical_parameters(config: dict) -> None:
             raise ValidationError(
                 f"timescale_k must be > 1, got {k}. " "Spec §8.1: τ_ℓ = τ_0·k^ℓ requires k > 1"
             )
-        # Validate that all timescales are > 1
-        tau_0 = config.get("tau_0", 1.0)
+        # Validate that all timescales are > 1. The default mirrors
+        # config.CONFIG's tau_0=10.0; the previous fallback of 1.0 sat exactly
+        # on the excluded boundary and so failed this very check.
+        tau_0 = config.get("tau_0", DEFAULT_TAU_0)
         n_levels = config.get("n_levels", 3)
         for level in range(n_levels):
             tau_ell = tau_0 * (k**level)
@@ -504,6 +575,39 @@ def check_canonical_parameter_ranges(**values: float | None) -> dict[str, Any]:
         }
     all_in_range = all(r["in_range"] for r in results.values()) if results else True
     return {"results": results, "all_in_range": all_in_range}
+
+
+def check_canonical_ranges(config: dict) -> list[str]:
+    """Return human-readable advisories for canonical-range departures.
+
+    Complements :func:`validate_config`, which enforces the *mathematical
+    support* of each parameter (violations are errors). This function checks
+    the *canonical operating band* from the Notation Appendix's Canonical
+    Parameters table — departures are legitimate but noteworthy, so they are
+    returned as messages for the caller to warn on and record in the run
+    manifest rather than raised.
+
+    Args:
+        config: Pipeline configuration dictionary.
+
+    Returns:
+        List of advisory messages; empty when every checkable parameter sits
+        inside its canonical band.
+    """
+    report = check_canonical_compliance_for_config(config)
+    messages: list[str] = []
+    for name, entry in report["results"].items():
+        if entry["in_range"]:
+            continue
+        lo, hi = entry["canonical_range"]
+        messages.append(
+            f"{name}={entry['value']:.4g} is outside the canonical range "
+            f"[{lo:g}, {hi:g}] (Notation Appendix, Canonical Parameters table). "
+            "This is permitted — the canonical band is the operational range, "
+            "not the mathematical support — but results should state the "
+            "departure explicitly."
+        )
+    return messages
 
 
 def check_canonical_compliance_for_config(config: dict) -> dict[str, Any]:

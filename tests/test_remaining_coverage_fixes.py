@@ -144,7 +144,7 @@ class TestPipelineRemaining:
         configs = [
             {
                 "metabolic_state0": 0.3,
-                "dt": 1.0,
+                "dt": 0.5,  # dt <= min(tau)/10 per MathSpec §7.4
                 "S0": 0.0,
                 "theta_0": 1.0,
                 "sigma2_e0": 1.0,
@@ -152,7 +152,7 @@ class TestPipelineRemaining:
             },
             {
                 "metabolic_state0": 0.5,
-                "dt": 1.0,
+                "dt": 0.5,  # dt <= min(tau)/10 per MathSpec §7.4
                 "S0": 0.0,
                 "theta_0": 1.0,
                 "sigma2_e0": 1.0,
@@ -160,7 +160,7 @@ class TestPipelineRemaining:
             },
             {
                 "metabolic_state0": 0.9,
-                "dt": 1.0,
+                "dt": 0.5,  # dt <= min(tau)/10 per MathSpec §7.4
                 "S0": 0.0,
                 "theta_0": 1.0,
                 "sigma2_e0": 1.0,
