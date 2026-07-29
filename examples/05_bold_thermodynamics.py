@@ -145,7 +145,11 @@ def main() -> None:
     if thermodynamic_data["landauer_cost"]:
         avg_cost = np.mean(thermodynamic_data["landauer_cost"])
         avg_bits = np.mean(thermodynamic_data["info_bits"])
-        avg_ratio = np.mean([e for e in thermodynamic_data["efficiency"] if e > 0])
+        # np.mean of an empty list warns ("Mean of empty slice") and returns
+        # NaN. A run where every efficiency is zero is a legitimate outcome
+        # (no ignitions), so report it as such rather than as NaN.
+        positive_ratios = [e for e in thermodynamic_data["efficiency"] if e > 0]
+        avg_ratio = float(np.mean(positive_ratios)) if positive_ratios else 0.0
         print("\nResults:")
         print(f"  Average Landauer cost (kappa × log2(S/eps)): {avg_cost:.2e} J")
         print(f"  Average bits erased (log2(S/eps)):           {avg_bits:.1f}")

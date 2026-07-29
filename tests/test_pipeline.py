@@ -433,6 +433,7 @@ class TestNEConfigurationValidation:
         config["ne_on_threshold"] = True
         config["gamma_ne"] = 0.1
         config["g_ne"] = 10.0  # product = 1.0 > 0.5
+        config["kappa"] = 0.3  # avoid the separate stiffness advisory
         with pytest.warns(RuntimeWarning, match=r"exceeds the spec-mandated ceiling"):
             pipeline = APGIPipeline(config)
         assert pipeline.config["g_ne"] == pytest.approx(5.0)  # 0.5 / 0.1

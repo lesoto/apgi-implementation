@@ -1,0 +1,23 @@
+# Development configuration — fast iteration, maximum visibility.
+#
+# NOT for publication runs: history is unbounded (fine for short sessions,
+# ~113 bytes/step otherwise) and the seed is left free so repeated runs
+# surface seed-sensitive behaviour rather than hiding it.
+
+[apgi]
+seed = 0            # fixed for debuggability; change freely
+strict = true       # keep spec violations loud even in dev
+
+theta_0 = 0.55
+theta_base = 0.55
+pi_min = 0.1
+pi_max = 10.0
+
+dt = 0.5
+tau_s = 5.0
+lam = 0.09516258196404048
+
+psi_type = "tanh"
+# Short dev sessions; 100k samples is ~11 MB and plenty for inspection.
+history_maxlen = 100000
+stochastic_ignition = false  # deterministic threshold crossing is easier to reason about

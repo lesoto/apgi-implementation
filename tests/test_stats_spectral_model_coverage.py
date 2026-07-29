@@ -131,6 +131,8 @@ def test_spectral_validator():
 
 
 def test_spectral_model_exceptions():
-    # estimate_1f_exponent LinAlgError (236)
+    # estimate_1f_exponent returns NaN and WARNS on a non-converging fit, so
+    # the failure is visible rather than a silent NaN flowing downstream.
     with patch("numpy.polyfit", side_effect=np.linalg.LinAlgError):
-        assert np.isnan(estimate_1f_exponent([1, 2, 3], [1, 2, 3]))
+        with pytest.warns(RuntimeWarning, match="did not converge"):
+            assert np.isnan(estimate_1f_exponent([1, 2, 3], [1, 2, 3]))

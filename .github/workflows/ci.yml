@@ -1,0 +1,155 @@
+name: CI
+
+# Every gate here is blocking. The repository previously carried ruff, mypy,
+# bandit, pytest and coverage configuration but had no CI at all, so 739 lint
+# violations and 10 type errors accumulated against its own declared rulesets.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONHASHSEED: "0"
+
+jobs:
+  test:
+    name: test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[all]"
+
+      - name: Test with branch coverage
+        run: |
+          pytest tests/ \
+            --cov --cov-branch \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-fail-under=90
+
+      - name: Upload coverage
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+  lint:
+    name: lint & types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[all]"
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Mypy
+        run: mypy .
+
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit[toml] pip-audit
+
+      - name: Bandit
+        run: bandit -r . -c bandit.yaml -ll --exclude ./tests,./build,./.venv
+
+      - name: Audit dependencies for known CVEs
+        run: pip-audit --strict --desc
+
+  package:
+    name: wheel installs and imports
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel
+
+      - name: Install into a clean environment and smoke-test
+        # Runs from /tmp, NOT the source tree: an editable install or a stray
+        # sys.path entry would otherwise hide a broken distribution. This is
+        # exactly how the missing py-modules / active_inference packaging bug
+        # escaped notice.
+        run: |
+          python -m venv /tmp/verify
+          /tmp/verify/bin/pip install dist/*.whl
+          cd /tmp
+          /tmp/verify/bin/python -c "
+          from pipeline import APGIPipeline
+          from config import CONFIG
+          import active_inference.policy, core.rng
+          p = APGIPipeline({**CONFIG, 'seed': 42})
+          r = p.step(x_e=0.5, x_hat_e=0.3, x_i=0.2, x_hat_i=0.1)
+          assert set(['S', 'theta', 'B']) <= set(r), r.keys()
+          print('wheel import + step OK')
+          "
+          /tmp/verify/bin/apgi --steps 20 --seed 1
+
+  reproducibility:
+    name: seeded runs are bit-for-bit reproducible
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[all]"
+
+      - name: Verify determinism
+        # The property this repository exists to provide. Guarding it in CI
+        # means a future RNG regression fails the build rather than quietly
+        # invalidating published figures.
+        run: pytest tests/test_reproducibility.py -v

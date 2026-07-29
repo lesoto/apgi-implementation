@@ -1,24 +1,47 @@
 [run]
-source_pkgs =
-    active_inference
-    analysis
-    core
-    energy
-    hierarchy
-    oscillation
-    reservoir
-    stats
-    validation
-source =
-    examples
+branch = True
+
+# pipeline.py (1300+ lines, the 18-step orchestrator), main.py and config.py
+# are top-level MODULES. They were absent from source_pkgs, so the single most
+# complex file in the repository was not measured at all — while examples/
+# (2000+ statements of demo scripts) WAS measured and counted at 100%, padding
+# the headline number. `source = .` includes top-level modules; examples/ is
+# omitted from the denominator.
+source = .
+
 omit =
     tests/*
+    examples/*
     delete_pycache.py
+    setup.py
     */__pycache__/*
-    */*.pyc
+    */site-packages/*
+    */.venv/*
+    build/*
+    dist/*
+
 [report]
+show_missing = True
+skip_covered = False
+precision = 1
+
+exclude_also =
+    if TYPE_CHECKING:
+    raise NotImplementedError
+    @(abc\.)?abstractmethod
+    if __name__ == .__main__.:
+    class .*\bProtocol\):
+
 omit =
     tests/*
+    examples/*
     delete_pycache.py
+    setup.py
     */__pycache__/*
-    */*.pyc
+    */site-packages/*
+    */.venv/*
+    build/*
+    dist/*
+
+[xml]
+output = coverage.xml

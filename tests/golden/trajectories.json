@@ -1,0 +1,26 @@
+{
+  "dev": {
+    "config": "configs/dev.toml",
+    "digest": "3dd0c1de4e1d78631073c5b8c32c9cd27a11372e3fc89ae2d2df09dd4a2eccf9",
+    "final_S": 0.066215067,
+    "final_theta": 1.029966595,
+    "ignition_count": 79.0,
+    "steps": 200
+  },
+  "prod": {
+    "config": "configs/prod.toml",
+    "digest": "2d7b386fa654833eba6c9f570c6f5ad3b0baa796b439d6620eb1f74787bf788d",
+    "final_S": 0.592851951,
+    "final_theta": 0.345322497,
+    "ignition_count": 81.0,
+    "steps": 200
+  },
+  "staging": {
+    "config": "configs/staging.toml",
+    "digest": "3d9324d6149f537b594a721bb934a54870218961acc7f8df34f9c7349da2e623",
+    "final_S": 2.240497589,
+    "final_theta": 20.0,
+    "ignition_count": 0.0,
+    "steps": 100
+  }
+}

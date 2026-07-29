@@ -15,6 +15,8 @@ from typing import Any
 
 import numpy as np
 
+from core.numerics import safe_corrcoef
+
 from core.phi_transform import phi_transform
 
 # Suppress LAPACK warnings
@@ -271,8 +273,8 @@ def validate_system_dynamics(
     state_obs = np.array([S_dev_next, theta_dev_next])
     prediction_error = np.mean((state_pred - state_obs) ** 2)
     # Compute correlation between predicted and observed
-    corr_S = np.corrcoef(state_pred[0], state_obs[0])[0, 1]
-    corr_theta = np.corrcoef(state_pred[1], state_obs[1])[0, 1]
+    corr_S = safe_corrcoef(state_pred[0], state_obs[0])
+    corr_theta = safe_corrcoef(state_pred[1], state_obs[1])
     return {
         "valid": True,
         "fixed_point": fp,

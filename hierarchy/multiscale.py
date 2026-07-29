@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from core.numerics import safe_nperseg
+
 
 def build_timescales(tau0: float, k: float, n_levels: int) -> np.ndarray:
     """τ_i = τ0 * k^i with recommended k in [1.3, 2.0]."""
@@ -32,10 +34,20 @@ def estimate_optimal_timescale_ratio(
     from scipy import signal as scipy_signal  # type: ignore
 
     # Compute power spectrum
-    freqs, psd = scipy_signal.welch(signal, fs=fs)
-    # Find peaks in log-log space
-    log_f = np.log(freqs[freqs > 0])
-    log_p = np.log(psd[freqs > 0])
+    # Clamp the segment length: scipy's default nperseg=256 exceeds short
+    # signals, which it then warns about and silently rewrites.
+    freqs, psd = scipy_signal.welch(signal, fs=fs, nperseg=safe_nperseg(len(signal)))
+    # Find peaks in log-log space. Filter on POSITIVE POWER as well as
+    # positive frequency: a PSD bin can be exactly zero (constant or very
+    # short signals), and log(0) = -inf then propagates through the smoothing
+    # and peak search, producing spurious "characteristic scales".
+    keep = (freqs > 0) & (psd > 0)
+    if np.count_nonzero(keep) < 3:
+        # Too few usable bins to locate peaks; fall back to the documented
+        # default rather than fitting noise.
+        return 1.6
+    log_f = np.log(freqs[keep])
+    log_p = np.log(psd[keep])
     # Smooth spectrum to find characteristic scales
     from scipy.ndimage import gaussian_filter1d  # type: ignore
 
@@ -76,10 +88,22 @@ def estimate_hierarchy_levels_from_data(
     from scipy import signal as scipy_signal  # type: ignore
 
     # Compute power spectrum
-    freqs, psd = scipy_signal.welch(signal, fs=fs)
-    # Find peaks in log-log space
-    log_f = np.log(freqs[freqs > 0])
-    log_p = np.log(psd[freqs > 0])
+    # Clamp the segment length: scipy's default nperseg=256 exceeds short
+    # signals, which it then warns about and silently rewrites.
+    freqs, psd = scipy_signal.welch(signal, fs=fs, nperseg=safe_nperseg(len(signal)))
+    # Find peaks in log-log space. Filter on POSITIVE POWER as well as
+    # positive frequency: a PSD bin can be exactly zero (constant or very
+    # short signals), and log(0) = -inf then propagates through the smoothing
+    # and peak search, producing spurious "characteristic scales".
+    keep = (freqs > 0) & (psd > 0)
+    if np.count_nonzero(keep) < 3:
+        # Too few usable bins to locate peaks. Fall back to the minimum level
+        # count this function can otherwise return (see `max(2, ...)` below) —
+        # NOT the 1.6 timescale-RATIO default, which belongs to
+        # estimate_optimal_timescale_ratio and is not an integer level count.
+        return 2
+    log_f = np.log(freqs[keep])
+    log_p = np.log(psd[keep])
     # Smooth spectrum
     from scipy.ndimage import gaussian_filter1d  # type: ignore
 

@@ -14,6 +14,8 @@ from typing import Optional
 
 import numpy as np
 
+from core.numerics import safe_corrcoef
+
 from core.logging_config import get_logger
 from stats.spectral_extraction import SpectralSignature, extract_1f_signature
 
@@ -79,7 +81,7 @@ def assess_hierarchical_architecture(
                     a = np.asarray(phi_levels[ell + 1][:min_len], dtype=float)
                     b = np.asarray(theta_levels[ell][:min_len], dtype=float)
                     if np.std(a) > 0 and np.std(b) > 0:
-                        corr = np.corrcoef(a, b)[0, 1]
+                        corr = safe_corrcoef(a, b)
                         if not np.isnan(corr):
                             pac_correlations.append(abs(corr))
         if pac_correlations:

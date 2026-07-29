@@ -5,6 +5,19 @@ from typing import Literal
 
 import numpy as np
 
+from core.numerics import finite_mask, safe_log, safe_nperseg
+
+
+class SpectralRegimeBoundaryWarning(UserWarning):
+    """Emitted when β_spec sits in the fGn/fBm regime-boundary band [0.8, 1.2].
+
+    A deliberate APGI signal, not a defect: MathSpec §12 states the H(β)
+    conversion is discontinuous at β = 1.0 (form (a) gives H = 1.0, form (b)
+    gives H = 0.0 — a full Hurst unit apart) and directs callers to estimate H
+    directly via DFA in this band. Its own class so tests and callers can
+    handle it precisely instead of blanket-silencing ``UserWarning``.
+    """
+
 
 def estimate_spectral_beta(
     freqs: np.ndarray | list[float], power: np.ndarray | list[float]
@@ -34,8 +47,11 @@ def welch_periodogram(
     """
     from scipy import signal as scipy_signal  # type: ignore[import-untyped]
 
-    if nperseg is None:
-        nperseg = min(256, len(signal) // 4)
+    # Clamp rather than let scipy warn and silently rewrite nperseg, so the
+    # segment length actually used is the one computed here. `len // 4` alone
+    # yields 0 for very short signals, which scipy then replaces with its own
+    # default of 256 — larger than the signal.
+    nperseg = safe_nperseg(len(signal), nperseg)
     freqs, psd = scipy_signal.welch(signal, fs=fs, nperseg=nperseg, window="hann")
     return freqs, psd
 
@@ -113,6 +129,7 @@ def hurst_from_slope(
             "(MathSpec §12) — the fGn/fBm conversion is discontinuous at β=1.0 and "
             "unreliable here. Estimate H directly via DFA (dfa_analysis / "
             "estimate_hurst_dfa) instead of converting from the spectral slope.",
+            SpectralRegimeBoundaryWarning,
             stacklevel=2,
         )
     if beta_spec <= 1.0:
@@ -206,8 +223,24 @@ def dfa_analysis(
     F_arr = np.array(F_values, dtype=float)
     if len(valid_scales_arr) < 2:
         raise ValueError("fewer than 2 valid scales — signal may be too short")
-    # Power-law fit: log F(n) = α log n + const
-    alpha, _ = np.polyfit(np.log(valid_scales_arr), np.log(F_arr), 1)
+    # Power-law fit: log F(n) = α log n + const.
+    #
+    # A perfectly constant series has F(n) = 0 at every scale, so log F = -inf.
+    # Feeding that to polyfit reaches LAPACK, which prints "On entry to DLASCL,
+    # parameter number 4 had an illegal value" to stderr — text no Python
+    # warning filter can intercept — and returns a meaningless slope. Drop
+    # non-finite points first and require two survivors.
+    log_scales = safe_log(valid_scales_arr)
+    log_F = safe_log(F_arr)
+    mask = finite_mask(log_scales, log_F) & (F_arr > 0)
+    if int(np.count_nonzero(mask)) < 2:
+        raise ValueError(
+            "DFA fluctuation function is zero or non-finite at nearly every scale — "
+            "the series is constant (or near-constant), so no scaling exponent is "
+            "defined. A constant threshold has no long-range correlation structure "
+            "to estimate."
+        )
+    alpha, _ = np.polyfit(log_scales[mask], log_F[mask], 1)
     return float(alpha), valid_scales_arr, F_arr
 
 

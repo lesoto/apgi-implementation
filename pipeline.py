@@ -12,6 +12,7 @@ from core.allostatic import allostatic_threshold_ode
 from core.dynamics import compute_precision_coupled_noise_std, update_prediction, update_signal_ode
 from core.ignition import compute_ignition_probability, detect_ignition_event, sample_ignition_state
 from core.logging_config import get_logger
+from core.manifest import build_manifest, write_manifest
 from core.phi_transform import phi_transform, phi_transform_array
 from core.precision import (
     apply_ach_gain,
@@ -122,6 +123,43 @@ class APGIPipeline:
     sigma2_i_levels: np.ndarray
     n_levels: int
     taus: np.ndarray
+
+    def manifest(self, **extra: object) -> dict:
+        """Return a provenance manifest for this pipeline's run.
+
+        Records the seed, the RESOLVED config and its hash, the git commit,
+        the interpreter and every numerical dependency version, plus any spec
+        departures accumulated during construction. Write it beside any figure
+        or table this pipeline produces so the result can be regenerated.
+
+        Args:
+            **extra: Additional run-specific fields (step count, output paths).
+
+        Returns:
+            JSON-serialisable manifest dictionary.
+        """
+        return build_manifest(
+            self.config,
+            extra=dict(extra) or None,
+            validation_warnings=self._validation_warnings,
+        )
+
+    def write_manifest(self, path: str, **extra: object) -> object:
+        """Write this run's provenance manifest to ``path`` as JSON.
+
+        Args:
+            path: Destination file; parent directories are created as needed.
+            **extra: Additional run-specific fields.
+
+        Returns:
+            The path written.
+        """
+        return write_manifest(
+            path,
+            self.config,
+            extra=dict(extra) or None,
+            validation_warnings=self._validation_warnings,
+        )
 
     def _enforce_ne_clamp(self) -> None:
         """Enforce the mandatory NE sub-dominance clamp γ_NE · g_NE ≤ 0.5.

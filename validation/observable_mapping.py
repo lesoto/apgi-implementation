@@ -21,6 +21,8 @@ import warnings
 from typing import Any
 
 import numpy as np
+
+from core.numerics import safe_corrcoef
 from scipy import signal  # type: ignore
 
 # Suppress LAPACK warnings
@@ -605,9 +607,9 @@ class KeyTestablePredictionValidator:
         delta = np.array(self.history["delta"])
         p_ign = np.array(self.history["p_ign"])
         # Compute correlations
-        corr_margin = np.corrcoef(delta, B)[0, 1]
-        corr_signal = np.corrcoef(S, B)[0, 1]
-        corr_p_ign = np.corrcoef(p_ign, B)[0, 1]
+        corr_margin = safe_corrcoef(delta, B)
+        corr_signal = safe_corrcoef(S, B)
+        corr_p_ign = safe_corrcoef(p_ign, B)
         # Check if margin outperforms signal
         margin_better = corr_margin > corr_signal
         improvement = corr_margin - corr_signal

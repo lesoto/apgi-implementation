@@ -145,7 +145,12 @@ def main() -> None:
     total_metabolic: float = np.sum(cost_array)
     print(f"   Total Landauer cost (AU): {total_landauer:.4e}")
     print(f"   Total metabolic cost (AU): {total_metabolic:.4e}")
-    print(f"   Average efficiency: {total_metabolic / total_landauer:.4f}")
+    # A run with no ignitions has zero Landauer cost; the efficiency ratio is
+    # then undefined rather than infinite. Report that instead of dividing.
+    if total_landauer > 0:
+        print(f"   Average efficiency: {total_metabolic / total_landauer:.4f}")
+    else:
+        print("   Average efficiency: n/a (no bits erased — zero Landauer cost)")
     # Display information-theoretic analysis
     print("\n8. Information-Theoretic Analysis:")
     total_bits: float = np.sum(bits_array)

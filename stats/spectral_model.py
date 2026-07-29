@@ -6,6 +6,7 @@ This predicts "pink noise" (1/f-like) dynamics in threshold fluctuations.
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import numpy as np
@@ -180,6 +181,22 @@ def estimate_1f_exponent(
     # Log-log fit
     log_f = np.log(freqs[mask])
     log_p = np.log(psd[mask])
+    # Detect a degenerate design matrix BEFORE calling polyfit. With no spread
+    # in log f (e.g. duplicate frequencies) the Vandermonde matrix is singular:
+    # LAPACK then writes "On entry to DLASCL, parameter number 4 had an illegal
+    # value" directly to stderr — text that no Python warning filter can
+    # intercept and that surfaces as unexplained noise in user output. Catching
+    # LinAlgError afterwards yields the right return value but only after that
+    # text has already been printed.
+    if np.ptp(log_f) <= 0:
+        warnings.warn(
+            "cannot estimate the 1/f exponent: all retained frequencies are "
+            "identical, so the log-log fit is singular (no frequency spread to "
+            "regress against). Returning NaN.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return float("nan")
     try:
         # Linear regression
         slope, intercept = np.polyfit(log_f, log_p, 1)
@@ -188,6 +205,12 @@ def estimate_1f_exponent(
         return float(beta)
     except np.linalg.LinAlgError:
         # SVD did not converge - return NaN to indicate failure
+        warnings.warn(
+            "1/f exponent fit failed to converge (SVD did not converge); "
+            "returning NaN.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         return float("nan")
 
 
