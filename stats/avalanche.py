@@ -40,7 +40,8 @@ def extract_avalanches(activity: np.ndarray) -> np.ndarray:
     if active[-1]:
         ends = np.r_[ends, len(active)]
     sizes = ends - starts
-    return sizes.astype(int)
+    result: np.ndarray = sizes.astype(int)
+    return result
 
 
 @dataclass(frozen=True)

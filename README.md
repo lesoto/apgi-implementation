@@ -47,10 +47,10 @@ pipeline = APGIPipeline({**CONFIG, "seed": 42})
 
 # Run single step
 result = pipeline.step(
-    x_e=0.5,      # Exteroceptive signal
+    x_e=0.5,  # Exteroceptive signal
     x_hat_e=0.3,  # Exteroceptive prediction
-    x_i=0.2,      # Interoceptive signal
-    x_hat_i=0.1   # Interoceptive prediction
+    x_i=0.2,  # Interoceptive signal
+    x_hat_i=0.1,  # Interoceptive prediction
 )
 
 # Access results
@@ -71,7 +71,7 @@ recorded in the run manifest.
 from core.config_io import load_config
 from pipeline import APGIPipeline
 
-config = load_config("configs/prod.toml")   # defaults < file < APGI_* env < args
+config = load_config("configs/prod.toml")  # defaults < file < APGI_* env < args
 pipeline = APGIPipeline(config)
 for t in range(10_000):
     pipeline.step(x_e=..., x_i=...)
@@ -259,6 +259,7 @@ apgi-implementation/
 ```python
 from config import CONFIG
 from pipeline import APGIPipeline
+
 # Use default configuration
 pipeline = APGIPipeline(CONFIG)
 ```
@@ -266,18 +267,15 @@ pipeline = APGIPipeline(CONFIG)
 ```python
 config = {
     # Signal preprocessing
-    "tau_s": 5.0,           # Signal timescale (ms)
-    "tau_pi": 1000.0,       # Precision timescale (ms)
-    "tau_theta": 1000.0,    # Threshold timescale (ms)
-    
+    "tau_s": 5.0,  # Signal timescale (ms)
+    "tau_pi": 1000.0,  # Precision timescale (ms)
+    "tau_theta": 1000.0,  # Threshold timescale (ms)
     # Signal accumulation
-    "lam": 0.2,             # Integration rate
-    
+    "lam": 0.2,  # Integration rate
     # Threshold dynamics
-    "eta": 0.1,             # Learning rate
-    "c1": 0.2,              # Signal cost
-    "c2": 0.1,              # Ignition cost
-    
+    "eta": 0.1,  # Learning rate
+    "c1": 0.2,  # Signal cost
+    "c2": 0.1,  # Ignition cost
     # Optional features
     "use_kuramoto": True,
     "use_reservoir": True,

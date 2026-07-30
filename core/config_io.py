@@ -91,7 +91,7 @@ def load_config_file(path: str | Path) -> dict[str, Any]:
             import tomllib  # Python 3.11+
         except ModuleNotFoundError:  # pragma: no cover - only on 3.10
             try:
-                import tomli as tomllib  # type: ignore[no-redef]
+                import tomli as tomllib  # type: ignore[no-redef,import-not-found]
             except ModuleNotFoundError as exc:  # pragma: no cover
                 raise ImportError(
                     "reading TOML on Python < 3.11 requires the 'tomli' package; "

@@ -248,7 +248,7 @@ class TestEmpiricalDataLoader:
             assert "accuracy" in result
             assert len(result["rt"]) == 3
         except ImportError:  # pragma: no cover
-            pytest.skip("pandas not available")
+            pytest.skip("HDF5 support unavailable (DataFrame.to_hdf needs PyTables)")
         finally:
             if os.path.exists(filepath):
                 os.remove(filepath)
@@ -273,7 +273,7 @@ class TestEmpiricalDataLoader:
             with contextlib.suppress(KeyError):
                 loader.load_behavioral_dataset(filepath)
         except ImportError:  # pragma: no cover
-            pytest.skip("pandas not available")
+            pytest.skip("HDF5 support unavailable (DataFrame.to_hdf needs PyTables)")
         finally:
             if os.path.exists(filepath):
                 os.remove(filepath)

@@ -729,11 +729,13 @@ config = {
 ### Full Configuration
 ```python
 from config import CONFIG
+
 config = CONFIG.copy()
 ```
 ### Validation
 ```python
 from core.validation import validate_config
+
 validate_config(config)  # Raises ValueError if invalid
 ```
 ---

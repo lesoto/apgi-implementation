@@ -89,10 +89,10 @@ for ell in range(n_levels):
 **Solution:**
 ```python
 # Reduce cascade strength
-config["kappa_up"] = 0.05      # Keep weak (≤ 0.05)
-config["kappa_phase"] = 0.15   # PAC strength separate
+config["kappa_up"] = 0.05  # Keep weak (≤ 0.05)
+config["kappa_phase"] = 0.15  # PAC strength separate
 # Reduce input amplitude for simulation
-epsilon_e = rng.standard_normal() * 0.1   # Not 0.3 or higher
+epsilon_e = rng.standard_normal() * 0.1  # Not 0.3 or higher
 epsilon_i = rng.standard_normal() * 0.1
 ```
 **Reference:** `docs/HIERARCHICAL-GUIDE.md` - Cascade Saturation section
@@ -104,13 +104,14 @@ epsilon_i = rng.standard_normal() * 0.1
 import time
 from pipeline import APGIPipeline
 from config import CONFIG
+
 pipeline = APGIPipeline(CONFIG)
 # Time a single step
 start = time.time()
 for _ in range(1000):
     pipeline.step(0.5, 0.3, 0.2, 0.1)
 elapsed = time.time() - start
-print(f"Time per step: {elapsed/1000*1000:.2f} ms")
+print(f"Time per step: {elapsed / 1000 * 1000:.2f} ms")
 ```
 **Solutions:**
 1. **Disable optional features:**
@@ -142,6 +143,7 @@ config["reservoir_size"] = 50  # Smaller reservoir = faster
 import tracemalloc
 from pipeline import APGIPipeline
 from config import CONFIG
+
 tracemalloc.start()
 pipeline = APGIPipeline(CONFIG)
 # Run simulation
@@ -205,6 +207,7 @@ config["c2"] = 0.05  # Reduce ignition cost
 1. **Check stability:**
 ```python
 from analysis.stability import StabilityAnalyzer
+
 analyzer = StabilityAnalyzer(config)
 result = analyzer.check_stability()
 print(f"Stable: {result['stable']}")
@@ -216,6 +219,7 @@ print(f"Max eigenvalue: {result['max_eigenvalue']:.4f}")
 **Diagnosis:**
 ```python
 from core.validation import validate_config
+
 try:
     validate_config(config)
 except ValueError as e:
@@ -226,15 +230,17 @@ except ValueError as e:
 1. **Use default configuration:**
 ```python
 from config import CONFIG
+
 config = CONFIG.copy()  # Start with valid defaults
 ```
 1. **Validate step-by-step:**
 ```python
 from core.validation import validate_parameter
+
 # Check individual parameters
 validate_parameter("lam", config["lam"], 0, 1)
 validate_parameter("eta", config["eta"], 0, 1)
-validate_parameter("dt", config["dt"], 0, float('inf'))
+validate_parameter("dt", config["dt"], 0, float("inf"))
 ```
 ---
 ## Observable Mapping Issues
@@ -282,6 +288,7 @@ for t in range(1000):
 **Diagnosis:**
 ```python
 from analysis.stability import StabilityAnalyzer
+
 analyzer = StabilityAnalyzer(config)
 result = analyzer.check_stability()
 if not result["stable"]:
@@ -308,6 +315,7 @@ config["c2"] = 0.05  # Reduce ignition cost
 ```python
 from core.validation import validate_config
 from config import CONFIG
+
 try:
     validate_config(CONFIG)
     print("✓ Configuration is valid")
@@ -318,6 +326,7 @@ except ValueError as e:
 ```python
 from pipeline import APGIPipeline
 from config import CONFIG
+
 try:
     pipeline = APGIPipeline(CONFIG)
     print("✓ Pipeline initialized successfully")
@@ -328,6 +337,7 @@ except Exception as e:
 ```python
 from pipeline import APGIPipeline
 from config import CONFIG
+
 pipeline = APGIPipeline(CONFIG)
 try:
     result = pipeline.step(0.5, 0.3, 0.2, 0.1)
@@ -343,13 +353,14 @@ except Exception as e:
 from pipeline import APGIPipeline
 from config import CONFIG
 import numpy as np
+
 pipeline = APGIPipeline(CONFIG)
 try:
     for t in range(1000):
         x_e = 0.5 + 0.1 * np.sin(2 * np.pi * t / 100)
         x_i = 0.2 + 0.05 * np.cos(2 * np.pi * t / 100)
         result = pipeline.step(x_e, 0.3, x_i, 0.1)
-    
+
     print("✓ Full simulation completed successfully")
 except Exception as e:
     print(f"✗ Simulation error: {e}")

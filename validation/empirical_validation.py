@@ -63,7 +63,7 @@ class EmpiricalDataLoader:
         """
         try:
             # Try MNE for standard EEG formats
-            import mne  # type: ignore[import-untyped]
+            import mne  # type: ignore[import-not-found]
 
             raw = mne.io.read_raw(file_path, preload=True)
             if channel_names:

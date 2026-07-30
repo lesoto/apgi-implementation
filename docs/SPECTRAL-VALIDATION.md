@@ -10,13 +10,14 @@ This guide explains how to validate the spectral signature of your APGI system.
 import numpy as np
 from stats.hurst import estimate_hurst_robust, welch_periodogram
 from stats.spectral_model import estimate_1f_exponent, validate_pink_noise
+
 # Run APGI simulation and collect signal history
 outputs = []
 for t in range(10000):
     output = pipeline.step(x_e_t, x_i_t)
     outputs.append(output)
 # Extract signal history
-S_history = np.array([o['S'] for o in outputs])
+S_history = np.array([o["S"] for o in outputs])
 fs = 1.0 / pipeline.config.get("dt", 1.0)
 # Estimate spectral exponent
 freqs, psd = welch_periodogram(S_history, fs=fs)
@@ -68,6 +69,7 @@ Estimate the spectral exponent from the power spectrum:
 ```python
 from stats.hurst import welch_periodogram
 from stats.spectral_model import estimate_1f_exponent
+
 # Compute power spectrum
 fs = 1.0 / pipeline.config.get("dt", 1.0)
 freqs, power = welch_periodogram(S_history, fs=fs)
@@ -88,6 +90,7 @@ above the corner frequency `f_c = 1/(2πτ_min)`.
 import numpy as np
 from stats.hurst import welch_periodogram
 from stats.spectral_model import fit_lorentzian_superposition
+
 # Compute power spectrum
 fs = 1.0 / pipeline.config.get("dt", 1.0)
 freqs, power = welch_periodogram(S_history, fs=fs)
@@ -96,7 +99,7 @@ taus_ms = np.array([10, 16, 26, 42])  # ms
 taus_s = taus_ms / 1000.0
 # Define 1/f transition band
 fc_min = 1.0 / (2 * np.pi * taus_s[-1])  # Hz
-fc_max = 1.0 / (2 * np.pi * taus_s[0])   # Hz
+fc_max = 1.0 / (2 * np.pi * taus_s[0])  # Hz
 ffit_min = max(freqs[1], fc_min * 0.5)
 ffit_max = min(freqs[-1] * 0.9, fc_max * 2.0)
 fit_band = (freqs >= ffit_min) & (freqs <= ffit_max)
@@ -105,7 +108,7 @@ result = fit_lorentzian_superposition(freqs[fit_band], power[fit_band], taus_s)
 print(f"Log R² = {result.get('r_squared_log', 0):.3f}")
 print(f"Amplitudes: {result['amplitudes']}")
 # Good fit if log R² > 0.3
-if result.get('r_squared_log', 0) > 0.3:
+if result.get("r_squared_log", 0) > 0.3:
     print("✅ Lorentzian superposition fits well")
 else:
     print("⚠️ Poor fit to Lorentzian model")
@@ -117,6 +120,7 @@ else:
 Estimate the Hurst exponent using DFA (Detrended Fluctuation Analysis):
 ```python
 from stats.hurst import estimate_hurst_robust
+
 # Estimate Hurst exponent (uses DFA by default)
 fs = 1.0 / pipeline.config.get("dt", 1.0)
 H = estimate_hurst_robust(S_history, fs=fs)
@@ -132,6 +136,7 @@ Use `validate_pink_noise` for a complete β and H assessment:
 ```python
 from stats.hurst import welch_periodogram
 from stats.spectral_model import validate_pink_noise
+
 fs = 1.0 / pipeline.config.get("dt", 1.0)
 freqs, psd = welch_periodogram(S_history, fs=fs)
 result = validate_pink_noise(freqs, psd)
@@ -169,37 +174,37 @@ Lorentzian fit log R² > 0.3           ← fit within 1/f transition band
 ### Effect of Number of Levels
 ```python
 # 2 levels: Limited spectral range
-config = {'hierarchical_mode': 'full', 'n_levels': 2}
+config = {"hierarchical_mode": "full", "n_levels": 2}
 # Result: β ≈ 0.6 (white noise)
 # 4 levels: Good spectral range
-config = {'hierarchical_mode': 'full', 'n_levels': 4}
+config = {"hierarchical_mode": "full", "n_levels": 4}
 # Result: β ≈ 1.0 (pink noise) ✅
 # 8 levels: Extended spectral range
-config = {'hierarchical_mode': 'full', 'n_levels': 8}
+config = {"hierarchical_mode": "full", "n_levels": 8}
 # Result: β ≈ 1.2 (slightly brown)
 ```
 ### Effect of Timescale Ratio
 ```python
 # k = 1.2 (small ratio): Closely spaced timescales
-config = {'hierarchical_mode': 'full', 'k': 1.2}
+config = {"hierarchical_mode": "full", "k": 1.2}
 # Result: β ≈ 0.9 (good)
 # k = 1.6 (default): Well-spaced timescales
-config = {'hierarchical_mode': 'full', 'k': 1.6}
+config = {"hierarchical_mode": "full", "k": 1.6}
 # Result: β ≈ 1.0 (optimal) ✅
 # k = 2.0 (large ratio): Widely spaced timescales
-config = {'hierarchical_mode': 'full', 'k': 2.0}
+config = {"hierarchical_mode": "full", "k": 2.0}
 # Result: β ≈ 1.1 (good)
 ```
 ### Effect of Coupling Strength
 ```python
 # Weak coupling: Limited cross-level interaction
-config = {'hierarchical_mode': 'advanced', 'C_down': 0.01, 'C_up': 0.01}
+config = {"hierarchical_mode": "advanced", "C_down": 0.01, "C_up": 0.01}
 # Result: β ≈ 0.8 (white noise)
 # Moderate coupling: Balanced interaction
-config = {'hierarchical_mode': 'advanced', 'C_down': 0.1, 'C_up': 0.05}
+config = {"hierarchical_mode": "advanced", "C_down": 0.1, "C_up": 0.05}
 # Result: β ≈ 1.0 (pink noise) ✅
 # Strong coupling: Excessive interaction
-config = {'hierarchical_mode': 'advanced', 'C_down': 0.5, 'C_up': 0.3}
+config = {"hierarchical_mode": "advanced", "C_down": 0.5, "C_up": 0.3}
 # Result: β ≈ 1.3 (brown noise)
 ```
 ---
@@ -210,14 +215,15 @@ import numpy as np
 from pipeline import APGIPipeline
 from stats.hurst import estimate_hurst_robust, welch_periodogram
 from stats.spectral_model import estimate_1f_exponent
+
 # Single-scale system
-config = {'hierarchical_mode': 'off', 'dt': 0.5}
+config = {"hierarchical_mode": "off", "dt": 0.5}
 pipeline = APGIPipeline(config)
 # Run simulation (vary inputs for spectral content)
 rng = np.random.default_rng(42)
 for _ in range(10000):
     pipeline.step(rng.standard_normal() * 0.5, rng.standard_normal() * 0.2)
-S_history = np.array(pipeline.history['S'])
+S_history = np.array(pipeline.history["S"])
 fs = 1.0 / pipeline.config.get("dt", 1.0)
 freqs, psd = welch_periodogram(S_history, fs=fs)
 beta = estimate_1f_exponent(freqs, psd)
@@ -230,19 +236,20 @@ print(f"β = {beta:.2f}, H = {H:.2f}")
 from pipeline import APGIPipeline
 from stats.hurst import estimate_hurst_robust, welch_periodogram
 from stats.spectral_model import estimate_1f_exponent, fit_lorentzian_superposition
+
 # Hierarchical system
 config = {
-    'hierarchical_mode': 'full',
-    'n_levels': 4,
-    'tau_0': 10.0,  # ms
-    'k': 1.6,
-    'dt': 0.002,    # seconds
+    "hierarchical_mode": "full",
+    "n_levels": 4,
+    "tau_0": 10.0,  # ms
+    "k": 1.6,
+    "dt": 0.002,  # seconds
 }
 pipeline = APGIPipeline(config)
 rng = np.random.default_rng(42)
 for _ in range(5000):
     pipeline.step(rng.standard_normal() * 0.1, rng.standard_normal() * 0.1)
-S_history = np.array(pipeline.history['S'])
+S_history = np.array(pipeline.history["S"])
 fs = 1.0 / pipeline.config.get("dt", 1.0)
 freqs, psd = welch_periodogram(S_history, fs=fs)
 beta = estimate_1f_exponent(freqs, psd)
@@ -255,6 +262,7 @@ print(f"β = {beta:.2f}, H = {H:.2f}")
 import numpy as np
 from stats.hurst import welch_periodogram
 from stats.spectral_model import fit_lorentzian_superposition
+
 # Timescales must be in SECONDS
 taus_ms = np.array([10.0, 16.0, 25.6, 40.96])
 taus_s = taus_ms / 1000.0
@@ -266,7 +274,7 @@ ffit_min = max(freqs[1], fc_min * 0.5)
 ffit_max = min(freqs[-1] * 0.9, fc_max * 2.0)
 fit_band = (freqs >= ffit_min) & (freqs <= ffit_max)
 result = fit_lorentzian_superposition(freqs[fit_band], psd[fit_band], taus_s)
-log_r2 = result.get('r_squared_log', 0.0)
+log_r2 = result.get("r_squared_log", 0.0)
 print(f"Log R² = {log_r2:.3f} ({'PASS' if log_r2 > 0.3 else 'FAIL'})")
 ```
 ---
@@ -280,11 +288,11 @@ print(f"Log R² = {log_r2:.3f} ({'PASS' if log_r2 > 0.3 else 'FAIL'})")
 **Solutions:**
 ```python
 # Enable hierarchical system
-config = {'hierarchical_mode': 'full'}
+config = {"hierarchical_mode": "full"}
 # Increase number of levels
-config = {'n_levels': 6}
+config = {"n_levels": 6}
 # Reduce timescale ratio
-config = {'k': 1.4}
+config = {"k": 1.4}
 ```
 ### Issue: Spectral exponent is too high (β > 1.5)
 **Symptoms:** Brown noise spectrum, over-correlated dynamics
@@ -295,11 +303,11 @@ config = {'k': 1.4}
 **Solutions:**
 ```python
 # Reduce coupling strengths
-config = {'C_down': 0.05, 'C_up': 0.02}
+config = {"C_down": 0.05, "C_up": 0.02}
 # Reduce decay timescale
-config = {'tau_pi': 500.0}
+config = {"tau_pi": 500.0}
 # Reduce number of levels
-config = {'n_levels': 3}
+config = {"n_levels": 3}
 ```
 ### Issue: Lorentzian fit is poor (log R² < 0.3)
 **Symptoms:** Observed spectrum doesn't match theoretical prediction
@@ -345,13 +353,15 @@ H = (β + 1) / 2
 For advanced analysis, use multifractal detrended fluctuation analysis (MFDFA):
 ```python
 from stats.hurst import estimate_hurst_robust
+
 # MFDFA can detect non-stationary dynamics
-H_mfdfa = estimate_hurst_robust(S_history, method='mfdfa')
+H_mfdfa = estimate_hurst_robust(S_history, method="mfdfa")
 ```
 ### Wavelet Analysis
 For time-frequency analysis:
 ```python
 import pywt
+
 # Continuous wavelet transform
 coeffs = pywt.cwt(S_history, pywt.morlet2, np.arange(1, 128))
 # Analyze power at different scales

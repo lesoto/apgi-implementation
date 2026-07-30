@@ -2,12 +2,13 @@
 Enable the full hierarchical system with a single configuration parameter:
 ```python
 from pipeline import APGIPipeline
+
 # Simple: enable full hierarchical system
 config = {
-    'hierarchical_mode': 'full',
-    'n_levels': 4,
-    'tau_0': 10.0,  # Base timescale (ms)
-    'k': 1.6,       # Timescale ratio
+    "hierarchical_mode": "full",
+    "n_levels": 4,
+    "tau_0": 10.0,  # Base timescale (ms)
+    "k": 1.6,  # Timescale ratio
 }
 pipeline = APGIPipeline(config)
 ```
@@ -18,7 +19,7 @@ consolidating three separate flags:
 ### Mode: `'off'` (Default)
 Disables all hierarchical features. Single-scale APGI system.
 ```python
-config = {'hierarchical_mode': 'off'}
+config = {"hierarchical_mode": "off"}
 # Equivalent to:
 # use_hierarchical = False
 # use_hierarchical_precision_ode = False
@@ -27,7 +28,7 @@ config = {'hierarchical_mode': 'off'}
 ### Mode: `'basic'`
 Enables hierarchical multi-timescale processing without advanced features.
 ```python
-config = {'hierarchical_mode': 'basic'}
+config = {"hierarchical_mode": "basic"}
 # Equivalent to:
 # use_hierarchical = True
 # use_hierarchical_precision_ode = False
@@ -40,7 +41,7 @@ config = {'hierarchical_mode': 'basic'}
 ### Mode: `'advanced'`
 Enables hierarchical system with precision ODE coupling.
 ```python
-config = {'hierarchical_mode': 'advanced'}
+config = {"hierarchical_mode": "advanced"}
 # Equivalent to:
 # use_hierarchical = True
 # use_hierarchical_precision_ode = True
@@ -56,7 +57,7 @@ config = {'hierarchical_mode': 'advanced'}
 ### Mode: `'full'` (Recommended)
 Enables all hierarchical features including phase-amplitude coupling.
 ```python
-config = {'hierarchical_mode': 'full'}
+config = {"hierarchical_mode": "full"}
 # Equivalent to:
 # use_hierarchical = True
 # use_hierarchical_precision_ode = True
@@ -93,10 +94,10 @@ Timescales follow a geometric progression:
 **Example:**
 ```python
 config = {
-    'hierarchical_mode': 'full',
-    'tau_0': 10.0,  # 10ms
-    'k': 1.6,       # Timescale ratio
-    'n_levels': 4,  # 4 levels
+    "hierarchical_mode": "full",
+    "tau_0": 10.0,  # 10ms
+    "k": 1.6,  # Timescale ratio
+    "n_levels": 4,  # 4 levels
 }
 # Resulting timescales:
 # Level 0: 10.0 ms
@@ -137,11 +138,11 @@ dΠ_ℓ/dt = -Π_ℓ/τ_Π + α|ε_ℓ| + C_down(Π_{ℓ+1} - Π_ℓ) + C_up·ψ
 **Configuration:**
 ```python
 config = {
-    'hierarchical_mode': 'advanced',
-    'tau_pi': 1000.0,      # Precision decay timescale (ms)
-    'alpha_pi': 0.1,       # Error-to-precision gain
-    'C_down': 0.1,         # Top-down coupling strength
-    'C_up': 0.05,          # Bottom-up coupling strength
+    "hierarchical_mode": "advanced",
+    "tau_pi": 1000.0,  # Precision decay timescale (ms)
+    "alpha_pi": 0.1,  # Error-to-precision gain
+    "C_down": 0.1,  # Top-down coupling strength
+    "C_up": 0.05,  # Bottom-up coupling strength
 }
 ```
 ---
@@ -155,9 +156,9 @@ This creates rhythmic windows of opportunity for ignition at lower levels.
 **Configuration:**
 ```python
 config = {
-    'hierarchical_mode': 'full',
-    'kappa_down': 0.15,    # Phase coupling strength (PAC)
-    'kappa_up': 0.05,      # Bottom-up cascade strength
+    "hierarchical_mode": "full",
+    "kappa_down": 0.15,  # Phase coupling strength (PAC)
+    "kappa_up": 0.05,  # Bottom-up cascade strength
     # WARNING: kappa_up > 0.1 with large input amplitudes causes upper-level
     # phi values to saturate (all superthreshold), yielding constant arrays
     # with std=0, which makes corrcoef return NaN. Keep kappa_up <= 0.05.
@@ -200,58 +201,53 @@ w_3 = 0.1018  (slowest level, lowest weight)
 ### Example 1: Basic Hierarchical System
 ```python
 config = {
-    'hierarchical_mode': 'basic',
-    'n_levels': 3,
-    'tau_0': 10.0,
-    'k': 1.5,
-    'alpha_e': 0.1,
-    'alpha_i': 0.1,
-    'lambda': 0.1,
-    'eta': 0.01,
+    "hierarchical_mode": "basic",
+    "n_levels": 3,
+    "tau_0": 10.0,
+    "k": 1.5,
+    "alpha_e": 0.1,
+    "alpha_i": 0.1,
+    "lambda": 0.1,
+    "eta": 0.01,
 }
 pipeline = APGIPipeline(config)
 ```
 ### Example 2: Full Hierarchical System with Precision ODE
 ```python
 config = {
-    'hierarchical_mode': 'full',
-    'n_levels': 4,
-    'tau_0': 10.0,
-    'k': 1.6,
-    
+    "hierarchical_mode": "full",
+    "n_levels": 4,
+    "tau_0": 10.0,
+    "k": 1.6,
     # Precision ODE parameters
-    'tau_pi': 1000.0,
-    'alpha_pi': 0.1,
-    'C_down': 0.1,
-    'C_up': 0.05,
-    
+    "tau_pi": 1000.0,
+    "alpha_pi": 0.1,
+    "C_down": 0.1,
+    "C_up": 0.05,
     # Phase-amplitude coupling
-    'kappa_down': 0.1,
-    'kappa_up': 0.05,
-    
+    "kappa_down": 0.1,
+    "kappa_up": 0.05,
     # Signal accumulation
-    'lambda': 0.1,
-    'eta': 0.01,
+    "lambda": 0.1,
+    "eta": 0.01,
 }
 pipeline = APGIPipeline(config)
 ```
 ### Example 3: Hierarchical + Reservoir + Kuramoto
 ```python
 config = {
-    'hierarchical_mode': 'full',
-    'n_levels': 4,
-    'tau_0': 10.0,
-    'k': 1.6,
-    
+    "hierarchical_mode": "full",
+    "n_levels": 4,
+    "tau_0": 10.0,
+    "k": 1.6,
     # Reservoir computing
-    'use_reservoir': True,
-    'reservoir_size': 100,
-    'spectral_radius': 0.9,
-    
+    "use_reservoir": True,
+    "reservoir_size": 100,
+    "spectral_radius": 0.9,
     # Kuramoto oscillators
-    'use_kuramoto': True,
-    'kuramoto_n_levels': 4,
-    'kuramoto_coupling': 0.1,
+    "use_kuramoto": True,
+    "kuramoto_n_levels": 4,
+    "kuramoto_coupling": 0.1,
 }
 pipeline = APGIPipeline(config)
 ```
@@ -261,24 +257,25 @@ The `step()` function returns a dictionary with hierarchical information:
 ```python
 output = pipeline.step(x_e, x_i, x_hat_e, x_hat_i)
 # Core outputs (all modes)
-output['z_e']              # Exteroceptive error
-output['z_i']              # Interoceptive error
-output['S']                # Accumulated signal
-output['theta']            # Dynamic threshold
-output['ignition_margin']  # Δ(t) = S(t) - θ(t)
-output['B']                # Ignition state (0 or 1)
+output["z_e"]  # Exteroceptive error
+output["z_i"]  # Interoceptive error
+output["S"]  # Accumulated signal
+output["theta"]  # Dynamic threshold
+output["ignition_margin"]  # Δ(t) = S(t) - θ(t)
+output["B"]  # Ignition state (0 or 1)
 # Hierarchical outputs (hierarchical_mode != 'off')
-output['S_hierarchical']   # Multi-scale aggregated signal
-output['pi_levels']        # Precision at each level
-output['theta_levels']     # Threshold at each level
-output['phases']           # Oscillatory phases (if use_kuramoto=True)
+output["S_hierarchical"]  # Multi-scale aggregated signal
+output["pi_levels"]  # Precision at each level
+output["theta_levels"]  # Threshold at each level
+output["phases"]  # Oscillatory phases (if use_kuramoto=True)
 ```
 ---
 ## Validation and Diagnostics
 ### Check Hierarchical Configuration
 ```python
 from core.validation import validate_config
-config = {'hierarchical_mode': 'full', 'n_levels': 4}
+
+config = {"hierarchical_mode": "full", "n_levels": 4}
 validate_config(config)  # Raises ValidationError if invalid
 ```
 ### Monitor Hierarchical Dynamics
@@ -286,14 +283,14 @@ validate_config(config)  # Raises ValidationError if invalid
 # Run simulation
 for t in range(1000):
     output = pipeline.step(x_e_t, x_i_t)
-    
+
     # Monitor multi-scale signal
     print(f"S = {output['S']:.3f}")
     print(f"θ = {output['theta']:.3f}")
     print(f"Δ = {output['ignition_margin']:.3f}")
-    
+
     # Monitor precision coupling (if enabled)
-    if 'pi_levels' in output:
+    if "pi_levels" in output:
         print(f"Π_levels = {output['pi_levels']}")
 ```
 ### Validate Spectral Signature
@@ -301,8 +298,9 @@ for t in range(1000):
 import numpy as np
 from stats.hurst import estimate_hurst_robust, welch_periodogram
 from stats.spectral_model import estimate_1f_exponent
+
 # Collect signal history
-S_history = np.array([output['S'] for output in outputs])
+S_history = np.array([output["S"] for output in outputs])
 fs = 1.0 / pipeline.config.get("dt", 1.0)
 # Estimate spectral exponent
 freqs, psd = welch_periodogram(S_history, fs=fs)
@@ -320,7 +318,7 @@ behaves like single-scale.
 **Solution:** Check that `hierarchical_mode` is set before creating pipeline:
 ```python
 # ✅ Correct
-config = {'hierarchical_mode': 'full'}
+config = {"hierarchical_mode": "full"}
 pipeline = APGIPipeline(config)
 # ❌ Wrong (hierarchical_mode not set)
 config = {}
@@ -331,10 +329,10 @@ pipeline = APGIPipeline(config)
 **Solution:** Reduce coupling strengths or increase decay timescale:
 ```python
 config = {
-    'hierarchical_mode': 'advanced',
-    'tau_pi': 2000.0,      # Increase decay timescale
-    'C_down': 0.05,        # Reduce coupling strength
-    'C_up': 0.02,
+    "hierarchical_mode": "advanced",
+    "tau_pi": 2000.0,  # Increase decay timescale
+    "C_down": 0.05,  # Reduce coupling strength
+    "C_up": 0.02,
 }
 ```
 ### Issue: Threshold oscillates wildly
@@ -343,8 +341,8 @@ config = {
 modulation:
 ```python
 config = {
-    'hierarchical_mode': 'advanced',  # Skip 'full' to disable phase modulation
-    'kappa_down': 0.05,               # Reduce phase coupling
+    "hierarchical_mode": "advanced",  # Skip 'full' to disable phase modulation
+    "kappa_down": 0.05,  # Reduce phase coupling
 }
 ```
 ### Issue: Cascade detection NaN / maturity score 0
@@ -366,8 +364,8 @@ for ell in range(n_levels):
 **Solution:**
 ```python
 config = {
-    'kappa_up': 0.05,              # Keep weak (≤ 0.05)
-    'kappa_phase': 0.15,           # PAC coupling separate from cascade
+    "kappa_up": 0.05,  # Keep weak (≤ 0.05)
+    "kappa_phase": 0.15,  # PAC coupling separate from cascade
     # Also reduce input amplitude for maturity assessment simulations:
 }
 # Input: rng.standard_normal() * 0.1  (not 0.3 or higher)
