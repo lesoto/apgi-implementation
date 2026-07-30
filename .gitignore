@@ -156,3 +156,10 @@ data_repository/*.db
 .gitnexus
 .claude
 .worktrees/
+
+# Generated run artifacts. Figures and run manifests are OUTPUTS, reproducible
+# from `make reproduce-paper` plus a seed. A committed manifest is actively
+# misleading: it records a wall-clock timestamp, the generating machine's
+# platform, and the working-tree dirty flag at generation time, so it churns on
+# every run and describes someone else's environment rather than the reader's.
+outputs/
